@@ -25,8 +25,9 @@ namespace OsEngine.Market.Servers.Deribit
 
             CreateParameterString("Client ID", "");
             CreateParameterString("Client Secret", "");
+            CreateParameterEnum("Currency", "All", new List<string> { "All", "BTC", "ETH", "USDC", "USDT", "SOL", "MATIC", "XRP" });
             CreateParameterEnum("Server", "Real", new List<string> { "Real", "Test" }); // можно выбрать сервер - реальный или тестовый, на каждам свои аккауты и api ключи
-            CreateParameterBoolean("Post Only for Limit Orders", false);
+            CreateParameterBoolean("Post Only for Limit Orders", false);            
         }
     }
 
@@ -55,7 +56,8 @@ namespace OsEngine.Market.Servers.Deribit
         {
             _clientID = ((ServerParameterString)ServerParameters[0]).Value;
             _secretKey = ((ServerParameterString)ServerParameters[1]).Value;
-            if (((ServerParameterEnum)ServerParameters[2]).Value == "Real")
+
+            if (((ServerParameterEnum)ServerParameters[3]).Value == "Real")
             {
                 _baseUrl = "https://www.deribit.com";
                 _webSocketUrl = "wss://www.deribit.com/ws/api/v2";
@@ -66,13 +68,21 @@ namespace OsEngine.Market.Servers.Deribit
                 _webSocketUrl = "wss://test.deribit.com/ws/api/v2";
             }
 
-            if (((ServerParameterBool)ServerParameters[3]).Value == true)
+            if (((ServerParameterBool)ServerParameters[4]).Value == true)
             {
                 _postOnly = "true";
             }
             else
             {
                 _postOnly = "false";
+            }
+            if (((ServerParameterEnum)ServerParameters[2]).Value == "All")
+            {
+                _listCurrency = new List<string>() { "BTC", "ETH", "USDC", "USDT", "SOL", "MATIC", "XRP" };
+            }
+            else
+            {
+                _listCurrency = new List<string>() { ((ServerParameterEnum)ServerParameters[2]).Value };
             }
 
             HttpResponseMessage responseMessage = _httpClient.GetAsync(_baseUrl + "/api/v2/public/get_currencies?").Result;
@@ -166,7 +176,7 @@ namespace OsEngine.Market.Servers.Deribit
 
         private int _limitCandles = 5000;
 
-        private List<string> _listCurrency = new List<string>() { "BTC", "ETH", "USDC", "USDT", "SOL", "MATIC", "XRP" }; // список валют на бирже
+        private List<string> _listCurrency = new List<string>(); // список валют на бирже
         
         private List<string> _arrayChannelsBook = new List<string>();
         
@@ -226,7 +236,7 @@ namespace OsEngine.Market.Servers.Deribit
                     newSecurity.Exchange = ServerType.Deribit.ToString();
                     newSecurity.Name = item.instrument_name;
                     newSecurity.NameFull = item.instrument_name;
-                    newSecurity.NameClass = "Futures";
+                    newSecurity.NameClass = GetSecurityType(item.kind).ToString();
                     newSecurity.NameId = item.instrument_id;
                     newSecurity.SecurityType = GetSecurityType(item.kind);
                     newSecurity.DecimalsVolume = item.contract_size.DecimalsCount();
@@ -255,6 +265,9 @@ namespace OsEngine.Market.Servers.Deribit
                     break;
                 case "spot":
                     _securityType = SecurityType.CurrencyPair;
+                    break;
+                case "option":
+                    _securityType = SecurityType.Option;
                     break;
             }
             return _securityType;
