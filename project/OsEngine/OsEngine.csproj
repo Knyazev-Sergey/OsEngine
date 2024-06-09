@@ -1058,6 +1058,10 @@
     <Compile Include="Robots\CounterTrend\ClusterCountertrend.cs" />
     <Compile Include="Robots\CurrencyArbitrage\CurrencyArbitrageClassic.cs" />
     <Compile Include="Robots\CurrencyArbitrage\CurrencyMoveExplorer.cs" />
+    <Compile Include="Robots\DeribitPI\DeribitPI.cs" />
+    <Compile Include="Robots\DeribitPI\DeribitPIUi.xaml.cs">
+      <DependentUpon>DeribitPIUi.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Robots\Engines\EnginePair.cs" />
     <Compile Include="Robots\Engines\PolygonalEngine.cs" />
     <Compile Include="Robots\HomeWork\ChartBot.cs" />
@@ -1090,6 +1094,10 @@
     <Compile Include="Robots\PairArbitrage\PairCointegrationSideTrader.cs" />
     <Compile Include="Robots\PairArbitrage\PairCorrelationNegative.cs" />
     <Compile Include="Robots\PairArbitrage\PairCorrelationTrader.cs" />
+    <Compile Include="Robots\Quoter\Quoter.cs" />
+    <Compile Include="Robots\Quoter\QuoterBotUi.xaml.cs">
+      <DependentUpon>QuoterBotUi.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Robots\TechSamples\AllSourcesInOneSample.cs" />
     <Compile Include="Robots\TechSamples\BlockIndicatorsSample.cs" />
     <Compile Include="Robots\TechSamples\ChangePriceBotExtStopMarket.cs" />
@@ -1683,9 +1691,17 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="Robots\DeribitPI\DeribitPIUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="Robots\MarketMaker\PairTraderSimpleUi.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Robots\Quoter\QuoterBotUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
     </Page>
     <Page Include="Robots\Trend\MomentumMacdUi.xaml">
       <SubType>Designer</SubType>
