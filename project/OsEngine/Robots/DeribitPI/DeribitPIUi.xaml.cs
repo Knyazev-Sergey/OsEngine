@@ -5,6 +5,7 @@
 
 using System;
 using System.Windows;
+using System.Windows.Controls;
 using OsEngine.Entity;
 using OsEngine.Language;
 using OsEngine.OsTrader.Panels;
@@ -14,23 +15,24 @@ namespace OsEngine.Robots.DeribitPI
     public partial class DeribitPIUi
     {
         private DeribitPI _strategy;
-
+        
         public DeribitPIUi(DeribitPI strategy)
         {
             InitializeComponent();
             OsEngine.Layout.StickyBorders.Listen(this);
-            OsEngine.Layout.StartupLocation.Start_MouseInCentre(this);
             _strategy = strategy;
 
-            ComboBoxRegime.Items.Add(BotTradeRegime.Off);
-            ComboBoxRegime.Items.Add(BotTradeRegime.On);
+            ComboBoxRegime.Items.Add("Off");
+            ComboBoxRegime.Items.Add("Начать набор конструкции");
+            ComboBoxRegime.Items.Add("Разобрать конструкцию");
+            ComboBoxRegime.Items.Add("Остановить торговлю фьючерсом");
             ComboBoxRegime.SelectedItem = _strategy.Regime;
 
-           /* TextBoxVolumeOne.Text = _strategy.Volume.ToString();
+            /* TextBoxVolumeOne.Text = _strategy.Volume.ToString();
 
-            ComboBoxDirection.Items.Add(Side.Buy);
-            ComboBoxDirection.Items.Add(Side.Sell);
-            ComboBoxDirection.SelectedItem = _strategy.Direction;*/
+             ComboBoxDirection.Items.Add(Side.Buy);
+             ComboBoxDirection.Items.Add(Side.Sell);
+             ComboBoxDirection.SelectedItem = _strategy.Direction;*/
 
             this.Activate();
             this.Focus();

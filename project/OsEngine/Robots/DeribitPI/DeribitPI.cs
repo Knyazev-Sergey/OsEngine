@@ -2,14 +2,7 @@
 using OsEngine.OsTrader.Panels;
 using OsEngine.OsTrader.Panels.Tab;
 using OsEngine.OsTrader.Panels.Attributes;
-using System.Windows.Forms;
-using System.Windows.Forms.Integration;
-using System;
-using System.Windows.Forms.DataVisualization.Charting;
-using System.Drawing;
-using System.Threading;
 using System.Collections.Generic;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace OsEngine.Robots.DeribitPI
 {
@@ -17,14 +10,29 @@ namespace OsEngine.Robots.DeribitPI
     public class DeribitPI : BotPanel
     {
         private BotTabSimple _tab;
-        public BotTradeRegime Regime;
+        public string Regime;
+        public string TextInfo;
+        private DeribitPIUiModel _viewModel;
 
         public DeribitPI(string name, StartProgram startProgram) : base(name, startProgram)
         {
             TabCreate(BotTabType.Simple);
             _tab = TabsSimple[0];
 
-            Regime = BotTradeRegime.Off;
+            _tab.CandleUpdateEvent += _tab_CandleUpdateEvent;
+
+            _viewModel = new DeribitPIUiModel();
+
+        }
+
+        private void _tab_CandleUpdateEvent(List<Candle> obj)
+        {         
+            if (_viewModel == null)
+            {
+                return;
+            }
+            
+            _viewModel.LastPrice = "Новые данные";
         }
 
         public override string GetNameStrategyType()
