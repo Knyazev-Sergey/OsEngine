@@ -3,9 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:OsEngine.Robots.DeribitPI"
         Title="DeribitPI" Height="600" Width="600" Icon="/Images/OsLogo.ico" Style="{StaticResource WindowStyleNoResize}" ResizeMode="NoResize" WindowStartupLocation="CenterScreen" Topmost="True">
-    <Window.DataContext>
-        <local:DeribitPIUiModel/>
-    </Window.DataContext>
+   
     <Grid>
         <Label Name="LabelRegime" Content="Режим работы" HorizontalAlignment="Left" Margin="40,21,0,0" VerticalAlignment="Top" Foreground="Gainsboro" FontSize="14" />
         <ComboBox Name="ComboBoxRegime" Margin="149,21,40,0" VerticalAlignment="Top"/>
@@ -13,8 +11,10 @@
         <TabControl Margin="5,60,5,45">
             <TabItem Header="Настройки">
                 <StackPanel>
-                    <GroupBox Header="Настройка опционной конструкции" Margin="5,5,5,320" Height="120" Foreground="Gainsboro" FontSize="12" >
-                        <UniformGrid Rows="3" Columns="2">
+                    <GroupBox Header="Настройка опционной конструкции" Margin="5,5,5,320" Height="140" Foreground="Gainsboro" FontSize="12" >
+                        <UniformGrid Rows="4" Columns="2">
+                            <TextBlock Margin="5" Height="20" VerticalAlignment="Center">Выбор даты опциона</TextBlock>
+                            <ComboBox Name="OptionComboBox"/>
                             <TextBlock Margin="5" Height="20" VerticalAlignment="Center">% от депозита</TextBlock>
                             <TextBox Margin="5" Name="LabelPercentDeposit"></TextBox>
                             <TextBlock Margin="5" Height="20" VerticalAlignment="Center">Кол-во итераций</TextBlock>
@@ -77,7 +77,7 @@
                 <UniformGrid Rows="0" Columns="2">
                     <StackPanel>
                         <GroupBox Header="Информация с биржи" Margin="5,5,5,0" Foreground="Gainsboro" FontSize="12" Grid.Row="0" Grid.Column="0">
-                            <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="LabelTextInfo" Text="{Binding LastPrice}"></TextBlock>
+                            <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="LabelTextInfo" Text=""></TextBlock>
                         </GroupBox>
                     </StackPanel>
                     <StackPanel>
