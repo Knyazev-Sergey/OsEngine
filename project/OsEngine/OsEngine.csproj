@@ -1095,10 +1095,6 @@
     <Compile Include="Robots\PairArbitrage\PairCointegrationSideTrader.cs" />
     <Compile Include="Robots\PairArbitrage\PairCorrelationNegative.cs" />
     <Compile Include="Robots\PairArbitrage\PairCorrelationTrader.cs" />
-    <Compile Include="Robots\Quoter\Quoter.cs" />
-    <Compile Include="Robots\Quoter\QuoterBotUi.xaml.cs">
-      <DependentUpon>QuoterBotUi.xaml</DependentUpon>
-    </Compile>
     <Compile Include="Robots\TechSamples\AllSourcesInOneSample.cs" />
     <Compile Include="Robots\TechSamples\BlockIndicatorsSample.cs" />
     <Compile Include="Robots\TechSamples\ChangePriceBotExtStopMarket.cs" />
@@ -1699,10 +1695,6 @@
     <Page Include="Robots\MarketMaker\PairTraderSimpleUi.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="Robots\Quoter\QuoterBotUi.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
     </Page>
     <Page Include="Robots\Trend\MomentumMacdUi.xaml">
       <SubType>Designer</SubType>

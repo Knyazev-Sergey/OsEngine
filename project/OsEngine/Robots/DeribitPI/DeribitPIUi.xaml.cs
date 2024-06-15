@@ -4,6 +4,7 @@
 */
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,12 +12,14 @@ using System.Windows.Threading;
 using OsEngine.Entity;
 using OsEngine.Language;
 using OsEngine.OsTrader.Panels;
+using System.ComponentModel;
 
 namespace OsEngine.Robots.DeribitPI
 {
     public partial class DeribitPIUi
     {
         private DeribitPI _strategy;
+        //public bool CheckBoxTest;
 
         public DeribitPIUi(DeribitPI strategy)
         {
@@ -24,19 +27,16 @@ namespace OsEngine.Robots.DeribitPI
             OsEngine.Layout.StickyBorders.Listen(this);
             _strategy = strategy;
 
-            ComboBoxRegime.Items.Add("Off");
-            ComboBoxRegime.Items.Add("Начать набор конструкции");
-            ComboBoxRegime.Items.Add("Разобрать конструкцию");
-            ComboBoxRegime.Items.Add("Остановить торговлю фьючерсом");
-            ComboBoxRegime.SelectedItem = _strategy.Regime;
+            ComboBoxRegime.Items.Add(new { Value = NameRegime.Off, Description = "Выключен" });
+            ComboBoxRegime.Items.Add(new { Value = NameRegime.AssemblyConstruction, Description = "Набор конструкции" });
+            ComboBoxRegime.Items.Add(new { Value = NameRegime.DisassemblyConstruction, Description = "Разбор конструкции" });
+            ComboBoxRegime.Items.Add(new { Value = NameRegime.TradeFutures, Description = "Торговля фьючерсами" });
+            ComboBoxRegime.Items.Add(new { Value = NameRegime.StopTradeFutures, Description = "Остановить торговлю фьючерсом" });
+            ComboBoxRegime.SelectedValue = _strategy.Regime;
+
+            _strategy.CheckTestServer = CheckTestServer();
 
             StartThread();
-
-            /* TextBoxVolumeOne.Text = _strategy.Volume.ToString();
-
-             ComboBoxDirection.Items.Add(Side.Buy);
-             ComboBoxDirection.Items.Add(Side.Sell);
-             ComboBoxDirection.SelectedItem = _strategy.Direction;*/
 
             this.Activate();
             this.Focus();
@@ -54,14 +54,18 @@ namespace OsEngine.Robots.DeribitPI
             {
                 Thread.Sleep(1000);
 
-                //Dispatcher.Invoke(() => LabelTextInfo.Text = _strategy.viewModel);
                 Dispatcher.Invoke(new Action(UpdateText));               
             }
         }
 
         private void UpdateText()
         {
-            LabelTextInfo.Text = _strategy.ViewModel;
+            TextLastPrice.Text = _strategy.LastPrice.ToString();
+            TextCurrStrike.Text = _strategy.CurrentStrike;
+            TextPriceOption.Text = _strategy.PriceOption.ToString();
+            TextSizeOption.Text = _strategy.SizeOption.ToString();
+
+            TextDeposit.Text = _strategy.Deposit.ToString();
         }
 
         private void Button_Click(object sender, RoutedEventArgs e)
@@ -84,6 +88,61 @@ namespace OsEngine.Robots.DeribitPI
             Enum.TryParse(ComboBoxDirection.Text, true, out _strategy.Direction);*/
 
             Close();
+        }
+
+        public enum NameRegime
+        {
+            Off,
+            AssemblyConstruction,
+            DisassemblyConstruction,
+            TradeFutures,
+            StopTradeFutures
+        }
+
+        public bool CheckTestServer()
+        {
+            bool checkbox = false;
+
+            if (checkBoxTest.IsChecked == true)
+            {
+                checkbox = true;
+            }
+           
+            return checkbox;
+        }
+
+        private void checkBoxTest_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_strategy == null)
+            {
+                return;
+            }
+            _strategy.CheckTestServer = true;
+        }
+        private void checkBoxTest_Unchecked(object sender, RoutedEventArgs e)
+        {
+            if (_strategy == null)
+            {
+                return;
+            }
+            _strategy.CheckTestServer = false;
+        }
+
+        private void LabelPercentDeposit_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            TextBox textBox = sender as TextBox;
+            if (textBox != null && !string.IsNullOrEmpty(textBox.Text))
+            {
+                _strategy.PercentOfDeposit = int.Parse(textBox.Text);
+            }
+            else if (textBox.Text == "0")
+            {
+                _strategy.PercentOfDeposit = 0;
+            }
+            else
+            {
+                _strategy.PercentOfDeposit = 0;
+            }
         }
     }
 }

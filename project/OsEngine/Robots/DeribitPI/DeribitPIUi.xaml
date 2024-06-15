@@ -1,88 +1,134 @@
 ﻿<Window x:Class="OsEngine.Robots.DeribitPI.DeribitPIUi"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:OsEngine.Robots.DeribitPI"
-        Title="DeribitPI" Height="600" Width="600" Icon="/Images/OsLogo.ico" Style="{StaticResource WindowStyleNoResize}" ResizeMode="NoResize" WindowStartupLocation="CenterScreen" Topmost="True">
-   
+        Title="DeribitPI" Height="800" Width="800" Icon="/Images/OsLogo.ico" Style="{StaticResource WindowStyleNoResize}" ResizeMode="NoResize" WindowStartupLocation="CenterScreen" Topmost="False">
+
     <Grid>
-        <Label Name="LabelRegime" Content="Режим работы" HorizontalAlignment="Left" Margin="40,21,0,0" VerticalAlignment="Top" Foreground="Gainsboro" FontSize="14" />
-        <ComboBox Name="ComboBoxRegime" Margin="149,21,40,0" VerticalAlignment="Top"/>
+        <Label Name="LabelRegime" Content="Режим работы:" HorizontalAlignment="Left" Margin="40,21,0,0" VerticalAlignment="Top" Foreground="Gainsboro" FontSize="14" />
+        <ComboBox Name="ComboBoxRegime" DisplayMemberPath="Description" SelectedValuePath="Value" Margin="149,21,40,0" VerticalAlignment="Top"/>
+        <StackPanel Orientation="Horizontal">
+            <GroupBox Header="Настройка опционной конструкции" Margin="5,5,5,300" Height="360" Width="390" Foreground="Gainsboro" FontSize="12" >
+                <UniformGrid Rows="7" Columns="2">
 
-        <TabControl Margin="5,60,5,45">
-            <TabItem Header="Настройки">
-                <StackPanel>
-                    <GroupBox Header="Настройка опционной конструкции" Margin="5,5,5,320" Height="140" Foreground="Gainsboro" FontSize="12" >
-                        <UniformGrid Rows="4" Columns="2">
-                            <TextBlock Margin="5" Height="20" VerticalAlignment="Center">Выбор даты опциона</TextBlock>
-                            <ComboBox Name="OptionComboBox"/>
-                            <TextBlock Margin="5" Height="20" VerticalAlignment="Center">% от депозита</TextBlock>
-                            <TextBox Margin="5" Name="LabelPercentDeposit"></TextBox>
-                            <TextBlock Margin="5" Height="20" VerticalAlignment="Center">Кол-во итераций</TextBlock>
-                            <TextBox Margin="5" Name="CountIteration"></TextBox>
-                            <TextBlock Margin="5" Height="20" TextWrapping="Wrap">Время до экспирации для разбора конструкции</TextBlock>
-                            <TextBox Margin="5" Name="TimeToCloseOption"></TextBox>
-                        </UniformGrid>
-                    </GroupBox>
-                    <GroupBox Header="Настройка внутредневной торговли" Margin="5,-315,5,100" Height="230" Foreground="Gainsboro" FontSize="12" >
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="35"></RowDefinition>
-                                <RowDefinition Height="30"></RowDefinition>
-                                <RowDefinition Height="35"></RowDefinition>
-                                <RowDefinition Height="76*"></RowDefinition>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="50*"></ColumnDefinition>
-                                <ColumnDefinition Width="50*"></ColumnDefinition>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Margin="5,10,5,5" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Кол-во частей рабочей части</TextBlock>
-                            <TextBox Margin="5,0,5,0" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="CountWorkParts"/>
-                            <TextBlock Margin="5,0,5,0" Grid.Row="1" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Коэф расчета рабочей части</TextBlock>
-                            <TextBox Margin="5,0,5,0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="RatioWorkParts"></TextBox>
-                            <TextBlock Margin="5,5,5,0" Height="23" TextWrapping="Wrap" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" VerticalAlignment="Center">Увеличение рабочей части (Х плюсовых сделок - увеличиваем НРЧ в Y раз):</TextBlock>
-                            <Grid Margin="5,0,0,5" Grid.ColumnSpan="2" Grid.Column="0" Grid.Row="3">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="35"></RowDefinition>
-                                    <RowDefinition Height="35"></RowDefinition>
-                                    <RowDefinition Height="35"></RowDefinition>
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="30"></ColumnDefinition>
-                                    <ColumnDefinition Width="80"></ColumnDefinition>
-                                    <ColumnDefinition Width="30"></ColumnDefinition>
-                                    <ColumnDefinition Width="80"></ColumnDefinition>
-                                </Grid.ColumnDefinitions>
+                    <TextBlock Margin="5,0,5,0" Height="23" VerticalAlignment="Center" TextWrapping="Wrap">% от депозита</TextBlock>
+                    <TextBox Margin="5" Name="LabelPercentDeposit" TextChanged="LabelPercentDeposit_TextChanged"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="23" VerticalAlignment="Center" TextWrapping="Wrap">Кол-во итераций</TextBlock>
+                    <TextBox Margin="5" Name="CountIteration"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="38" TextWrapping="Wrap">Время до экспирации для разбора конструкции</TextBlock>
+                    <TextBox Margin="5" Name="TimeToCloseOption"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="38" VerticalAlignment="Center" TextWrapping="Wrap">Время на выставление лимитных заявок</TextBlock>
+                    <TextBox Margin="5" Name="LabelTimeFuturesLimit"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="22" TextWrapping="Wrap">Заявка по рынку</TextBlock>
+                    <CheckBox x:Name="checkBox" IsThreeState="False" Margin="5,0,5,5" IsChecked="True" Height="20"/>
+                    <TextBlock Margin="5,0,5,0" Height="54" VerticalAlignment="Center" TextWrapping="Wrap">Время на исполнение опционной заявки до изменения цены</TextBlock>
+                    <TextBox Margin="5" Name="LabelTimeOptionLimit"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="38" TextWrapping="Wrap">Пауза при покупке опциона при изменении страйка</TextBlock>
+                    <TextBox Margin="5" Name="LabelPauseBuyOption"></TextBox>
+                    
+                </UniformGrid>
+            </GroupBox>
+            <GroupBox Header="Настройка внутредневной торговли" Margin="0,5,5,300" Height="360" Width="390" Foreground="Gainsboro" FontSize="12" >
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="35"></RowDefinition>
+                        <RowDefinition Height="30"></RowDefinition>
+                        <RowDefinition Height="45"></RowDefinition>
+                        <RowDefinition Height="76*"></RowDefinition>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="50*"></ColumnDefinition>
+                        <ColumnDefinition Width="50*"></ColumnDefinition>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Margin="5,10,5,5" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Кол-во частей рабочей части</TextBlock>
+                    <TextBox Margin="5,0,5,0" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="CountWorkParts"/>
+                    <TextBlock Margin="5,0,5,0" Grid.Row="1" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Коэф расчета рабочей части</TextBlock>
+                    <TextBox Margin="5,0,5,0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="RatioWorkParts"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="44" TextWrapping="Wrap" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" VerticalAlignment="Center">Увеличение рабочей части (Х плюсовых сделок - увеличиваем НРЧ в Y раз):</TextBlock>
+                    <Grid Margin="5,0,0,5" Grid.ColumnSpan="2" Grid.Column="0" Grid.Row="3">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="35"></RowDefinition>
+                            <RowDefinition Height="35"></RowDefinition>
+                            <RowDefinition Height="35"></RowDefinition>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="35"></ColumnDefinition>
+                            <ColumnDefinition Width="80"></ColumnDefinition>
+                            <ColumnDefinition Width="35"></ColumnDefinition>
+                            <ColumnDefinition Width="80"></ColumnDefinition>
+                        </Grid.ColumnDefinitions>
 
-                                <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="0" Grid.Row="0" VerticalAlignment="Center">X =</TextBlock>
-                                <TextBox Margin="5" Grid.Column="1" Grid.Row="0" VerticalAlignment="Center" Height="23" Name="OneIncreaseX"/>
-                                <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="2" Grid.Row="0" VerticalAlignment="Center">Y =</TextBlock>
-                                <TextBox Margin="5" Grid.Column="3" Grid.Row="0" VerticalAlignment="Center" Height="23" Name="OneIncreaseY"/>
+                        <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="0" Grid.Row="0" VerticalAlignment="Center">X1 =</TextBlock>
+                        <TextBox Margin="5" Grid.Column="1" Grid.Row="0" VerticalAlignment="Center" Height="23" Name="OneIncreaseX"/>
+                        <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="2" Grid.Row="0" VerticalAlignment="Center">Y1 =</TextBlock>
+                        <TextBox Margin="5" Grid.Column="3" Grid.Row="0" VerticalAlignment="Center" Height="23" Name="OneIncreaseY"/>
 
-                                <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="0" Grid.Row="1" VerticalAlignment="Center">X =</TextBlock>
-                                <TextBox Margin="5" Grid.Column="1" Grid.Row="1" VerticalAlignment="Center" Height="23" Name="TwoIncreaseX"/>
-                                <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="2" Grid.Row="1" VerticalAlignment="Center">Y =</TextBlock>
-                                <TextBox Margin="5" Grid.Column="3" Grid.Row="1" VerticalAlignment="Center" Height="23" Name="TwoIncreaseY"/>
+                        <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="0" Grid.Row="1" VerticalAlignment="Center">X2 =</TextBlock>
+                        <TextBox Margin="5" Grid.Column="1" Grid.Row="1" VerticalAlignment="Center" Height="23" Name="TwoIncreaseX"/>
+                        <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="2" Grid.Row="1" VerticalAlignment="Center">Y2 =</TextBlock>
+                        <TextBox Margin="5" Grid.Column="3" Grid.Row="1" VerticalAlignment="Center" Height="23" Name="TwoIncreaseY"/>
 
-                                <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="0" Grid.Row="2" VerticalAlignment="Center">X =</TextBlock>
-                                <TextBox Margin="5" Grid.Column="1" Grid.Row="2" VerticalAlignment="Center" Height="23" Name="ThreeIncreaseX"/>
-                                <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="2" Grid.Row="2" VerticalAlignment="Center">Y =</TextBlock>
-                                <TextBox Margin="5" Grid.Column="3" Grid.Row="2" VerticalAlignment="Center" Height="23" Name="ThreeIncreaseY"/>
-                            </Grid>
-                        </Grid>
-                    </GroupBox>
-                </StackPanel>
-            </TabItem>
-
+                        <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="0" Grid.Row="2" VerticalAlignment="Center">X3 =</TextBlock>
+                        <TextBox Margin="5" Grid.Column="1" Grid.Row="2" VerticalAlignment="Center" Height="23" Name="ThreeIncreaseX"/>
+                        <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="2" Grid.Row="2" VerticalAlignment="Center">Y3 =</TextBlock>
+                        <TextBox Margin="5" Grid.Column="3" Grid.Row="2" VerticalAlignment="Center" Height="23" Name="ThreeIncreaseY"/>
+                    </Grid>
+                </Grid>
+            </GroupBox>
+        </StackPanel>
+        <TabControl Margin="5,430,5,45">
             <TabItem Header="Информация с биржи">
                 <UniformGrid Rows="0" Columns="2">
                     <StackPanel>
                         <GroupBox Header="Информация с биржи" Margin="5,5,5,0" Foreground="Gainsboro" FontSize="12" Grid.Row="0" Grid.Column="0">
-                            <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="LabelTextInfo" Text=""></TextBlock>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Последняя цена:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextLastPrice" Text=""></TextBlock>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Текущий страйк:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextCurrStrike" Text=""></TextBlock>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Цена опциона на текущем страйке:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextPriceOption" Text=""></TextBlock>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Кол-во опционов к покупке:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextSizeOption" Text=""></TextBlock>
+                                </StackPanel>
+                                
+                            </StackPanel>                            
                         </GroupBox>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Margin="5,0,5,0" Height="22" TextWrapping="Wrap">Test Server</TextBlock>
+                            <CheckBox x:Name="checkBoxTest" IsThreeState="False" Margin="5,0,5,5" IsChecked="True" Height="20" Checked="checkBoxTest_Checked" Unchecked="checkBoxTest_Unchecked"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <DatePicker Name="datePicker1" IsDropDownOpen="False" SelectedDateFormat="Short" />
+                        </StackPanel>
                     </StackPanel>
                     <StackPanel>
                         <GroupBox Header="Отчет по позициям" Margin="5,5,5,0" Foreground="Gainsboro" FontSize="12" Grid.Row="0" Grid.Column="1">
-                            <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="LabelTextPosition"></TextBlock>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Депозит:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextDeposit" Text=""></TextBlock>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Кол-во опционов:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextSizeOptionOnBoard" Text=""></TextBlock>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Кол-во фьючерсов:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextSizeFuturesOnBoard" Text=""></TextBlock>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Ордера на покупку:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextOrdersBuy" Text=""></TextBlock>
+                                </StackPanel>
+
+                            </StackPanel>
                         </GroupBox>
                     </StackPanel>
                 </UniformGrid>
