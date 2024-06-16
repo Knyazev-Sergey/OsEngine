@@ -5,7 +5,7 @@
 
     <Grid>
         <Label Name="LabelRegime" Content="Режим работы:" HorizontalAlignment="Left" Margin="40,21,0,0" VerticalAlignment="Top" Foreground="Gainsboro" FontSize="14" />
-        <ComboBox Name="ComboBoxRegime" DisplayMemberPath="Description" SelectedValuePath="Value" Margin="149,21,40,0" VerticalAlignment="Top"/>
+        <ComboBox Name="ComboBoxRegime" SelectionChanged="ComboBoxRegime_SelectionChanged" DisplayMemberPath="Description" SelectedValuePath="Value" Margin="149,21,40,0" VerticalAlignment="Top"/>
         <StackPanel Orientation="Horizontal">
             <GroupBox Header="Настройка опционной конструкции" Margin="5,5,5,300" Height="360" Width="390" Foreground="Gainsboro" FontSize="12" >
                 <UniformGrid Rows="7" Columns="2">
@@ -13,17 +13,17 @@
                     <TextBlock Margin="5,0,5,0" Height="23" VerticalAlignment="Center" TextWrapping="Wrap">% от депозита</TextBlock>
                     <TextBox Margin="5" Name="LabelPercentDeposit" TextChanged="LabelPercentDeposit_TextChanged"></TextBox>
                     <TextBlock Margin="5,0,5,0" Height="23" VerticalAlignment="Center" TextWrapping="Wrap">Кол-во итераций</TextBlock>
-                    <TextBox Margin="5" Name="CountIteration"></TextBox>
-                    <TextBlock Margin="5,0,5,0" Height="38" TextWrapping="Wrap">Время до экспирации для разбора конструкции</TextBlock>
-                    <TextBox Margin="5" Name="TimeToCloseOption"></TextBox>
-                    <TextBlock Margin="5,0,5,0" Height="38" VerticalAlignment="Center" TextWrapping="Wrap">Время на выставление лимитных заявок</TextBlock>
-                    <TextBox Margin="5" Name="LabelTimeFuturesLimit"></TextBox>
+                    <TextBox Margin="5" Name="CountIteration" TextChanged="CountIteration_TextChanged"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="38" TextWrapping="Wrap">Время до экспирации для разбора конструкции (мин)</TextBlock>
+                    <TextBox Margin="5" Name="TimeToCloseOption" TextChanged="TimeToCloseOption_TextChanged"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="38" VerticalAlignment="Center" TextWrapping="Wrap">Время на выставление лимитных заявок (сек)</TextBlock>
+                    <TextBox Margin="5" Name="LabelTimeFuturesLimit" TextChanged="LabelTimeFuturesLimit_TextChanged"></TextBox>
                     <TextBlock Margin="5,0,5,0" Height="22" TextWrapping="Wrap">Заявка по рынку</TextBlock>
-                    <CheckBox x:Name="checkBox" IsThreeState="False" Margin="5,0,5,5" IsChecked="True" Height="20"/>
-                    <TextBlock Margin="5,0,5,0" Height="54" VerticalAlignment="Center" TextWrapping="Wrap">Время на исполнение опционной заявки до изменения цены</TextBlock>
-                    <TextBox Margin="5" Name="LabelTimeOptionLimit"></TextBox>
-                    <TextBlock Margin="5,0,5,0" Height="38" TextWrapping="Wrap">Пауза при покупке опциона при изменении страйка</TextBlock>
-                    <TextBox Margin="5" Name="LabelPauseBuyOption"></TextBox>
+                    <CheckBox x:Name="checkBoxMarketOrder" IsThreeState="False" Margin="5,0,5,5" IsChecked="True" Height="20" Checked="checkBoxMarketOrder_Checked" Unchecked="checkBoxMarketOrder_Unchecked"/>
+                    <TextBlock Margin="5,0,5,0" Height="54" VerticalAlignment="Center" TextWrapping="Wrap">Время на исполнение опционной заявки до изменения цены (мин)</TextBlock>
+                    <TextBox Margin="5" Name="LabelTimeOptionLimit" TextChanged="LabelTimeOptionLimit_TextChanged"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="38" TextWrapping="Wrap">Пауза при покупке опциона при изменении страйка (мин)</TextBlock>
+                    <TextBox Margin="5" Name="LabelPauseBuyOption" TextChanged="LabelPauseBuyOption_TextChanged"></TextBox>
                     
                 </UniformGrid>
             </GroupBox>
@@ -40,9 +40,9 @@
                         <ColumnDefinition Width="50*"></ColumnDefinition>
                     </Grid.ColumnDefinitions>
                     <TextBlock Margin="5,10,5,5" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Кол-во частей рабочей части</TextBlock>
-                    <TextBox Margin="5,0,5,0" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="CountWorkParts"/>
+                    <TextBox Margin="5,0,5,0" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="CountWorkParts" TextChanged="CountWorkParts_TextChanged"/>
                     <TextBlock Margin="5,0,5,0" Grid.Row="1" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Коэф расчета рабочей части</TextBlock>
-                    <TextBox Margin="5,0,5,0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="RatioWorkParts"></TextBox>
+                    <TextBox Margin="5,0,5,0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="RatioWorkParts" TextChanged="RatioWorkParts_TextChanged"></TextBox>
                     <TextBlock Margin="5,0,5,0" Height="44" TextWrapping="Wrap" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" VerticalAlignment="Center">Увеличение рабочей части (Х плюсовых сделок - увеличиваем НРЧ в Y раз):</TextBlock>
                     <Grid Margin="5,0,0,5" Grid.ColumnSpan="2" Grid.Column="0" Grid.Row="3">
                         <Grid.RowDefinitions>
@@ -58,19 +58,19 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="0" Grid.Row="0" VerticalAlignment="Center">X1 =</TextBlock>
-                        <TextBox Margin="5" Grid.Column="1" Grid.Row="0" VerticalAlignment="Center" Height="23" Name="OneIncreaseX"/>
+                        <TextBox Margin="5" Grid.Column="1" Grid.Row="0" VerticalAlignment="Center" Height="23" Name="OneIncreaseX" TextChanged="OneIncreaseX_TextChanged"/>
                         <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="2" Grid.Row="0" VerticalAlignment="Center">Y1 =</TextBlock>
-                        <TextBox Margin="5" Grid.Column="3" Grid.Row="0" VerticalAlignment="Center" Height="23" Name="OneIncreaseY"/>
+                        <TextBox Margin="5" Grid.Column="3" Grid.Row="0" VerticalAlignment="Center" Height="23" Name="OneIncreaseY" TextChanged="OneIncreaseY_TextChanged"/>
 
                         <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="0" Grid.Row="1" VerticalAlignment="Center">X2 =</TextBlock>
-                        <TextBox Margin="5" Grid.Column="1" Grid.Row="1" VerticalAlignment="Center" Height="23" Name="TwoIncreaseX"/>
+                        <TextBox Margin="5" Grid.Column="1" Grid.Row="1" VerticalAlignment="Center" Height="23" Name="TwoIncreaseX" TextChanged="TwoIncreaseX_TextChanged"/>
                         <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="2" Grid.Row="1" VerticalAlignment="Center">Y2 =</TextBlock>
-                        <TextBox Margin="5" Grid.Column="3" Grid.Row="1" VerticalAlignment="Center" Height="23" Name="TwoIncreaseY"/>
+                        <TextBox Margin="5" Grid.Column="3" Grid.Row="1" VerticalAlignment="Center" Height="23" Name="TwoIncreaseY" TextChanged="TwoIncreaseY_TextChanged"/>
 
                         <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="0" Grid.Row="2" VerticalAlignment="Center">X3 =</TextBlock>
-                        <TextBox Margin="5" Grid.Column="1" Grid.Row="2" VerticalAlignment="Center" Height="23" Name="ThreeIncreaseX"/>
+                        <TextBox Margin="5" Grid.Column="1" Grid.Row="2" VerticalAlignment="Center" Height="23" Name="ThreeIncreaseX" TextChanged="ThreeIncreaseX_TextChanged"/>
                         <TextBlock Margin="5,3,0,0" Height="23" TextWrapping="Wrap" Grid.Column="2" Grid.Row="2" VerticalAlignment="Center">Y3 =</TextBlock>
-                        <TextBox Margin="5" Grid.Column="3" Grid.Row="2" VerticalAlignment="Center" Height="23" Name="ThreeIncreaseY"/>
+                        <TextBox Margin="5" Grid.Column="3" Grid.Row="2" VerticalAlignment="Center" Height="23" Name="ThreeIncreaseY" TextChanged="ThreeIncreaseY_TextChanged"/>
                     </Grid>
                 </Grid>
             </GroupBox>

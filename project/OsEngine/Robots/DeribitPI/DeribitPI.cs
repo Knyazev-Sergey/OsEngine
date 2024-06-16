@@ -24,9 +24,26 @@ namespace OsEngine.Robots.DeribitPI
         public decimal Deposit;
         public decimal PercentOfDeposit;
         public decimal SizeOption;
+        public bool CheckTestServer;
+        public decimal SizeBuyOption;
+        public int CountIteration;
+        public int TimeToCloseOption;
+        public int TimeFuturesLimit;
+        public bool CheckBoxMarketOrder;
+        public int TimeOptionLimit;
+        public int PauseBuyOption;
+        public int CountWorkParts;
+        public int RatioWorkParts;
+        public int OneIncreaseX;
+        public int OneIncreaseY;
+        public int TwoIncreaseX;
+        public int TwoIncreaseY;
+        public int ThreeIncreaseX;
+        public int ThreeIncreaseY;
+        private int _currentTab;
+
         
 
-        public bool CheckTestServer;
         public DeribitPI(string name, StartProgram startProgram) : base(name, startProgram)
         {
             TabCreate(BotTabType.Simple);
@@ -72,7 +89,9 @@ namespace OsEngine.Robots.DeribitPI
         }
 
         private void StartRobot()
-        {            
+        {
+            bool flagStartTradeOption = false;
+
             while (true)
             {
                 Thread.Sleep(1000);
@@ -127,8 +146,48 @@ namespace OsEngine.Robots.DeribitPI
                 {
                     SizeOption = 0;
                 }
-                   
+
+                if (Regime != DeribitPIUi.NameRegime.Off)
+                {
+                    
+                }
+
+                
+                if(Regime == DeribitPIUi.NameRegime.AssemblyConstruction)
+                {
+                    // выставляем начальный ордер для котирования опциона
+                    if (SizeOption != 0 && 
+                        SizeOption - SizeBuyOption > 0 && 
+                        flagStartTradeOption == false)
+                    {
+                        for (int i = 0; i < _tab2.Tabs.Count; i++)
+                        {
+                            if (_tab2.Tabs[i].Securiti.Name == CurrentStrike)
+                            {
+                                _currentTab = i;
+                                
+                                //_tab2.Tabs[i].BuyAtLimit(1, GetOptionPriceLimit());
+                                break;
+                            }                            
+                        }                        
+                    }
+
+                    if (flagStartTradeOption)
+                    {
+                        if (_tab2.Tabs[_currentTab].Securiti.Name != CurrentStrike)
+                        {
+
+                            flagStartTradeOption = false;
+                        }
+                    }
+                }                   
             }
+        }
+
+        private decimal GetOptionPriceLimit()
+        {
+
+            return 0;
         }
 
         private void GetMarkPrice()
