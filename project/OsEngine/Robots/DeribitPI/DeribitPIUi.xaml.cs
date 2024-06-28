@@ -13,6 +13,7 @@ using OsEngine.Entity;
 using OsEngine.Language;
 using OsEngine.OsTrader.Panels;
 using System.ComponentModel;
+using System.Collections.Generic;
 
 namespace OsEngine.Robots.DeribitPI
 {
@@ -33,9 +34,26 @@ namespace OsEngine.Robots.DeribitPI
             ComboBoxRegime.Items.Add(new { Value = NameRegime.TradeFutures, Description = "Торговля фьючерсами" });
             ComboBoxRegime.Items.Add(new { Value = NameRegime.StopTradeFutures, Description = "Остановить торговлю фьючерсом" });
             ComboBoxRegime.SelectedValue = _strategy.Regime;
+            ComboBoxRegime.IsEnabled = false;
 
             _strategy.CheckTestServer = CheckTestServer();
 
+            LabelPercentDeposit.Text = _strategy.PercentOfDeposit.ToString();
+            CountIteration.Text = _strategy.CountIteration.ToString();
+            TimeToCloseOption.Text = _strategy.TimeToCloseOption.ToString();
+            LabelTimeFuturesLimit.Text = _strategy.TimeFuturesLimit.ToString();
+            checkBoxMarketOrder.IsChecked = _strategy.CheckBoxMarketOrder;
+            LabelTimeOptionLimit.Text = _strategy.TimeOptionLimit.ToString();
+            LabelPauseBuyOption.Text = _strategy.PauseBuyOption.ToString();
+            CountWorkParts.Text = _strategy.CountWorkParts.ToString();
+            RatioWorkParts.Text = _strategy.RatioWorkParts.ToString();
+            OneIncreaseX.Text = _strategy.OneIncreaseX.ToString();
+            OneIncreaseY.Text = _strategy.OneIncreaseY.ToString();
+            TwoIncreaseX.Text = _strategy.TwoIncreaseX.ToString();
+            TwoIncreaseY.Text = _strategy.TwoIncreaseY.ToString();
+            ThreeIncreaseX.Text = _strategy.ThreeIncreaseX.ToString();
+            ThreeIncreaseY.Text = _strategy.ThreeIncreaseY.ToString();
+                        
             StartThread();
 
             this.Activate();
@@ -103,13 +121,26 @@ namespace OsEngine.Robots.DeribitPI
 
         private void UpdateWpf()
         {
-            TextLastPrice.Text = _strategy.LastPrice.ToString();
+            ComboBoxRegime.SelectedValue = _strategy.Regime;
+            if (_strategy.OnTradeRegime)
+            {
+                ComboBoxRegime.IsEnabled = true;
+            }
+            
+            TextLastPrice.Text = _strategy.UnderlyingPrice.ToString();
             TextCurrStrike.Text = _strategy.CurrentStrike;
-            TextPriceOption.Text = _strategy.PriceOption.ToString();
-            TextSizeOption.Text = _strategy.SizeOption.ToString();
+            TextPriceOption.Text = _strategy.MarkPriceOption.ToString();
+            TextSizeOption.Text = _strategy.SettlementSizeOption.ToString();
 
             TextDeposit.Text = _strategy.Deposit.ToString();
+            TextSizeOptionOnBoard.Text = _strategy.PositionOptionSize.ToString();
+            TextSizeFuturesOnBoard.Text = _strategy.PositionFutureSize.ToString();
             
+            ListBoxLog.Items.Clear();
+            for (int i = 0; i < _strategy.LogList.Count; i++)
+            {
+                ListBoxLog.Items.Add(_strategy.LogList[i]);
+            }            
         }
 
         private void Button_Click(object sender, RoutedEventArgs e)
@@ -174,22 +205,26 @@ namespace OsEngine.Robots.DeribitPI
 
         private void LabelPercentDeposit_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _strategy.PercentOfDeposit = TextChanger(sender);            
+            _strategy.PercentOfDeposit = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void CountIteration_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.CountIteration = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void TimeToCloseOption_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _strategy.TimeToCloseOption = TextChanger(sender);            
+            _strategy.TimeToCloseOption = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void LabelTimeFuturesLimit_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.TimeFuturesLimit = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void checkBoxMarketOrder_Checked(object sender, RoutedEventArgs e)
@@ -199,6 +234,7 @@ namespace OsEngine.Robots.DeribitPI
                 return;
             }
             _strategy.CheckBoxMarketOrder = true;
+            _strategy.SaveParameters();
         }
         private void checkBoxMarketOrder_Unchecked(object sender, RoutedEventArgs e)
         {
@@ -207,56 +243,67 @@ namespace OsEngine.Robots.DeribitPI
                 return;
             }
             _strategy.CheckBoxMarketOrder = false;
+            _strategy.SaveParameters();
         }
 
         private void LabelTimeOptionLimit_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.TimeOptionLimit = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void LabelPauseBuyOption_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.PauseBuyOption = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void CountWorkParts_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _strategy.CountWorkParts = TextChanger(sender);            
+            _strategy.CountWorkParts = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void RatioWorkParts_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.RatioWorkParts = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void OneIncreaseX_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.OneIncreaseX = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void OneIncreaseY_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.OneIncreaseY = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void TwoIncreaseX_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.TwoIncreaseX = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void TwoIncreaseY_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.TwoIncreaseY = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void ThreeIncreaseX_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.ThreeIncreaseX = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private void ThreeIncreaseY_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.ThreeIncreaseY = TextChanger(sender);
+            _strategy.SaveParameters();
         }
 
         private int TextChanger(object sender)
@@ -288,6 +335,7 @@ namespace OsEngine.Robots.DeribitPI
         private void ComboBoxRegime_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             _strategy.Regime = (NameRegime)ComboBoxRegime.SelectedValue;
+            _strategy.SaveParameters();
         }
     }
 }

@@ -20,7 +20,7 @@
                     <TextBox Margin="5" Name="LabelTimeFuturesLimit" TextChanged="LabelTimeFuturesLimit_TextChanged"></TextBox>
                     <TextBlock Margin="5,0,5,0" Height="22" TextWrapping="Wrap">Заявка по рынку</TextBlock>
                     <CheckBox x:Name="checkBoxMarketOrder" IsThreeState="False" Margin="5,0,5,5" IsChecked="True" Height="20" Checked="checkBoxMarketOrder_Checked" Unchecked="checkBoxMarketOrder_Unchecked"/>
-                    <TextBlock Margin="5,0,5,0" Height="54" VerticalAlignment="Center" TextWrapping="Wrap">Время на исполнение опционной заявки до изменения цены (мин)</TextBlock>
+                    <TextBlock Margin="5,0,5,0" Height="54" VerticalAlignment="Center" TextWrapping="Wrap">Время на исполнение опционной заявки до изменения цены (сек)</TextBlock>
                     <TextBox Margin="5" Name="LabelTimeOptionLimit" TextChanged="LabelTimeOptionLimit_TextChanged"></TextBox>
                     <TextBlock Margin="5,0,5,0" Height="38" TextWrapping="Wrap">Пауза при покупке опциона при изменении страйка (мин)</TextBlock>
                     <TextBox Margin="5" Name="LabelPauseBuyOption" TextChanged="LabelPauseBuyOption_TextChanged"></TextBox>
@@ -79,10 +79,10 @@
             <TabItem Header="Информация с биржи">
                 <UniformGrid Rows="0" Columns="2">
                     <StackPanel>
-                        <GroupBox Header="Информация с биржи" Margin="5,5,5,0" Foreground="Gainsboro" FontSize="12" Grid.Row="0" Grid.Column="0">
+                        <GroupBox Header="  Информация с биржи  " Margin="5,5,5,0" Foreground="Gainsboro" FontSize="12" Grid.Row="0" Grid.Column="0">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Последняя цена:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Базовая цена:"></TextBlock>
                                     <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextLastPrice" Text=""></TextBlock>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">
@@ -134,7 +134,10 @@
                 </UniformGrid>
             </TabItem>
 
-            <TabItem Header="Лог">
+            <TabItem Header="  Лог  ">
+                <ListBox ScrollViewer.VerticalScrollBarVisibility="Visible" Background="Black" Name="ListBoxLog" Foreground="Gainsboro">
+                    
+                </ListBox>
             </TabItem>
 
         </TabControl>

@@ -172,7 +172,7 @@ namespace OsEngine.Market.Servers.Deribit
 
         private string _webSocketUrl;
 
-        private string _postOnly;
+        public static string _postOnly;
 
         private int _limitCandles = 5000;
 
@@ -1169,7 +1169,7 @@ namespace OsEngine.Market.Servers.Deribit
             else
             {
                 order.State = OrderStateType.Cancel;
-                MyOrderEvent(order);
+                //MyOrderEvent(order);
             }
         }
 
