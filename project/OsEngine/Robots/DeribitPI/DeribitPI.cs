@@ -10,6 +10,7 @@ using RestSharp;
 using Newtonsoft.Json;
 using System.IO;
 using OsEngine.Market.Servers.Deribit;
+using System.Drawing;
 
 namespace OsEngine.Robots.DeribitPI
 {
@@ -52,13 +53,18 @@ namespace OsEngine.Robots.DeribitPI
         private decimal _lastOrderPriceFuture;
         private decimal _bestBidFuture;
         private decimal _bestAskFuture;
-        private decimal _futureSellOrderVolume;
+        public decimal _futureSellOrderVolume;
         private decimal _futureSellOrderVolumeExecute;
         private decimal MarkPriceFuture;
         private string _baseCurrency;
         private string _futureOrderNumber;
         private bool _flagFutureOrder;
-        
+        private bool _flagOptionChangeStrike = false;
+        private DateTime _futureTimeOrderLimit = DateTime.Now;
+        private DateTime _timerOptionChangeStrike = DateTime.Now;
+        private string _previousFixedStrike = "";
+        private decimal _priceBuyOption;
+
 
         public DeribitPI(string name, StartProgram startProgram) : base(name, startProgram)
         {
@@ -72,6 +78,8 @@ namespace OsEngine.Robots.DeribitPI
             _tabPerp.CandleUpdateEvent += _tabPerp_CandleUpdateEvent;
             _tabPerp.BestBidAskChangeEvent += _tabPerp_BestBidAskChangeEvent;
             
+            
+            
             LoadParameters();
             StartThread();
 
@@ -84,25 +92,31 @@ namespace OsEngine.Robots.DeribitPI
                 if (obj.State == OrderStateType.Activ)
                 {
                     _lastOrderPriceFuture = obj.Price;
-                    //_futureSellOrderVolumeExecute = obj.VolumeExecute;
                     _flagFutureOrder = true;
                 }
                 if (obj.State == OrderStateType.Done)
                 {
                     _futureSellOrderVolume -= obj.VolumeExecute;
+                    //SaveParameters();
                 }    
                 if (obj.State == OrderStateType.Cancel)
                 {
                     _futureSellOrderVolume -= obj.VolumeExecute;
                     _flagConstruction = FlagConstruction.FirstSellFuture;
+                    //SaveParameters();
                 }
 
                 AddLogList($"{DateTime.Now} Sec: {obj.SecurityNameCode}, Num: {obj.NumberMarket}, State: {obj.State}, " +
-                    $"Side: {obj.Side}, Price: {obj.Price}, Volume: {obj.Volume}, VolEx: {obj.VolumeExecute}");
+                   $"Side: {obj.Side}, Price: {obj.Price}, Volume: {obj.Volume}, VolEx: {obj.VolumeExecute}");
                 AddLogList($"{DateTime.Now} _OrderPrice = {_lastOrderPriceFuture}, _SellOrderVolume = {_futureSellOrderVolume}, _VolEx = {_futureSellOrderVolumeExecute}");
             }
             else
             {
+                if (obj.State == OrderStateType.Done)
+                {
+                    _priceBuyOption = obj.Price;
+                }
+
                 AddLogList($"{DateTime.Now} Sec: {obj.SecurityNameCode}, Num: {obj.NumberMarket}, State: {obj.State}, " +
                     $"Side: {obj.Side}, Price: {obj.Price}, Volume: {obj.Volume}, VolEx: {obj.VolumeExecute}");
             }
@@ -134,6 +148,7 @@ namespace OsEngine.Robots.DeribitPI
         {
             string str = $"{DateTime.Now}: {pos.MyTrades[0].Side} {tab.Securiti.Name}, Price: {pos.MyTrades[0].Price}, Volume: {pos.MyTrades[0].Volume}";
             AddLogList(str);
+            _priceBuyOption = pos.MyTrades[0].Price;
         }
 
         private void AddLogList(string str)
@@ -149,9 +164,8 @@ namespace OsEngine.Robots.DeribitPI
 
         private void StartRobot()
         {
-            bool connectorOn = false;
-            DateTime futureTimeOrderLimit = DateTime.Now;
-            
+            bool connectorOn = false;            
+
             while (true)
             {
                 Thread.Sleep(100);
@@ -165,17 +179,22 @@ namespace OsEngine.Robots.DeribitPI
                     }
                     else
                     {
-                        CurrentStrike = _tabOption.Tabs[0].Securiti.Name;
-                        GetOptionMarkPrice();
+                        if (_tabOption.Tabs.Count > 0)
+                        {
+                            if (_tabOption.Tabs[0].Securiti != null)
+                            {
+                                CurrentStrike = _tabOption.Tabs[0].Securiti.Name;
+                                GetOptionMarkPrice();
+                            }
+                        }                                               
                     }
 
                     if (!connectorOn)
                     {
                         connectorOn = true;
                         _tabPerp.Connector.MyServer.NewOrderIncomeEvent += MyServer_NewOrderIncomeEvent;
-                        _tabPerp.Connector.MyServer.NewMarketDepthEvent += MyServer_NewMarketDepthEvent;
-                    }
-                    
+                        //_tabPerp.Connector.MyServer.NewMarketDepthEvent += MyServer_NewMarketDepthEvent;                        
+                    }                    
                 }
 
                 // получаем данные по депозиту
@@ -244,168 +263,370 @@ namespace OsEngine.Robots.DeribitPI
                 // режим - набор конструкции
                 if(Regime == DeribitPIUi.NameRegime.AssemblyConstruction)
                 {
-                    // для тестирования режимов
-                    //_flagConstruction = FlagConstruction.FirstSellFuture; 
-                    //_futureSellOrderVolume = 1000;
+                    AssemblyConstructionRegime();                    
+                }
 
+                // режим - Торговля фьючерсом
+                if (Regime == DeribitPIUi.NameRegime.TradeFutures)
+                {
+                    //TradeFutures();
+                }
 
-                    // выставляем начальный ордер для котирования опциона
-                    if (SettlementSizeOption != 0 && 
-                        SettlementSizeOption - PositionOptionSize > 0 && 
-                        _flagConstruction == FlagConstruction.FirstBuyOption)
-                    {
-                        for (int i = 0; i < _tabOption.Tabs.Count; i++)
-                        {
-                            if (_tabOption.Tabs[i].Securiti.Name == CurrentStrike)
-                            {
-                                _currentTab = i;
-                                DeribitServerRealization._postOnly = "false";
-                                _tabOption.Tabs[i].BuyAtLimit(GetOptionVolume(), GetOptionPriceLimit());
-                                _flagConstruction = FlagConstruction.QuoteBuyOption;
-                                _timeLifeOrderOption = DateTime.Now;
-                                
-                                break;
-                            }                            
-                        }                        
-                    }
-
-                    if (_flagConstruction == FlagConstruction.QuoteBuyOption) // котируем опцион
-                    {
-                        // если опцион купился, меняем флаг и выходим отсюда
-                        if (_tabOption.Tabs[_currentTab].PositionsLast.State == PositionStateType.Open)
-                        {                            
-                            _flagConstruction = FlagConstruction.FirstSellFuture;
-                            _stepOrder = 0;
-                            _futureSellOrderVolume = GetFutureVolume();
-                            futureTimeOrderLimit = DateTime.Now;
-                            continue;
-                        }
-
-                        // если сменился текущий страйк отменяем ордер и начинаем все заново
-                        if (_tabOption.Tabs[_currentTab].Securiti.Name != CurrentStrike)
-                        {
-                            CancelOptionOrder();
-                            AddLogList("Отмена ордера по смене страйка");
-                            continue;
-                        }
-
-                        // проверяем время жизни опционного ордера (в секундах) и высталяем опцион дороже
-                        if(_timeLifeOrderOption.AddSeconds(TimeOptionLimit) <= DateTime.Now)
-                        {
-                            // надо проверить выставлен ли ордер
-                            CancelOptionOrder();
-                            AddLogList("Отмена ордера по истечению времени");
-                            _stepOrder += 1;
-                            continue;
-                        }
-
-                        List <Position> positionsLong = _tabOption.Tabs[_currentTab].PositionOpenLong;
-
-                        if (positionsLong != null &&
-                            positionsLong.Count != 0)
-                        {
-                            if (_tabOption.Tabs[_currentTab].PositionsLast.State == PositionStateType.Opening)
-                            {
-                                decimal stepPrice = 0.0005m; // взависимости от цены опциона, меняется шаг цены
-
-                                if (MarkPriceOption < 0.005m)
-                                {
-                                    stepPrice = 0.0001m;
-                                }
-                                if (_stepOrder == 0)
-                                {
-                                    // условие для смены цены опциона (сделано через отмену ордера, у ChangeOrderPrice нет смены цены ордера(там только начальная цена ордера), и если делать костыль, то все равно не меняет цену если она снова возвращается к начальному значению)
-                                    if (MarkPriceOption < _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice ||
-                                        MarkPriceOption - _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice >= stepPrice)
-                                    //if (MarkPriceOption < _priceOptionLimit || MarkPriceOption - _priceOptionLimit >= stepPrice)
-                                    {
-                                        CancelOptionOrder();
-                                        AddLogList("Отмена ордера по изменению теор цены");
-                                        //_tabOption.Tabs[_currentTab].ChangeOrderPrice(_tabOption.Tabs[_currentTab].PositionsLast.OpenOrders[0], GetOptionPriceLimit());
-                                    }
-                                }
-                                else if (_stepOrder > 0)
-                                {
-                                    if (MarkPriceOption - _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice >= stepPrice)
-                                    {
-                                        CancelOptionOrder();
-                                        AddLogList("Отмена ордера по изменению теор цены");
-                                        _stepOrder = 0;
-                                    }
-                                }                                
-                            }                            
-                        }    
-                    }
-
-                    if (_flagConstruction == FlagConstruction.FirstSellFuture)
-                    {                                               
-                        if (CheckBoxMarketOrder) // если чекбокс на маркетные заявки стоит
-                        {
-                            _tabPerp.SellAtMarket(GetFutureVolume());
-                            _flagConstruction = FlagConstruction.QuoteSellFuture;
-                            continue;
-                        }
-                        else if (futureTimeOrderLimit.AddSeconds(TimeFuturesLimit) <= DateTime.Now)
-                        {
-                            _tabPerp.SellAtMarket(_futureSellOrderVolume);
-                            _flagConstruction = FlagConstruction.QuoteSellFuture;
-                            continue;
-                        }
-                        else
-                        {
-                            DeribitServerRealization._postOnly = "true";
-                            //_futureSellOrderVolumeExecute = 0;
-                            _tabPerp.SellAtLimit(_futureSellOrderVolume, GetFuturePrice());                            
-                            _flagConstruction = FlagConstruction.QuoteSellFuture;
-                            
-                            continue;
-                        }
-                    }     
-                    
-                    if (_flagConstruction == FlagConstruction.QuoteSellFuture)
-                    {
-                        if (_tabPerp.PositionsLast != null)
-                        {
-                            if (_futureSellOrderVolume == 0)
-                            {
-                                _flagConstruction = FlagConstruction.FirstBuyOption;
-
-                                if (PositionOptionSize == SettlementSizeOption)
-                                {
-                                    Regime = DeribitPIUi.NameRegime.TradeFutures;
-                                }
-                                continue;
-                            }
-                            if (_flagFutureOrder)
-                            {
-                                if (_lastOrderPriceFuture != _bestAskFuture)
-                                {
-                                    CancelFutureOrder();
-                                }
-                            }
-
-                            // если лимитная заяка по фьючерсу не исполнилась, делаем заявку по маркету
-                            if (futureTimeOrderLimit.AddSeconds(TimeFuturesLimit) <= DateTime.Now)
-                            {
-                                CancelFutureOrder();
-                                //_tabPerp.SellAtMarket(_futureSellOrderVolume);
-                                continue;
-                            }
-                        }
-                        
-                    }
-                }         
+                // режим - Разборка консрукции
+                if (Regime == DeribitPIUi.NameRegime.DisassemblyConstruction)
+                {
+                    //DisassemblyConstruction();
+                }
             }
         }
 
-        private void MyServer_NewMarketDepthEvent(MarketDepth obj)
+        private void TradeFutures()
         {
-            if (obj.SecurityNameCode == _tabPerp.Securiti.Name)
+            
+        }
+
+        private void DisassemblyConstruction()
+        {
+            // сначала нужно закрыть позиции фьючерса внутри дня
+
+            // разбираем конструкцию
+
+            // выставляем начальный ордер для котирования опциона
+            if (PositionOptionSize > 0 &&
+                _flagConstruction == FlagConstruction.FirstBuyOption)
+            {
+                for (int i = 0; i < _tabOption.Tabs.Count; i++)
+                {                    
+                    if (_tabOption.Tabs[i].Securiti.Name == CurrentStrike)
+                    {
+                        _currentTab = i;
+                        DeribitServerRealization._postOnly = "false";
+                        _tabOption.Tabs[i].SellAtLimit(GetOptionVolume(), GetOptionPriceLimit());
+                        _flagConstruction = FlagConstruction.QuoteBuyOption;
+                        _timeLifeOrderOption = DateTime.Now;
+                        _futureSellOrderVolume = GetFutureVolume();
+                        break;
+                    }                   
+                }
+            }
+
+            if (_flagConstruction == FlagConstruction.QuoteBuyOption) // котируем опцион
+            {
+                // если опцион купился, меняем флаг и выходим отсюда
+                if (_tabOption.Tabs[_currentTab].PositionsLast.State == PositionStateType.Open)
+                {
+                    _flagConstruction = FlagConstruction.FirstSellFuture;
+                    _stepOrder = 0;
+                    _futureTimeOrderLimit = DateTime.Now;
+                    return;
+                }
+
+                // если сменился текущий страйк отменяем ордер и начинаем все заново
+                if (_tabOption.Tabs[_currentTab].Securiti.Name != CurrentStrike)
+                {
+                    CancelOptionOrder();
+                    AddLogList("Отмена ордера по смене страйка");
+                    _flagOptionChangeStrike = true;
+                    _timerOptionChangeStrike = DateTime.Now;
+                    _previousFixedStrike = _tabOption.Tabs[_currentTab].Securiti.Name;
+                    return;
+                }
+
+                // проверяем время жизни опционного ордера (в секундах) и высталяем опцион дороже
+                if (_timeLifeOrderOption.AddSeconds(TimeOptionLimit) <= DateTime.Now)
+                {
+                    // надо проверить выставлен ли ордер
+                    CancelOptionOrder();
+                    AddLogList("Отмена ордера по истечению времени");
+                    _stepOrder += 1;
+                    return;
+                }
+
+                List<Position> positionsLong = _tabOption.Tabs[_currentTab].PositionOpenLong;
+
+                if (positionsLong != null &&
+                    positionsLong.Count != 0)
+                {
+                    if (_tabOption.Tabs[_currentTab].PositionsLast.State == PositionStateType.Opening)
+                    {
+                        decimal stepPrice = 0.0005m; // взависимости от цены опциона, меняется шаг цены
+
+                        if (MarkPriceOption < 0.005m)
+                        {
+                            stepPrice = 0.0001m;
+                        }
+                        if (_stepOrder == 0)
+                        {
+                            // условие для смены цены опциона (сделано через отмену ордера, у ChangeOrderPrice нет смены цены ордера(там только начальная цена ордера), и если делать костыль, то все равно не меняет цену если она снова возвращается к начальному значению)
+                            if (MarkPriceOption < _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice ||
+                                MarkPriceOption - _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice >= stepPrice)
+                            //if (MarkPriceOption < _priceOptionLimit || MarkPriceOption - _priceOptionLimit >= stepPrice)
+                            {
+                                CancelOptionOrder();
+                                AddLogList($"Отмена ордера по изменению теор цены = {MarkPriceOption}");
+                                //_tabOption.Tabs[_currentTab].ChangeOrderPrice(_tabOption.Tabs[_currentTab].PositionsLast.OpenOrders[0], GetOptionPriceLimit());
+                            }
+                        }
+                        else if (_stepOrder > 0)
+                        {
+                            if (MarkPriceOption - _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice >= stepPrice)
+                            {
+                                CancelOptionOrder();
+                                AddLogList($"Отмена ордера по изменению теор цены = {MarkPriceOption}");
+                                _stepOrder = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (_flagConstruction == FlagConstruction.FirstSellFuture)
+            {
+                if (CheckBoxMarketOrder) // если чекбокс на маркетные заявки стоит
+                {
+                    _tabPerp.SellAtMarket(GetFutureVolume());
+                    _flagConstruction = FlagConstruction.QuoteSellFuture;
+                    return;
+                }
+                else if (_futureTimeOrderLimit.AddSeconds(TimeFuturesLimit) <= DateTime.Now)
+                {
+                    _tabPerp.SellAtMarket(_futureSellOrderVolume);
+                    _flagConstruction = FlagConstruction.QuoteSellFuture;
+                    return;
+                }
+                else
+                {
+                    DeribitServerRealization._postOnly = "true";
+                    //_futureSellOrderVolumeExecute = 0;
+                    _tabPerp.SellAtLimit(_futureSellOrderVolume, GetFuturePrice());
+                    _flagConstruction = FlagConstruction.QuoteSellFuture;
+                    return;
+                }
+            }
+
+            if (_flagConstruction == FlagConstruction.QuoteSellFuture)
+            {
+                if (_tabPerp.PositionsLast != null)
+                {
+                    if (_futureSellOrderVolume == 0)
+                    {
+                        _flagConstruction = FlagConstruction.FirstBuyOption;
+
+                        if (PositionOptionSize == SettlementSizeOption)
+                        {
+                            Regime = DeribitPIUi.NameRegime.TradeFutures;
+                        }
+                        return;
+                    }
+                    if (_flagFutureOrder)
+                    {
+                        if (_lastOrderPriceFuture != _bestAskFuture)
+                        {
+                            CancelFutureOrder();
+                        }
+                    }
+
+                    // если лимитная заяка по фьючерсу не исполнилась, делаем заявку по маркету
+                    if (_futureTimeOrderLimit.AddSeconds(TimeFuturesLimit) <= DateTime.Now)
+                    {
+                        CancelFutureOrder();
+                        return;
+                    }
+                }
+            }
+        }
+
+        private void AssemblyConstructionRegime()
+        {
+            // для тестирования режимов
+            //_flagConstruction = FlagConstruction.FirstSellFuture; 
+            //_futureSellOrderVolume = 1000;
+
+            if (PositionOptionSize > 0 && _futureSellOrderVolume > 0) 
+            {
+                _flagConstruction = FlagConstruction.FirstSellFuture;
+            }
+
+            if (_flagOptionChangeStrike) // проверка когда страйк изменился
+            {
+                if (SettlementSizeOption / 2 > PositionFutureSize)
+                {
+                    _flagOptionChangeStrike = false;
+                    return;
+                }
+                if (_timerOptionChangeStrike.AddMinutes(PauseBuyOption) <= DateTime.Now ||
+                    _previousFixedStrike == CurrentStrike)
+                {
+                    _flagOptionChangeStrike = false;
+                    return;
+                }
+            }
+            // выставляем начальный ордер для котирования опциона
+            if (SettlementSizeOption != 0 &&
+                SettlementSizeOption - PositionOptionSize > 0 &&
+                _flagConstruction == FlagConstruction.FirstBuyOption)
             {
 
+                for (int i = 0; i < _tabOption.Tabs.Count; i++)
+                {
+                    if (_flagOptionChangeStrike && _tabOption.Tabs[i].Securiti.Name == _previousFixedStrike)
+                    {
+                        _currentTab = i;
+                        DeribitServerRealization._postOnly = "false";
+                        _tabOption.Tabs[i].BuyAtLimit(GetOptionVolume(), GetOptionPriceLimit());
+                        _flagConstruction = FlagConstruction.QuoteBuyOption;
+                        _timeLifeOrderOption = DateTime.Now;
+                        _futureSellOrderVolume = GetFutureVolume();
+                        //SaveParameters();
+                        break;
+                    }
+                    else
+                    {
+                        if (_tabOption.Tabs[i].Securiti.Name == CurrentStrike)
+                        {
+                            _currentTab = i;
+                            DeribitServerRealization._postOnly = "false";
+                            _tabOption.Tabs[i].BuyAtLimit(GetOptionVolume(), GetOptionPriceLimit());
+                            _flagConstruction = FlagConstruction.QuoteBuyOption;
+                            _timeLifeOrderOption = DateTime.Now;
+                            _futureSellOrderVolume = GetFutureVolume();
+                            //SaveParameters();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (_flagConstruction == FlagConstruction.QuoteBuyOption) // котируем опцион
+            {
+                // если опцион купился, меняем флаг и выходим отсюда
+                if (_tabOption.Tabs[_currentTab].PositionsLast.State == PositionStateType.Open)
+                {
+                    _flagConstruction = FlagConstruction.FirstSellFuture;
+                    _stepOrder = 0;
+                    _futureTimeOrderLimit = DateTime.Now;
+                    return;
+                }
+
+                // если сменился текущий страйк отменяем ордер и начинаем все заново
+                if (_tabOption.Tabs[_currentTab].Securiti.Name != CurrentStrike)
+                {
+                    CancelOptionOrder();
+                    AddLogList("Отмена ордера по смене страйка");
+                    _flagOptionChangeStrike = true;
+                    _timerOptionChangeStrike = DateTime.Now;
+                    _previousFixedStrike = _tabOption.Tabs[_currentTab].Securiti.Name;
+                    GetOptionMarkPrice();
+                    return;
+                }
+
+                // проверяем время жизни опционного ордера (в секундах) и высталяем опцион дороже
+                if (_timeLifeOrderOption.AddSeconds(TimeOptionLimit) <= DateTime.Now)
+                {
+                    // надо проверить выставлен ли ордер
+                    CancelOptionOrder();
+                    AddLogList("Отмена ордера по истечению времени");
+                    _stepOrder += 1;
+                    return;
+                }
+
+                List<Position> positionsLong = _tabOption.Tabs[_currentTab].PositionOpenLong;
+
+                if (positionsLong != null &&
+                    positionsLong.Count != 0)
+                {
+                    if (_tabOption.Tabs[_currentTab].PositionsLast.State == PositionStateType.Opening)
+                    {
+                        decimal stepPrice = 0.0005m; // взависимости от цены опциона, меняется шаг цены
+
+                        if (MarkPriceOption < 0.005m)
+                        {
+                            stepPrice = 0.0001m;
+                        }
+                        if (_stepOrder == 0)
+                        {
+                            // условие для смены цены опциона (сделано через отмену ордера, у ChangeOrderPrice нет смены цены ордера(там только начальная цена ордера), и если делать костыль, то все равно не меняет цену если она снова возвращается к начальному значению)
+                            /*if (MarkPriceOption < _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice ||
+                                MarkPriceOption - _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice >= stepPrice)*/
+                            if (Math.Abs(MarkPriceOption - _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice) > stepPrice / 2)
+                            {
+                                CancelOptionOrder();
+                                AddLogList($"Отмена ордера по изменению теор цены = {MarkPriceOption}");                                
+                            }
+                        }
+                        else if (_stepOrder > 0)
+                        {
+                            if (MarkPriceOption - _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice >= stepPrice)
+                            {
+                                CancelOptionOrder();
+                                AddLogList($"Отмена ордера по изменению теор цены = {MarkPriceOption}");
+                                _stepOrder = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (_flagConstruction == FlagConstruction.FirstSellFuture)
+            {
+                if (CheckBoxMarketOrder) // если чекбокс на маркетные заявки стоит
+                {
+                    _tabPerp.SellAtMarket(GetFutureVolume());
+                    _flagConstruction = FlagConstruction.QuoteSellFuture;
+                    AddLogList("Продаем фьюч по маркету по чек-боксу");
+                    return;
+                }
+                else if (_futureTimeOrderLimit.AddSeconds(TimeFuturesLimit) <= DateTime.Now)
+                {
+                    _tabPerp.SellAtMarket(_futureSellOrderVolume);
+                    _flagConstruction = FlagConstruction.QuoteSellFuture;
+                    AddLogList("Продаем фьюч по маркету по истечению времени");
+                    return;
+                }
+                else
+                {
+                    DeribitServerRealization._postOnly = "true";
+                    //_futureSellOrderVolumeExecute = 0;
+                    _tabPerp.SellAtLimit(_futureSellOrderVolume, GetFuturePrice());
+                    _flagConstruction = FlagConstruction.QuoteSellFuture;
+                    AddLogList("Продаем фьюч лимиткой");
+                    return;
+                }
+            }
+
+            if (_flagConstruction == FlagConstruction.QuoteSellFuture)
+            {
+                if (_tabPerp.PositionsLast != null)
+                {
+                    if (_futureSellOrderVolume == 0)
+                    {
+                        _flagConstruction = FlagConstruction.FirstBuyOption;
+
+                        if (PositionOptionSize == SettlementSizeOption)
+                        {
+                            Regime = DeribitPIUi.NameRegime.TradeFutures;
+                        }
+                        return;
+                    }
+                    if (_flagFutureOrder)
+                    {
+                        if (_lastOrderPriceFuture != _bestAskFuture)
+                        {
+                            CancelFutureOrder();
+                            return;
+                        }
+                    }
+
+                    // если лимитная заяка по фьючерсу не исполнилась, делаем заявку по маркету
+                    if (_futureTimeOrderLimit.AddSeconds(TimeFuturesLimit) <= DateTime.Now)
+                    {
+                        CancelFutureOrder();
+                        return;
+                    }
+                }
             }
         }
-
+               
         private decimal GetFuturePrice()
         {
             decimal price = _bestAskFuture;
@@ -498,8 +719,7 @@ namespace OsEngine.Robots.DeribitPI
 
             if (MarkPriceOption % stepPrice != 0)
             {
-                // округление в меньшую сторону будет давать цену дешевле, либо равную Марк цене
-                priceOption = (Math.Floor(MarkPriceOption / stepPrice) * stepPrice);                 
+                priceOption = (Math.Round(MarkPriceOption / stepPrice, MidpointRounding.AwayFromZero) * stepPrice);                 
             }
             
             if (_stepOrder > 0)
@@ -651,10 +871,10 @@ namespace OsEngine.Robots.DeribitPI
                             {
                                 SetField(split[0], false);
                             }
-                            else
+                           /* else if (decimal.TryParse(split[1], out decimal dec))
                             {
-                                //SetField(split[0], split[1]); // заготовка (нерабочая) под загрузку режима работы
-                            }
+                                SetField(split[0], dec);
+                            }*/
                         }
                     }
                     reader.Close();
@@ -695,6 +915,7 @@ namespace OsEngine.Robots.DeribitPI
                     writer.WriteLine("TwoIncreaseY^" + TwoIncreaseY);
                     writer.WriteLine("ThreeIncreaseX^" + ThreeIncreaseX);
                     writer.WriteLine("ThreeIncreaseY^" + ThreeIncreaseY);
+                    //writer.WriteLine("_futureSellOrderVolume^" + _futureSellOrderVolume.ToString());
                     writer.Close();
                 }
             }
