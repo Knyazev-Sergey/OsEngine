@@ -4,16 +4,11 @@
 */
 
 using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using OsEngine.Entity;
 using OsEngine.Language;
-using OsEngine.OsTrader.Panels;
-using System.ComponentModel;
-using System.Collections.Generic;
 
 namespace OsEngine.Robots.DeribitPI
 {
@@ -36,8 +31,6 @@ namespace OsEngine.Robots.DeribitPI
             ComboBoxRegime.SelectedValue = _strategy.Regime;
             ComboBoxRegime.IsEnabled = false;
 
-            _strategy.CheckTestServer = CheckTestServer();
-
             LabelPercentDeposit.Text = _strategy.PercentOfDeposit.ToString();
             CountIteration.Text = _strategy.CountIteration.ToString();
             TimeToCloseOption.Text = _strategy.TimeToCloseOption.ToString();
@@ -53,6 +46,16 @@ namespace OsEngine.Robots.DeribitPI
             TwoIncreaseY.Text = _strategy.TwoIncreaseY.ToString();
             ThreeIncreaseX.Text = _strategy.ThreeIncreaseX.ToString();
             ThreeIncreaseY.Text = _strategy.ThreeIncreaseY.ToString();
+
+            ListBoxLog.Items.Clear();
+            for (int i = 0; i < _strategy.LogList.Count; i++)
+            {
+                ListBoxLog.Items.Add(_strategy.LogList[i]);
+                if (ListBoxLog.Items.Count > 500)
+                {
+                    ListBoxLog.Items.RemoveAt(0);
+                }
+            } 
 
             StartThread();
 
@@ -135,12 +138,30 @@ namespace OsEngine.Robots.DeribitPI
             TextDeposit.Text = _strategy.Deposit.ToString();
             TextSizeOptionOnBoard.Text = _strategy.PositionOptionSize.ToString();
             TextSizeFuturesOnBoard.Text = _strategy.PositionFutureSize.ToString();
+          
+            while (!_strategy.ListLog.IsEmpty)
+            {
+                _strategy.ListLog.TryDequeue(out string message);
+
+                if (message != null)
+                {                    
+                    ListBoxLog.Items.Add(message);
+
+                    if (ListBoxLog.Items.Count > 500)
+                    {
+                        ListBoxLog.Items.RemoveAt(0);
+                    }
+                }
+            }
+           
             
-            ListBoxLog.Items.Clear();
+            
+
+           /* ListBoxLog.Items.Clear();
             for (int i = 0; i < _strategy.LogList.Count; i++)
             {
                 ListBoxLog.Items.Add(_strategy.LogList[i]);
-            }            
+            }*/
         }
 
         private void Button_Click(object sender, RoutedEventArgs e)
@@ -173,36 +194,7 @@ namespace OsEngine.Robots.DeribitPI
             TradeFutures,
             StopTradeFutures
         }
-
-        public bool CheckTestServer()
-        {
-            bool checkbox = false;
-
-            if (checkBoxTest.IsChecked == true)
-            {
-                checkbox = true;
-            }
-           
-            return checkbox;
-        }
-
-        private void checkBoxTest_Checked(object sender, RoutedEventArgs e)
-        {
-            if (_strategy == null)
-            {
-                return;
-            }
-            _strategy.CheckTestServer = true;
-        }
-        private void checkBoxTest_Unchecked(object sender, RoutedEventArgs e)
-        {
-            if (_strategy == null)
-            {
-                return;
-            }
-            _strategy.CheckTestServer = false;
-        }
-
+                
         private void LabelPercentDeposit_TextChanged(object sender, TextChangedEventArgs e)
         {
             _strategy.PercentOfDeposit = TextChanger(sender);

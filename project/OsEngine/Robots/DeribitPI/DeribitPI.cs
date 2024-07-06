@@ -13,6 +13,7 @@ using OsEngine.Market.Servers.Deribit;
 using System.Windows.Media.Animation;
 using OsEngine.Market;
 using OsEngine.OsTrader.AdminPanelApi;
+using System.Collections.Concurrent;
 
 namespace OsEngine.Robots.DeribitPI
 {
@@ -28,7 +29,6 @@ namespace OsEngine.Robots.DeribitPI
         public decimal Deposit;
         public int PercentOfDeposit = 0;
         public decimal SettlementSizeOption; // расчетное кол-во опционов для покупки
-        public bool CheckTestServer;
         public decimal PositionOptionSize; // позиция купленных опционов
         public int CountIteration = 0;
         public int TimeToCloseOption = 0;
@@ -64,6 +64,10 @@ namespace OsEngine.Robots.DeribitPI
         private decimal _bestAskVolumeFuture;
         private decimal _bestBidVolumeFuture;
         private string _typeServer;
+        private string _previousFixedStrike;
+        private bool _flagOptionChangeStrike = false;
+        private DateTime _timerOptionChangeStrike;
+        public ConcurrentQueue<string> ListLog = new ConcurrentQueue<string>();
 
 
 
@@ -79,14 +83,9 @@ namespace OsEngine.Robots.DeribitPI
             _tabPerp.CandleUpdateEvent += _tabPerp_CandleUpdateEvent;
             //_tabPerp.BestBidAskChangeEvent += _tabPerp_BestBidAskChangeEvent;
             
-
             LoadParameters();
             LoadLog();
-            StartThread();
-
-           
-
-            
+            StartThread();                        
         }
 
         private void MyServer_NewMarketDepthEvent(MarketDepth obj)
@@ -137,21 +136,14 @@ namespace OsEngine.Robots.DeribitPI
                 {
                     if (obj.State == OrderStateType.Activ)
                     {
-                        if (obj.VolumeExecute != obj.Volume && obj.VolumeExecute > 0) // не тестировано
+                        if (obj.VolumeExecute != obj.Volume && obj.VolumeExecute > 0) // если не полностью исполнился ордер по опциону
                         {
-                            CancelOptionOrder(); // здесь почему то не всегда удаляются ордера
+                            CancelOptionOrder(); 
                             _futureSellOrderVolume = Math.Round(_futureSellOrderVolume / obj.Volume * obj.VolumeExecute);
                             _flagConstruction = FlagConstruction.FirstSellFuture;
                             _stepOrder = 0;
                             _futureTimeOrderLimit = DateTime.Now;
-                        }
-                       /* if (obj.State == OrderStateType.Done)
-                        {
-
-                            _flagConstruction = FlagConstruction.FirstSellFuture;
-                            _stepOrder = 0;
-                            _futureTimeOrderLimit = DateTime.Now;
-                        }*/
+                        }                      
                     }
                 }
             }
@@ -185,6 +177,7 @@ namespace OsEngine.Robots.DeribitPI
                 LogList.RemoveAt(0);
             }
             LogList.Add(str);
+            ListLog.Enqueue(str);
             SaveLog();
         }
 
@@ -330,34 +323,82 @@ namespace OsEngine.Robots.DeribitPI
         private DateTime _futureTimeOrderLimit = DateTime.Now;
         private void AssemblyConstruction()
         {
+            if (_flagOptionChangeStrike)
+            {
+                if (SettlementSizeOption / 2 > PositionFutureSize)
+                {
+                    if (_timerOptionChangeStrike.AddSeconds(PauseBuyOption) >= DateTime.Now || _previousFixedStrike != CurrentStrike)
+                    {
+                        return;
+                    }
+                    else
+                    {
+                        _flagOptionChangeStrike = false;
+                    }
+                }
+            }
             // выставляем начальный ордер для котирования опциона
             if (SettlementSizeOption != 0 &&
                 SettlementSizeOption - PositionOptionSize > 0 &&
                 _flagConstruction == FlagConstruction.FirstBuyOption)
-            {
-                for (int i = 0; i < _tabOption.Tabs.Count; i++)
-                {
-                    if (_tabOption.Tabs[i].Securiti.Name == CurrentStrike)
+            {               
+                if (!_flagOptionChangeStrike)
+                {                    
+                    for (int i = 0; i < _tabOption.Tabs.Count; i++)
                     {
-                        _currentTab = i;
-                        DeribitServerRealization._postOnly = "false";
-                        decimal priceOption = GetOptionPriceLimit();
-                        decimal volumeOption = GetOptionVolume();
-                        _tabOption.Tabs[i].BuyAtLimit(volumeOption, priceOption);
-                        _flagConstruction = FlagConstruction.QuoteBuyOption;
-                        _timeLifeOrderOption = DateTime.Now;
-                        _futureSellOrderVolume = GetFutureVolume();
-                        AddLogList($"{DateTime.Now} Выставляем заявку на покупку {_tabOption.Tabs[i].Securiti.Name}, цена: {priceOption}, объем: {volumeOption}");
-                        break;
+                        if (_tabOption.Tabs[i].Securiti.Name == CurrentStrike)
+                        {
+                            _currentTab = i;
+                            break;
+                        }
+
+                        /*if (_flagOptionChangeStrike &&
+                            _tabOption.Tabs[i].Securiti.Name == _previousFixedStrike)
+                        {
+                            _currentTab = i;
+                            break;
+                        }    */
                     }
                 }
+               
+                DeribitServerRealization._postOnly = "false";
+                decimal priceOption = GetOptionPriceLimit();
+                decimal volumeOption = GetOptionVolume();
+                _tabOption.Tabs[_currentTab].BuyAtLimit(volumeOption, priceOption);
+                _flagConstruction = FlagConstruction.QuoteBuyOption;
+                _timeLifeOrderOption = DateTime.Now;
+                _futureSellOrderVolume = GetFutureVolume();
+                AddLogList($"{DateTime.Now} Выставляем заявку на покупку {_tabOption.Tabs[_currentTab].Securiti.Name}, цена: {priceOption}, объем: {volumeOption}");                
             }
 
             if (_flagConstruction == FlagConstruction.QuoteBuyOption) // котируем опцион
             {               
                 // если сменился текущий страйк отменяем ордер и начинаем все заново
-                if (_tabOption.Tabs[_currentTab].Securiti.Name != CurrentStrike)
-                {
+                if (_tabOption.Tabs[_currentTab].Securiti.Name != CurrentStrike && !_flagOptionChangeStrike)
+                {                    
+                    if (SettlementSizeOption / 2 <= PositionFutureSize) // если страйк поменялся и если набранная позиция больше чем половина требуемой позиции
+                    {
+                        _flagOptionChangeStrike = true;
+                        _previousFixedStrike = _tabOption.Tabs[_currentTab].Securiti.Name;
+                        for ( int i = 0; i < _tabOption.Tabs.Count - 1; i++ )
+                        {
+                            if (_tabOption.Tabs[i].Securiti.Name == _previousFixedStrike)
+                            {
+                                _currentTab = i;
+                                break;
+                            }
+                        }
+                        AddLogList($"{DateTime.Now} Сменился страйк {_tabOption.Tabs[_currentTab].Securiti.Name}, но продолжаем набирать позицию по старому страйку");
+                        return;
+                    }
+                    else if (PositionFutureSize > 0 && SettlementSizeOption / 2 > PositionFutureSize)
+                    {
+                        _timerOptionChangeStrike = DateTime.Now;
+                        _flagOptionChangeStrike = true;
+                        _previousFixedStrike = _tabOption.Tabs[_currentTab].Securiti.Name;
+                        AddLogList($"{DateTime.Now} Сменился страйк {_tabOption.Tabs[_currentTab].Securiti.Name}, будем ждать условий для возобновления набора позиции");
+                    }
+
                     CancelOptionOrder();
                     AddLogList($"{DateTime.Now} Отмена ордера {_tabOption.Tabs[_currentTab].Securiti.Name} по смене страйка");
                     GetOptionMarkPrice();
@@ -456,6 +497,7 @@ namespace OsEngine.Robots.DeribitPI
                         if (PositionOptionSize == SettlementSizeOption)
                         {
                             Regime = DeribitPIUi.NameRegime.TradeFutures;
+                            _flagOptionChangeStrike = false;
                         }
                         return;
                     }
@@ -802,7 +844,11 @@ namespace OsEngine.Robots.DeribitPI
                     while ((line = reader.ReadLine()) != null)
                     {
                         if (!string.IsNullOrEmpty(line))
-                        {                            
+                        {                     
+                            if (LogList.Count > 500)
+                            {
+                                LogList.RemoveAt(0);
+                            }
                             LogList.Add(line);
                         }
                     }

@@ -99,11 +99,7 @@
                                 </StackPanel>
                                 
                             </StackPanel>                            
-                        </GroupBox>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Margin="5,0,5,0" Height="22" TextWrapping="Wrap">Test Server</TextBlock>
-                            <CheckBox x:Name="checkBoxTest" IsThreeState="False" Margin="5,0,5,5" IsChecked="True" Height="20" Checked="checkBoxTest_Checked" Unchecked="checkBoxTest_Unchecked"/>
-                        </StackPanel>
+                        </GroupBox>                        
                         <StackPanel>
                             <DatePicker Name="datePicker1" IsDropDownOpen="False" SelectedDateFormat="Short" />
                         </StackPanel>
