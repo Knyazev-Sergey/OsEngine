@@ -10,6 +10,9 @@ using RestSharp;
 using Newtonsoft.Json;
 using System.IO;
 using OsEngine.Market.Servers.Deribit;
+using System.Windows.Media.Animation;
+using OsEngine.Market;
+using OsEngine.OsTrader.AdminPanelApi;
 
 namespace OsEngine.Robots.DeribitPI
 {
@@ -50,14 +53,17 @@ namespace OsEngine.Robots.DeribitPI
         private decimal _optionBuyVolume;
         public bool OnTradeRegime = false;
         private decimal _lastOrderPriceFuture;
-        private decimal _bestBidFuture;
-        private decimal _bestAskFuture;
+        private decimal _bestBidPriceFuture;
+        private decimal _bestAskPriceFuture;
         private decimal _futureSellOrderVolume;
         private decimal _futureSellOrderVolumeExecute;
         private decimal MarkPriceFuture;
         private string _baseCurrency;
         private string _futureOrderNumber;
         private bool _flagFutureOrder;
+        private decimal _bestAskVolumeFuture;
+        private decimal _bestBidVolumeFuture;
+        private string _typeServer;
 
 
 
@@ -71,11 +77,32 @@ namespace OsEngine.Robots.DeribitPI
             _tabOption.PositionOpeningSuccesEvent += _tabOption_PositionOpeningSuccesEvent;
             _tabPerp.PositionOpeningSuccesEvent += _tabPerp_PositionOpeningSuccesEvent;
             _tabPerp.CandleUpdateEvent += _tabPerp_CandleUpdateEvent;
-            _tabPerp.BestBidAskChangeEvent += _tabPerp_BestBidAskChangeEvent;
+            //_tabPerp.BestBidAskChangeEvent += _tabPerp_BestBidAskChangeEvent;
+            
 
             LoadParameters();
+            LoadLog();
             StartThread();
 
+           
+
+            
+        }
+
+        private void MyServer_NewMarketDepthEvent(MarketDepth obj)
+        {
+            if (obj.SecurityNameCode == _tabPerp.Securiti.Name)
+            {
+                _bestAskPriceFuture = obj.Asks[0].Price;
+                _bestAskVolumeFuture = obj.Asks[0].Ask;
+                _bestBidPriceFuture = obj.Bids[0].Price;
+                _bestBidVolumeFuture = obj.Bids[0].Bid;
+
+                if (!OnTradeRegime)
+                {
+                    OnTradeRegime = true;
+                }
+            }
         }
 
         private void MyServer_NewOrderIncomeEvent(Order obj)
@@ -97,25 +124,36 @@ namespace OsEngine.Robots.DeribitPI
                     _flagConstruction = FlagConstruction.FirstSellFuture;
                 }
 
-                AddLogList($"{DateTime.Now} Sec: {obj.SecurityNameCode}, Num: {obj.NumberMarket}, State: {obj.State}, " +
+                AddLogList($"{DateTime.Now} OrderEvent: {obj.SecurityNameCode}, Num: {obj.NumberMarket}, State: {obj.State}, " +
                     $"Side: {obj.Side}, Price: {obj.Price}, Volume: {obj.Volume}, VolEx: {obj.VolumeExecute}");
-                AddLogList($"{DateTime.Now} _OrderPrice = {_lastOrderPriceFuture}, _SellOrderVolume = {_futureSellOrderVolume}, _VolEx = {_futureSellOrderVolumeExecute}");
+                //AddLogList($"{DateTime.Now} _OrderPrice = {_lastOrderPriceFuture}, _SellOrderVolume = {_futureSellOrderVolume}, _VolEx = {_futureSellOrderVolumeExecute}");
             }
             else
             {
-                AddLogList($"{DateTime.Now} Sec: {obj.SecurityNameCode}, Num: {obj.NumberMarket}, State: {obj.State}, " +
+                AddLogList($"{DateTime.Now} OrderEvent: {obj.SecurityNameCode}, Num: {obj.NumberMarket}, State: {obj.State}, " +
                     $"Side: {obj.Side}, Price: {obj.Price}, Volume: {obj.Volume}, VolEx: {obj.VolumeExecute}");
-            }
-        }
 
-        private void _tabPerp_BestBidAskChangeEvent(decimal bid, decimal ask)
-        {
-            _bestAskFuture = ask;
-            _bestBidFuture = bid;
+                if (obj.SecurityNameCode == _tabOption.Tabs[_currentTab].Securiti.Name)
+                {
+                    if (obj.State == OrderStateType.Activ)
+                    {
+                        if (obj.VolumeExecute != obj.Volume && obj.VolumeExecute > 0) // не тестировано
+                        {
+                            CancelOptionOrder(); // здесь почему то не всегда удаляются ордера
+                            _futureSellOrderVolume = Math.Round(_futureSellOrderVolume / obj.Volume * obj.VolumeExecute);
+                            _flagConstruction = FlagConstruction.FirstSellFuture;
+                            _stepOrder = 0;
+                            _futureTimeOrderLimit = DateTime.Now;
+                        }
+                       /* if (obj.State == OrderStateType.Done)
+                        {
 
-            if (!OnTradeRegime)
-            {
-                OnTradeRegime = true;
+                            _flagConstruction = FlagConstruction.FirstSellFuture;
+                            _stepOrder = 0;
+                            _futureTimeOrderLimit = DateTime.Now;
+                        }*/
+                    }
+                }
             }
         }
 
@@ -126,7 +164,7 @@ namespace OsEngine.Robots.DeribitPI
 
         private void _tabPerp_PositionOpeningSuccesEvent(Position pos)
         {
-            string str = $"{DateTime.Now}: {pos.MyTrades[0].Side} {_tabPerp.Securiti.Name}, Price: {pos.MyTrades[0].Price}, Volume: {pos.OpenOrders[0].VolumeExecute}";
+            string str = $"{DateTime.Now}: {pos.MyTrades[0].Side} {_tabPerp.Securiti.Name}, Price: {pos.MyTrades[0].Price}, Volume: {pos.MyTrades[0].Volume}";
             AddLogList(str);
         }
 
@@ -134,27 +172,20 @@ namespace OsEngine.Robots.DeribitPI
         {
             string str = $"{DateTime.Now}: {pos.MyTrades[0].Side} {tab.Securiti.Name}, Price: {pos.MyTrades[0].Price}, Volume: {pos.MyTrades[0].Volume}";
             AddLogList(str);
-            
-            if (pos.OpenOrders[0].VolumeExecute != pos.OpenOrders[0].Volume) // не тестировано
-            {
-                CancelOptionOrder();
-                //_optionBuyVolume = pos.OpenOrders[0].Volume - pos.OpenOrders[0].VolumeExecute;
-                _futureSellOrderVolume = Math.Round(_futureSellOrderVolume / pos.OpenOrders[0].VolumeExecute);
-                _flagConstruction = FlagConstruction.FirstSellFuture;
-                _stepOrder = 0;
-                _futureTimeOrderLimit = DateTime.Now;
-            }
-            else
-            {
-                _flagConstruction = FlagConstruction.FirstSellFuture;
-                _stepOrder = 0;
-                _futureTimeOrderLimit = DateTime.Now;
-            }
+
+            _flagConstruction = FlagConstruction.FirstSellFuture;
+            _stepOrder = 0;
+            _futureTimeOrderLimit = DateTime.Now;
         }
 
         private void AddLogList(string str)
         {
+            if (LogList.Count > 500) // кол-во записей в логе
+            {
+                LogList.RemoveAt(0);
+            }
             LogList.Add(str);
+            SaveLog();
         }
 
         private void StartThread()
@@ -183,16 +214,34 @@ namespace OsEngine.Robots.DeribitPI
                     continue;
                 }
 
+                if (_tabPerp.Connector.MyServer.ServerStatus == Market.Servers.ServerConnectStatus.Disconnect)
+                {
+                    CurrentStrike = null;
+                    Thread.Sleep(1000);
+                    continue;
+                }     
+                
+                if (_tabPerp.Connector.MyServer.ServerStatus == Market.Servers.ServerConnectStatus.Connect)
+                {
+                    if (DeribitServerRealization.testServer)
+                    {
+                        _typeServer = "https://test.deribit.com";
+                    }
+                    else
+                    {
+                        _typeServer = "https://www.deribit.com";
+                    }
+                }
+
                 // получаем данные по теор цене, текущему страйку и базовой цене
                 if (_tabPerp.Connector.IsReadyToTrade)
                 {
                     if (CurrentStrike != null)
-                    {
+                    {                        
                         GetOptionMarkPrice();
                     }
                     else
-                    {
-                        
+                    {                        
                         CurrentStrike = _tabOption.Tabs[0].Securiti.Name;
                         GetOptionMarkPrice();
                     }
@@ -201,6 +250,8 @@ namespace OsEngine.Robots.DeribitPI
                     {
                         connectorOn = true;
                         _tabPerp.Connector.MyServer.NewOrderIncomeEvent += MyServer_NewOrderIncomeEvent;
+                        _tabPerp.Connector.MyServer.NewMarketDepthEvent += MyServer_NewMarketDepthEvent;
+                        AddLogList($"{DateTime.Now} Робот запущен");
                     }
 
                 }
@@ -249,7 +300,7 @@ namespace OsEngine.Robots.DeribitPI
                 // режим - выключено
                 if (Regime == DeribitPIUi.NameRegime.Off)
                 {
-                    if (_flagConstruction == FlagConstruction.FirstBuyOption) // если есть выставленный ордер на покупку опциона, то отменяем его
+                    if (_flagConstruction == FlagConstruction.QuoteBuyOption) // если есть выставленный ордер на покупку опциона, то отменяем его
                     {
                         CancelOptionOrder();
 
@@ -296,29 +347,19 @@ namespace OsEngine.Robots.DeribitPI
                         _flagConstruction = FlagConstruction.QuoteBuyOption;
                         _timeLifeOrderOption = DateTime.Now;
                         _futureSellOrderVolume = GetFutureVolume();
-                        AddLogList($"{DateTime.Now}: Выставляем заявку на покупку {_tabOption.Tabs[i].Securiti.Name}, цена: {priceOption}, объем: {volumeOption}");
+                        AddLogList($"{DateTime.Now} Выставляем заявку на покупку {_tabOption.Tabs[i].Securiti.Name}, цена: {priceOption}, объем: {volumeOption}");
                         break;
                     }
                 }
             }
 
             if (_flagConstruction == FlagConstruction.QuoteBuyOption) // котируем опцион
-            {
-                // если опцион купился, меняем флаг и выходим отсюда
-               /* if (_tabOption.Tabs[_currentTab].PositionsLast.State == PositionStateType.Open)
-                {
-                    _flagConstruction = FlagConstruction.FirstSellFuture;
-                    _stepOrder = 0;
-                    _futureTimeOrderLimit = DateTime.Now;
-
-                    return;
-                }*/
-
+            {               
                 // если сменился текущий страйк отменяем ордер и начинаем все заново
                 if (_tabOption.Tabs[_currentTab].Securiti.Name != CurrentStrike)
                 {
                     CancelOptionOrder();
-                    AddLogList($"{DateTime.Now}: Отмена ордера по смене страйка");
+                    AddLogList($"{DateTime.Now} Отмена ордера {_tabOption.Tabs[_currentTab].Securiti.Name} по смене страйка");
                     GetOptionMarkPrice();
 
                     return;
@@ -330,12 +371,12 @@ namespace OsEngine.Robots.DeribitPI
                     if (_stepOrder > 2) // 2 - кол-во шагов изменения цены опциона, если превысили, начинаем котировать опцион от начальных условий
                     {
                         _stepOrder = 0;
-                        AddLogList($"{DateTime.Now}: Отмена ордера по истечению времени и достижению предела шагов изменений ордера");
+                        AddLogList($"{DateTime.Now} Отмена ордера {_tabOption.Tabs[_currentTab].Securiti.Name} по истечению времени и достижению предела шагов изменений ордера");
                     }
                     else
                     {
                         _stepOrder += 1;
-                        AddLogList($"{DateTime.Now}: Отмена ордера по истечению времени");                        
+                        AddLogList($"{DateTime.Now} Отмена ордера {_tabOption.Tabs[_currentTab].Securiti.Name} по истечению времени");                        
                     }
 
                     CancelOptionOrder();
@@ -361,7 +402,7 @@ namespace OsEngine.Robots.DeribitPI
                             if (Math.Abs(MarkPriceOption - _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice) > stepPrice / 2)
                             {
                                 CancelOptionOrder();
-                                AddLogList($"{DateTime.Now}: Отмена ордера по изменению теор цены = {MarkPriceOption}");
+                                AddLogList($"{DateTime.Now} Отмена ордера {_tabOption.Tabs[_currentTab].Securiti.Name} по изменению теор цены = {MarkPriceOption}");
                             }
                         }
                         else if (_stepOrder > 0)
@@ -369,7 +410,7 @@ namespace OsEngine.Robots.DeribitPI
                             if (MarkPriceOption - _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice >= stepPrice)
                             {
                                 CancelOptionOrder();
-                                AddLogList($"{DateTime.Now}: Отмена ордера по изменению теор цены = {MarkPriceOption}");
+                                AddLogList($"{DateTime.Now} Отмена ордера {_tabOption.Tabs[_currentTab].Securiti.Name} по изменению теор цены = {MarkPriceOption}");
                                 _stepOrder = 0;
                             }
                         }
@@ -379,30 +420,27 @@ namespace OsEngine.Robots.DeribitPI
 
             if (_flagConstruction == FlagConstruction.FirstSellFuture)
             {
-
                 if (CheckBoxMarketOrder) // если чекбокс на маркетные заявки стоит
                 {
                     _tabPerp.SellAtMarket(_futureSellOrderVolume);
                     _flagConstruction = FlagConstruction.QuoteSellFuture;
-                    AddLogList($"{DateTime.Now}: Выставляем рыночную заявку на покупку {_tabPerp.Securiti.Name}, объем: {_futureSellOrderVolume}");
+                    AddLogList($"{DateTime.Now} Выставляем рыночную заявку на покупку {_tabPerp.Securiti.Name}, объем: {_futureSellOrderVolume}");
                     return;
                 }
                 else if (_futureTimeOrderLimit.AddSeconds(TimeFuturesLimit) <= DateTime.Now)
                 {
                     _tabPerp.SellAtMarket(_futureSellOrderVolume);
                     _flagConstruction = FlagConstruction.QuoteSellFuture;
-                    AddLogList($"{DateTime.Now}: Выставляем рыночную заявку на покупку {_tabPerp.Securiti.Name}, объем: {_futureSellOrderVolume}");
+                    AddLogList($"{DateTime.Now} Выставляем рыночную заявку на покупку {_tabPerp.Securiti.Name}, объем: {_futureSellOrderVolume}");
                     return;
                 }
                 else
                 {
                     DeribitServerRealization._postOnly = "true";
-                    //_futureSellOrderVolumeExecute = 0;
                     decimal priceFuture = GetFuturePrice();
                     _tabPerp.SellAtLimit(_futureSellOrderVolume, priceFuture);
                     _flagConstruction = FlagConstruction.QuoteSellFuture;
-                    AddLogList($"{DateTime.Now}: Выставляем лимитную заявку на покупку {_tabPerp.Securiti.Name}, цена: {priceFuture}, объем: {_futureSellOrderVolume}");
-
+                    AddLogList($"{DateTime.Now} Выставляем лимитную заявку на покупку {_tabPerp.Securiti.Name}, цена: {priceFuture}, объем: {_futureSellOrderVolume}");
                     return;
                 }
             }
@@ -421,20 +459,28 @@ namespace OsEngine.Robots.DeribitPI
                         }
                         return;
                     }
-                    if (_flagFutureOrder)
+                    if (_flagFutureOrder && !CheckBoxMarketOrder)
                     {
-                        if (_lastOrderPriceFuture != _bestAskFuture)
+                        if (_lastOrderPriceFuture > _bestAskPriceFuture)
                         {
                             CancelFutureOrder();
-                            AddLogList($"{DateTime.Now}: Отмена ордера, цена ордера не лучшая в стакане. Цена ордера: {_lastOrderPriceFuture}, Best Ask: {_bestAskFuture}");
+                            AddLogList($"{DateTime.Now} Отмена ордера {_tabPerp.Securiti.Name}, цена ордера не лучшая в стакане. Цена ордера: {_lastOrderPriceFuture}, Best Ask: {_bestAskPriceFuture}");
                         }
+                        if (_lastOrderPriceFuture == _bestAskPriceFuture && 
+                            _futureSellOrderVolume != _bestAskVolumeFuture && 
+                            _lastOrderPriceFuture - _tabPerp.Securiti.PriceStep >_bestBidPriceFuture) // здесь надо подумать, если кто-то встает в нашу цену, чтобы не менялся ордер
+                        {
+                            CancelFutureOrder();
+                            AddLogList($"{DateTime.Now} Отмена ордера {_tabPerp.Securiti.Name}, цена ордера такая же как и у других ордеров. Цена ордера: {_lastOrderPriceFuture}, Best Ask: {_bestAskPriceFuture}");
+                        }
+                            
                     }
 
                     // если лимитная заяка по фьючерсу не исполнилась, делаем заявку по маркету
                     if (_futureTimeOrderLimit.AddSeconds(TimeFuturesLimit) <= DateTime.Now)
                     {
                         CancelFutureOrder();
-                        AddLogList($"{DateTime.Now}: Отмена ордера по истечению времени");
+                        AddLogList($"{DateTime.Now} Отмена ордера {_tabPerp.Securiti.Name} по истечению времени");
                         return;
                     }
                 }
@@ -443,11 +489,11 @@ namespace OsEngine.Robots.DeribitPI
 
         private decimal GetFuturePrice()
         {
-            decimal price = _bestAskFuture;
+            decimal price = _bestAskPriceFuture;
 
-            if (_bestAskFuture - _bestBidFuture > _tabPerp.Securiti.PriceStep)
+            if (_bestAskPriceFuture - _bestBidPriceFuture > _tabPerp.Securiti.PriceStep)
             {
-                price = _bestAskFuture - _tabPerp.Securiti.PriceStep;
+                price = _bestAskPriceFuture - _tabPerp.Securiti.PriceStep;
             }
 
             return price;
@@ -502,7 +548,7 @@ namespace OsEngine.Robots.DeribitPI
                 if (_tabOption.Tabs[_currentTab].PositionsLast.State == PositionStateType.Opening ||
                     _tabOption.Tabs[_currentTab].PositionsLast.State == PositionStateType.Open)
                 {
-                    _tabOption.Tabs[_currentTab].CloseAllOrderToPosition(_tabOption.Tabs[_currentTab].PositionsLast);
+                    _tabOption.Tabs[_currentTab].CloseOrder(_tabOption.Tabs[_currentTab].PositionsLast.OpenOrders[0]);
                 }
             }
         }
@@ -555,12 +601,12 @@ namespace OsEngine.Robots.DeribitPI
                 {
                     ResponseMessageOptionMarkPrice response = JsonConvert.DeserializeObject<ResponseMessageOptionMarkPrice>(responseMessage.Content);
                     MarkPriceOption = Math.Round(response.result[0].mark_price, 4);
-                    UnderlyingPrice = response.result[0].underlying_price;
+                    UnderlyingPrice = Math.Round(response.result[0].underlying_price, 2, MidpointRounding.AwayFromZero);
                     CurrentStrike = GetCurrentStrike();
                 }
                 else
                 {
-                    SendNewLogMessage($"GetOptionMarkPrice - Http State Code: {responseMessage.StatusCode}, {responseMessage.Content}", LogMessageType.Error);
+                    SendNewLogMessage($"{CurrentStrike} - GetOptionMarkPrice - Http State Code: {responseMessage.StatusCode}, {responseMessage.Content}", LogMessageType.Error);
                 }
             }
             catch (Exception exception)
@@ -584,7 +630,7 @@ namespace OsEngine.Robots.DeribitPI
                 }
                 else
                 {
-                    SendNewLogMessage($"GetOptionMarkPrice - Http State Code: {responseMessage.StatusCode}, {responseMessage.Content}", LogMessageType.Error);
+                    SendNewLogMessage($"GetFutureMarkPrice - Http State Code: {responseMessage.StatusCode}, {responseMessage.Content}", LogMessageType.Error);
                 }
             }
             catch (Exception exception)
@@ -598,15 +644,8 @@ namespace OsEngine.Robots.DeribitPI
         private IRestResponse RequestRest(string stringRequest)
         {
             try
-            {
-                string typeServer = "https://www.deribit.com";
-
-                if (CheckTestServer)
-                {
-                    typeServer = "https://test.deribit.com";
-                }
-
-                string url = $"{typeServer}{stringRequest}";
+            {                
+                string url = $"{_typeServer}{stringRequest}";
                 RestClient client = new RestClient(url);
                 RestRequest request = new RestRequest(Method.GET);
                 IRestResponse responseMessage = client.Execute(request);
@@ -636,23 +675,31 @@ namespace OsEngine.Robots.DeribitPI
         {
             string currStrike = null;
 
+            if (_tabOption.Tabs.Count == 0) 
+            {
+                return null;
+            }
+
             for (int i = 0; i < _tabOption.Tabs.Count - 1; i++)
             {
-                int strike1 = int.Parse(_tabOption.Tabs[i].Securiti.Name.Split('-')[2]);
-                int strike2 = int.Parse(_tabOption.Tabs[i + 1].Securiti.Name.Split('-')[2]);
-
-                if (UnderlyingPrice > strike1 && UnderlyingPrice < strike2)
+                if (_tabOption.Tabs[i].Securiti != null && _tabOption.Tabs[i + 1].Securiti != null)
                 {
-                    if (UnderlyingPrice - strike1 >= strike2 - UnderlyingPrice)
+                    int strike1 = int.Parse(_tabOption.Tabs[i].Securiti.Name.Split('-')[2]);
+                    int strike2 = int.Parse(_tabOption.Tabs[i + 1].Securiti.Name.Split('-')[2]);
+
+                    if (UnderlyingPrice > strike1 && UnderlyingPrice < strike2)
                     {
-                        currStrike = _tabOption.Tabs[i + 1].Securiti.Name;
+                        if (UnderlyingPrice - strike1 >= strike2 - UnderlyingPrice)
+                        {
+                            currStrike = _tabOption.Tabs[i + 1].Securiti.Name;
+                        }
+                        else
+                        {
+                            currStrike = _tabOption.Tabs[i].Securiti.Name;
+                        }
+                        break;
                     }
-                    else
-                    {
-                        currStrike = _tabOption.Tabs[i].Securiti.Name;
-                    }
-                    break;
-                }
+                }                
             }
             return currStrike;
         }
@@ -738,6 +785,55 @@ namespace OsEngine.Robots.DeribitPI
                 // ignore
             }
         }
+
+        private void LoadLog()
+        {
+            if (!File.Exists(@"Engine\" + NameStrategyUniq + @"Log.txt"))
+            {
+                return;
+            }
+            try
+            {
+                using (StreamReader reader = new StreamReader(@"Engine\" + NameStrategyUniq + @"Log.txt"))
+                {
+                    string line;
+                    LogList = new List<string>();
+
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        if (!string.IsNullOrEmpty(line))
+                        {                            
+                            LogList.Add(line);
+                        }
+                    }
+                    reader.Close();
+                }
+            }
+            catch (Exception e)
+            {
+                SendNewLogMessage(e.ToString(), Logging.LogMessageType.Error);
+            }
+        }
+
+        private void SaveLog()
+        {
+            try
+            {
+                using (StreamWriter writer = new StreamWriter(@"Engine\" + NameStrategyUniq + @"Log.txt", false)
+                    )
+                {
+                    for (int i = 0; i < LogList.Count; i++)
+                    {
+                        writer.WriteLine(LogList[i]);
+                    }                    
+                    writer.Close();
+                }
+            }
+            catch (Exception)
+            {
+                // ignore
+            }
+        }    
 
         public override string GetNameStrategyType()
         {

@@ -53,7 +53,7 @@ namespace OsEngine.Robots.DeribitPI
             TwoIncreaseY.Text = _strategy.TwoIncreaseY.ToString();
             ThreeIncreaseX.Text = _strategy.ThreeIncreaseX.ToString();
             ThreeIncreaseY.Text = _strategy.ThreeIncreaseY.ToString();
-                        
+
             StartThread();
 
             this.Activate();

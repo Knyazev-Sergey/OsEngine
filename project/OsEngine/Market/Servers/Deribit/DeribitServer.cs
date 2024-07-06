@@ -61,11 +61,13 @@ namespace OsEngine.Market.Servers.Deribit
             {
                 _baseUrl = "https://www.deribit.com";
                 _webSocketUrl = "wss://www.deribit.com/ws/api/v2";
+                testServer = false;
             }
             else
             {
                 _baseUrl = "https://test.deribit.com";
                 _webSocketUrl = "wss://test.deribit.com/ws/api/v2";
+                testServer = true;
             }
 
             if (((ServerParameterBool)ServerParameters[4]).Value == true)
@@ -173,6 +175,8 @@ namespace OsEngine.Market.Servers.Deribit
         private string _webSocketUrl;
 
         public static string _postOnly;
+
+        public static bool testServer;
 
         private int _limitCandles = 5000;
 
