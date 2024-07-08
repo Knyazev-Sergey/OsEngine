@@ -147,7 +147,7 @@ namespace OsEngine.Robots.DeribitPI
                 {                    
                     ListBoxLog.Items.Add(message);
 
-                    if (ListBoxLog.Items.Count > 500)
+                    while (ListBoxLog.Items.Count > 500)
                     {
                         ListBoxLog.Items.RemoveAt(0);
                     }

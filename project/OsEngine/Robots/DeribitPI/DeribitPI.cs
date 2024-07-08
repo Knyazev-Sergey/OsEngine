@@ -1,19 +1,16 @@
-﻿using OsEngine.Entity;
-using OsEngine.OsTrader.Panels;
-using OsEngine.OsTrader.Panels.Tab;
-using OsEngine.OsTrader.Panels.Attributes;
-using System.Collections.Generic;
-using System.Threading;
-using System;
+﻿using Newtonsoft.Json;
+using OsEngine.Entity;
 using OsEngine.Logging;
-using RestSharp;
-using Newtonsoft.Json;
-using System.IO;
 using OsEngine.Market.Servers.Deribit;
-using System.Windows.Media.Animation;
-using OsEngine.Market;
-using OsEngine.OsTrader.AdminPanelApi;
+using OsEngine.OsTrader.Panels;
+using OsEngine.OsTrader.Panels.Attributes;
+using OsEngine.OsTrader.Panels.Tab;
+using RestSharp;
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
 
 namespace OsEngine.Robots.DeribitPI
 {
@@ -66,10 +63,9 @@ namespace OsEngine.Robots.DeribitPI
         private string _typeServer;
         private string _previousFixedStrike;
         private bool _flagOptionChangeStrike = false;
-        private DateTime _timerOptionChangeStrike;
+        private DateTime _timerOptionChangeStrike = DateTime.Now;
         public ConcurrentQueue<string> ListLog = new ConcurrentQueue<string>();
-
-
+        private DateTime _futureTimeOrderLimit = DateTime.Now;
 
         public DeribitPI(string name, StartProgram startProgram) : base(name, startProgram)
         {
@@ -81,7 +77,6 @@ namespace OsEngine.Robots.DeribitPI
             _tabOption.PositionOpeningSuccesEvent += _tabOption_PositionOpeningSuccesEvent;
             _tabPerp.PositionOpeningSuccesEvent += _tabPerp_PositionOpeningSuccesEvent;
             _tabPerp.CandleUpdateEvent += _tabPerp_CandleUpdateEvent;
-            //_tabPerp.BestBidAskChangeEvent += _tabPerp_BestBidAskChangeEvent;
             
             LoadParameters();
             LoadLog();
@@ -145,6 +140,11 @@ namespace OsEngine.Robots.DeribitPI
                             _futureTimeOrderLimit = DateTime.Now;
                         }                      
                     }
+                }
+
+                if (obj.State == OrderStateType.Cancel)
+                {
+                    _flagConstruction = FlagConstruction.FirstBuyOption;
                 }
             }
         }
@@ -246,7 +246,8 @@ namespace OsEngine.Robots.DeribitPI
                         _tabPerp.Connector.MyServer.NewMarketDepthEvent += MyServer_NewMarketDepthEvent;
                         AddLogList($"{DateTime.Now} Робот запущен");
                     }
-
+                    //_tabOption.Tabs.Add();
+                      
                 }
 
                 // получаем данные по депозиту
@@ -272,6 +273,20 @@ namespace OsEngine.Robots.DeribitPI
                 PositionOptionSize = 0;
                 for (int i = 0; i < _tabOption.Tabs.Count; i++)
                 {
+                    /*decimal positionVolume = 0;
+                    if (_tabOption.Tabs[i].PositionsOpenAll.Count > 0)
+                    {
+                        for (int j = 0; j < _tabOption.Tabs[i].PositionsOpenAll.Count; j++)
+                        {
+                            PositionOptionSize += _tabOption.Tabs[i].PositionsOpenAll[j].OpenVolume;
+                            positionVolume += _tabOption.Tabs[i].PositionsOpenAll[j].OpenVolume;
+                        }
+                        if (positionVolume > SettlementSizeOption / 2 && 
+                            CurrentStrike != _tabOption.Tabs[i].Securiti.Name)
+                        {
+                            _previousFixedStrike = _tabOption.Tabs[i].Securiti.Name;
+                        }
+                    }*/
                     if (_tabOption.Tabs[i].Portfolio != null)
                     {
                         if (_tabOption.Tabs[i].PositionsOnBoard != null)
@@ -317,10 +332,62 @@ namespace OsEngine.Robots.DeribitPI
                 {
                     AssemblyConstruction();
                 }
+
+                if (Regime == DeribitPIUi.NameRegime.TradeFutures)
+                {
+                    TradeFutures();
+                }
             }
         }
 
-        private DateTime _futureTimeOrderLimit = DateTime.Now;
+        private void TradeFutures()
+        {                       
+            decimal countRightBreakEven = 0;
+            decimal countLeftBreakEven = 0;
+            decimal volumeCall = 0;            
+            decimal sum1 = 0;
+            decimal sum2 = 0;
+            decimal averagePriceFuture = 0;
+
+            for (int i = 0; i < _tabPerp.PositionsOpenAll.Count; i++)
+            {
+                decimal priceFuture = _tabPerp.PositionsOpenAll[i].EntryPrice;
+                decimal volumeFuture = _tabPerp.PositionsOpenAll[i].OpenVolume;
+
+                sum1 += priceFuture * volumeFuture;
+                sum2 += volumeFuture;
+            }
+            if (sum2 > 0 && sum1 > 0)
+            {
+                averagePriceFuture = sum1 / sum2;
+            }
+            
+            for (int i = 0; i < _tabOption.Tabs.Count; i++)
+            {
+                if (_tabOption.Tabs[i].PositionsOpenAll.Count > 0)
+                {
+                    int strike = Convert.ToInt32(_tabOption.Tabs[i].PositionsOpenAll[0].SecurityName.Split('-')[2]);
+
+                    for (int j = 0; j < _tabOption.Tabs[i].PositionsOpenAll.Count; j++)
+                    {
+                        decimal priceCall = _tabOption.Tabs[i].PositionsOpenAll[j].EntryPrice;
+                        volumeCall += _tabOption.Tabs[i].PositionsOpenAll[j].OpenVolume;
+                        decimal pricePut = Math.Round(priceCall - ((averagePriceFuture - strike) / averagePriceFuture), 4);
+                        countRightBreakEven += Math.Round(strike / (1 - priceCall - pricePut) * _tabOption.Tabs[i].PositionsOpenAll[j].OpenVolume);
+                        countLeftBreakEven += Math.Round(strike / (1 + priceCall + pricePut) * _tabOption.Tabs[i].PositionsOpenAll[j].OpenVolume);
+                    }
+                }                    
+            }
+
+            decimal rightBreakEven = Math.Round(countRightBreakEven / volumeCall);
+            decimal leftBreakEven = Math.Round(countLeftBreakEven / volumeCall);
+
+            AddLogList($"{DateTime.Now} Left Breakeven = {leftBreakEven}, Right Breakeven = {rightBreakEven}");
+
+            Regime = DeribitPIUi.NameRegime.Off;
+
+        }
+                
         private void AssemblyConstruction()
         {
             if (_flagOptionChangeStrike)
@@ -576,7 +643,7 @@ namespace OsEngine.Robots.DeribitPI
 
         private void CancelOptionOrder()
         {
-            _flagConstruction = FlagConstruction.FirstBuyOption;
+            _flagConstruction = FlagConstruction.None;
 
             if (_currentTab == 0)
             {
