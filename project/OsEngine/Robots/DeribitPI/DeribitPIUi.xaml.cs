@@ -37,7 +37,7 @@ namespace OsEngine.Robots.DeribitPI
             LabelTimeFuturesLimit.Text = _strategy.TimeFuturesLimit.ToString();
             checkBoxMarketOrder.IsChecked = _strategy.CheckBoxMarketOrder;
             LabelTimeOptionLimit.Text = _strategy.TimeOptionLimit.ToString();
-            LabelPauseBuyOption.Text = _strategy.PauseBuyOption.ToString();
+            TimeLifeAssemblyConstruction.Text = _strategy.TimeLifeAssemblyConstruction.ToString();
             CountWorkParts.Text = _strategy.CountWorkParts.ToString();
             RatioWorkParts.Text = _strategy.RatioWorkParts.ToString();
             OneIncreaseX.Text = _strategy.OneIncreaseX.ToString();
@@ -91,7 +91,7 @@ namespace OsEngine.Robots.DeribitPI
                 checkBoxMarketOrder.IsHitTestVisible = false;
                 checkBoxMarketOrder.Focusable = false;
                 LabelTimeOptionLimit.IsReadOnly = true;
-                LabelPauseBuyOption.IsReadOnly = true;
+                TimeLifeAssemblyConstruction.IsReadOnly = true;
                 CountWorkParts.IsReadOnly = true;
                 RatioWorkParts.IsReadOnly = true;
                 OneIncreaseX.IsReadOnly = true;
@@ -110,7 +110,7 @@ namespace OsEngine.Robots.DeribitPI
                 checkBoxMarketOrder.IsHitTestVisible = true;
                 checkBoxMarketOrder.Focusable = true;
                 LabelTimeOptionLimit.IsReadOnly = false;
-                LabelPauseBuyOption.IsReadOnly = false;
+                TimeLifeAssemblyConstruction.IsReadOnly = false;
                 CountWorkParts.IsReadOnly = false;
                 RatioWorkParts.IsReadOnly = false;
                 OneIncreaseX.IsReadOnly = false;
@@ -244,9 +244,9 @@ namespace OsEngine.Robots.DeribitPI
             _strategy.SaveParameters();
         }
 
-        private void LabelPauseBuyOption_TextChanged(object sender, TextChangedEventArgs e)
+        private void TimeLifeAssemblyConstruction_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _strategy.PauseBuyOption = TextChanger(sender);
+            _strategy.TimeLifeAssemblyConstruction = TextChanger(sender);
             _strategy.SaveParameters();
         }
 
