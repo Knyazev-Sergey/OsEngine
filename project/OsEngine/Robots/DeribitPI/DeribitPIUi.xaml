@@ -100,9 +100,7 @@
                                 
                             </StackPanel>                            
                         </GroupBox>                        
-                        <StackPanel>
-                            <DatePicker Name="datePicker1" IsDropDownOpen="False" SelectedDateFormat="Short" />
-                        </StackPanel>
+                        <StackPanel/>
                     </StackPanel>
                     <StackPanel>
                         <GroupBox Header="Отчет по позициям" Margin="5,5,5,0" Foreground="Gainsboro" FontSize="12" Grid.Row="0" Grid.Column="1">
@@ -137,8 +135,6 @@
             </TabItem>
 
         </TabControl>
-
-        <Button Name="ButtonAccept" Content="Accept" HorizontalAlignment="Right" Margin="0,0,5,10" VerticalAlignment="Bottom" Width="120" Click="Button_Click"/>
 
     </Grid>
 </Window>

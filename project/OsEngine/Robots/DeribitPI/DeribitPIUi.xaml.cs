@@ -47,7 +47,7 @@ namespace OsEngine.Robots.DeribitPI
             ThreeIncreaseX.Text = _strategy.ThreeIncreaseX.ToString();
             ThreeIncreaseY.Text = _strategy.ThreeIncreaseY.ToString();
 
-            ListBoxLog.Items.Clear();
+            /*ListBoxLog.Items.Clear();
             for (int i = 0; i < _strategy.LogList.Count; i++)
             {
                 ListBoxLog.Items.Add(_strategy.LogList[i]);
@@ -55,7 +55,7 @@ namespace OsEngine.Robots.DeribitPI
                 {
                     ListBoxLog.Items.RemoveAt(0);
                 }
-            } 
+            } */
 
             StartThread();
 
@@ -138,8 +138,8 @@ namespace OsEngine.Robots.DeribitPI
             TextDeposit.Text = _strategy.Deposit.ToString();
             TextSizeOptionOnBoard.Text = _strategy.PositionOptionSize.ToString();
             TextSizeFuturesOnBoard.Text = _strategy.PositionFutureSize.ToString();
-          
-            while (!_strategy.ListLog.IsEmpty)
+
+            /*while (!_strategy.ListLog.IsEmpty)
             {
                 _strategy.ListLog.TryDequeue(out string message);
 
@@ -152,26 +152,26 @@ namespace OsEngine.Robots.DeribitPI
                         ListBoxLog.Items.RemoveAt(0);
                     }
                 }
-            }
-           
-            
-            
+            }*/
 
-           /* ListBoxLog.Items.Clear();
+
+
+
+            ListBoxLog.Items.Clear();
             for (int i = 0; i < _strategy.LogList.Count; i++)
             {
                 ListBoxLog.Items.Add(_strategy.LogList[i]);
-            }*/
+            }
         }
 
-        private void Button_Click(object sender, RoutedEventArgs e)
+        /*private void Button_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                /*if (TextBoxVolumeOne.Text.ToDecimal() <= 0)
+                *//*if (TextBoxVolumeOne.Text.ToDecimal() <= 0)
                 {
                     throw new Exception("");
-                }*/
+                }*//*
             }
             catch (Exception)
             {
@@ -179,12 +179,12 @@ namespace OsEngine.Robots.DeribitPI
                 return;
             }
 
-           /* _strategy.Volume = TextBoxVolumeOne.Text.ToDecimal();
+           *//* _strategy.Volume = TextBoxVolumeOne.Text.ToDecimal();
             Enum.TryParse(ComboBoxRegime.Text, true, out _strategy.Regime);
-            Enum.TryParse(ComboBoxDirection.Text, true, out _strategy.Direction);*/
+            Enum.TryParse(ComboBoxDirection.Text, true, out _strategy.Direction);*//*
 
             Close();
-        }
+        }*/
 
         public enum NameRegime
         {
