@@ -615,6 +615,15 @@ namespace OsEngine.Market.Servers.Alor
 
             DateTime startTime = endTime.AddDays(-daysCount);
 
+            if (endTime.DayOfWeek == DayOfWeek.Monday)
+            {
+                startTime = startTime.AddDays(-2);
+            }
+            if (endTime.DayOfWeek == DayOfWeek.Tuesday)
+            {
+                startTime = startTime.AddDays(-1);
+            }
+
             List<Candle> candles = GetCandleDataToSecurity(security, timeFrameBuilder, startTime, endTime, startTime);
         
             while(candles.Count > candleCount)
@@ -1458,7 +1467,7 @@ namespace OsEngine.Market.Servers.Alor
             trade.Time = ConvertToDateTimeFromUnixFromMilliseconds(baseMessage.timestamp);
             trade.Id = baseMessage.id;
             trade.Side = Side.Buy;
-            trade.Volume = 1;
+            trade.Volume = baseMessage.qty.ToDecimal();
 
             if (NewTradesEvent != null)
             {

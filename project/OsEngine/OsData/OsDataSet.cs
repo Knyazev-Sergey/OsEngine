@@ -1164,7 +1164,24 @@ namespace OsEngine.OsData
                     || TimeFrame == TimeFrame.Sec20
                     || TimeFrame == TimeFrame.Sec30)
             {
-                interval = new TimeSpan(3, 0, 0, 0);
+                TimeSpan timeInSet = TimeEnd - TimeStart;
+
+                if(timeInSet.TotalDays >= 3)
+                {
+                    interval = new TimeSpan(3, 0, 0, 0);
+                }
+                else if (timeInSet.TotalDays >= 2)
+                {
+                    interval = new TimeSpan(2, 0, 0, 0);
+                }
+                else if (timeInSet.TotalDays >= 1)
+                {
+                    interval = new TimeSpan(1, 0, 0, 0);
+                }
+                else
+                {
+                    interval = new TimeSpan(0, 0, 0, 0);
+                }
             }
 
             // 1 минутки рубим на месяца
@@ -1347,7 +1364,7 @@ namespace OsEngine.OsData
         {
             if (_isDeleted) { return; }
 
-            TimeFrameBuilder timeFrameBuilder = new TimeFrameBuilder();
+            TimeFrameBuilder timeFrameBuilder = new TimeFrameBuilder(StartProgram.IsOsData);
             timeFrameBuilder.TimeFrame = TimeFrame;
 
             if (pie.Status == DataPieStatus.Load)
@@ -1562,7 +1579,7 @@ namespace OsEngine.OsData
         {
             if (_isDeleted) { return; }
 
-            TimeFrameBuilder timeFrameBuilder = new TimeFrameBuilder();
+            TimeFrameBuilder timeFrameBuilder = new TimeFrameBuilder(StartProgram.IsOsData);
             timeFrameBuilder.TimeFrame = TimeFrame;
 
             string id = SecId;
@@ -1829,7 +1846,7 @@ namespace OsEngine.OsData
                 return null;
             }
 
-            TimeFrameBuilder timeFrameBuilder = new TimeFrameBuilder();
+            TimeFrameBuilder timeFrameBuilder = new TimeFrameBuilder(StartProgram.IsOsData);
             timeFrameBuilder.TimeFrame = TimeFrame;
 
             CandleSeries series = new CandleSeries(timeFrameBuilder, new Security() { Name = "Unknown" }, StartProgram.IsOsConverter);
@@ -2176,20 +2193,32 @@ namespace OsEngine.OsData
         public void UpDateStatus()
         {
             // 1 Актуальное время старта
-            List<Candle> Candles = LoadCandleDataPieInTempFile();
+            CandlePieStatusInfo CandlesInfo = null;
 
-            List<Trade> Trades = LoadTradeDataPieFromTempFile();
+            if (_pathMyTempPieInTfFolder.Contains("Tick") == false)
+            {
+                CandlesInfo = LoadCandlesPieStatus();
+            }
+
+            TradePieStatusInfo TradesInfo = null;
+
+            if ((CandlesInfo == null
+                || CandlesInfo.FirstCandle == null)
+                && _pathMyTempPieInTfFolder.Contains("Tick") == true)
+            {
+                TradesInfo = LoadTradesPieStatus();
+            }
 
             DateTime start = DateTime.MinValue;
 
-            if (Candles != null && Candles.Count != 0)
+            if (CandlesInfo != null && CandlesInfo.FirstCandle != null)
             {
-                start = Candles[0].TimeStart;
+                start = CandlesInfo.FirstCandle.TimeStart;
             }
 
-            if (Trades != null && Trades.Count != 0)
+            if (TradesInfo != null && TradesInfo.FirstTrade != null)
             {
-                start = Trades[0].Time;
+                start = TradesInfo.FirstTrade.Time;
             }
 
             StartFact = start;
@@ -2198,34 +2227,32 @@ namespace OsEngine.OsData
 
             DateTime end = DateTime.MinValue;
 
-            if (Candles != null && Candles.Count > 0)
+            if (CandlesInfo != null && CandlesInfo.LastCandle != null)
             {
-                end = Candles[Candles.Count - 1].TimeStart;
+                end = CandlesInfo.LastCandle.TimeStart;
             }
 
-            if (Trades != null && Trades.Count > 0)
+            if (TradesInfo != null && TradesInfo.LastTrade != null)
             {
-                end = Trades[Trades.Count - 1].Time;
+                end = TradesInfo.LastTrade.Time;
             }
 
             EndFact = end;
 
-            if (Candles == null &&
-                Trades == null)
+            if (CandlesInfo == null &&
+                TradesInfo == null)
             {
                 ObjectCount = 0;
             }
 
-            if (Candles != null
-                && Candles.Count != 0)
+            if (CandlesInfo != null)
             {
-                ObjectCount = Candles.Count;
+                ObjectCount = CandlesInfo.CandlesCount;
             }
 
-            if (Trades != null
-                && Trades.Count != 0)
+            if (TradesInfo != null)
             {
-                ObjectCount = Trades.Count;
+                ObjectCount = TradesInfo.TradesCount;
             }
         }
 
@@ -2264,6 +2291,58 @@ namespace OsEngine.OsData
         {
             SaveCandleDataPieInTempFile(candles);
             UpDateStatus();
+        }
+
+        public CandlePieStatusInfo LoadCandlesPieStatus()
+        {
+            string pathToTempFile = _pathMyTempPieInTfFolder + "\\" + Start.ToString("yyyyMMdd") + "_" + End.ToString("yyyyMMdd") + ".txt";
+
+            if (File.Exists(pathToTempFile) == false)
+            {
+                return null;
+            }
+
+            CandlePieStatusInfo result = new CandlePieStatusInfo();
+
+            int candlesCount = 0;
+
+            try
+            {
+                using (StreamReader reader = new StreamReader(pathToTempFile))
+                {
+                    while (reader.EndOfStream == false)
+                    {
+                        candlesCount++;
+                        string str = reader.ReadLine();
+
+                        if (result.FirstCandle == null)
+                        {
+                            Candle newCandle = new Candle();
+                            newCandle.SetCandleFromString(str);
+                            result.FirstCandle = newCandle;
+                        }
+                        if (reader.EndOfStream == true)
+                        {
+                            Candle newCandle = new Candle();
+                            newCandle.SetCandleFromString(str);
+                            result.LastCandle = newCandle;
+                        }
+                    }
+                }
+            }
+            catch (Exception error)
+            {
+                //SendNewLogMessage(error.ToString(), LogMessageType.Error);
+            }
+
+            result.CandlesCount = candlesCount;
+
+            if (result.CandlesCount != 0)
+            {
+                Status = DataPieStatus.Load;
+            }
+
+            return result;
         }
 
         public List<Candle> LoadCandleDataPieInTempFile()
@@ -2337,6 +2416,59 @@ namespace OsEngine.OsData
         }
 
         // трейды
+
+        public TradePieStatusInfo LoadTradesPieStatus()
+        {
+            string pathToTempFile = _pathMyTempPieInTfFolder + "\\" + Start.ToString("yyyyMMdd") + "_" + End.ToString("yyyyMMdd") + ".txt";
+
+            if (File.Exists(pathToTempFile) == false)
+            {
+                return null;
+            }
+
+            TradePieStatusInfo info = new TradePieStatusInfo();
+
+            int tradesCount = 0;
+
+            try
+            {
+                using (StreamReader reader = new StreamReader(pathToTempFile))
+                {
+                    while (reader.EndOfStream == false)
+                    {
+                        tradesCount++;
+                        string str = reader.ReadLine();
+
+                        if (info.FirstTrade == null)
+                        {
+                            Trade firstTrade = new Trade();
+                            firstTrade.SetTradeFromString(str);
+                            info.FirstTrade = firstTrade;
+                        }
+
+                        if (reader.EndOfStream == true)
+                        {
+                            Trade lastTrade = new Trade();
+                            lastTrade.SetTradeFromString(str);
+                            info.LastTrade = lastTrade;
+                        }
+                    }
+                }
+            }
+            catch (Exception error)
+            {
+                //SendNewLogMessage(error.ToString(), LogMessageType.Error);
+            }
+
+            info.TradesCount = tradesCount;
+
+            if (info.FirstTrade != null)
+            {
+                Status = DataPieStatus.Load;
+            }
+
+            return info;
+        }
 
         public List<Trade> LoadTradeDataPieFromTempFile()
         {
@@ -2431,5 +2563,24 @@ namespace OsEngine.OsData
         None,
         Load,
         InProcess
+    }
+
+    public class TradePieStatusInfo
+    {
+        public Trade FirstTrade;
+
+        public Trade LastTrade;
+
+        public int TradesCount;
+
+    }
+
+    public class CandlePieStatusInfo
+    {
+        public Candle FirstCandle;
+
+        public Candle LastCandle;
+
+        public int CandlesCount;
     }
 }

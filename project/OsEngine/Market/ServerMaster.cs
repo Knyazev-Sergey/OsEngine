@@ -58,6 +58,7 @@ using OsEngine.Market.Servers.MoexAlgopack;
 using OsEngine.Market.Servers.HTX.Spot;
 using OsEngine.Market.Servers.HTX.Futures;
 using OsEngine.Market.Servers.HTX.Swap;
+using OsEngine.Market.Servers.MoexFixFastSpot;
 
 namespace OsEngine.Market
 {
@@ -198,6 +199,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.PionexSpot);
                 serverTypes.Add(ServerType.Woo);
                 serverTypes.Add(ServerType.MoexAlgopack);
+                serverTypes.Add(ServerType.MoexFixFastSpot);
                 serverTypes.Add(ServerType.InteractiveBrokers);
                 serverTypes.Add(ServerType.NinjaTrader);
                 serverTypes.Add(ServerType.Lmax);
@@ -285,6 +287,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.MoexDataServer);
                 serverTypes.Add(ServerType.MfdWeb);
                 serverTypes.Add(ServerType.MoexAlgopack);
+                serverTypes.Add(ServerType.MoexFixFastSpot);
                 serverTypes.Add(ServerType.AscendEx_BitMax);
                 serverTypes.Add(ServerType.Binance);
                 serverTypes.Add(ServerType.BinanceFutures);
@@ -387,6 +390,10 @@ namespace OsEngine.Market
                 if (type == ServerType.MoexAlgopack)
                 {
                     newServer = new MoexAlgopackServer();
+                }
+                if (type == ServerType.MoexFixFastSpot)
+                {
+                    newServer = new MoexFixFastSpotServer();
                 }
                 if (type == ServerType.XTSpot)
                 {
@@ -856,32 +863,39 @@ namespace OsEngine.Market
 
             while (true)
             {
-                await Task.Delay(5000);
-
-                if (!MainWindow.ProccesIsWorked)
+                try
                 {
-                    return;
-                }
+                    await Task.Delay(5000);
 
-                if (NeadToConnectAuto == false)
-                {
-                    continue;
-                }
+                    if (!MainWindow.ProccesIsWorked)
+                    {
+                        return;
+                    }
 
-                if (_tryActivateServerTypes == null)
-                {
-                    _tryActivateServerTypes = new List<ServerType>();
-                }
-
-                for (int i = 0; _needServerTypes != null && i < _needServerTypes.Count; i++)
-                {
-                    if (_needServerTypes[i] == ServerType.Tester ||
-                        _needServerTypes[i] == ServerType.Optimizer ||
-                        _needServerTypes[i] == ServerType.Miner)
+                    if (NeadToConnectAuto == false)
                     {
                         continue;
                     }
-                    TryStartThisSevrverInAutoType(_needServerTypes[i]);
+
+                    if (_tryActivateServerTypes == null)
+                    {
+                        _tryActivateServerTypes = new List<ServerType>();
+                    }
+
+                    for (int i = 0; _needServerTypes != null && i < _needServerTypes.Count; i++)
+                    {
+                        if (_needServerTypes[i] == ServerType.Tester ||
+                            _needServerTypes[i] == ServerType.Optimizer ||
+                            _needServerTypes[i] == ServerType.Miner)
+                        {
+                            continue;
+                        }
+                        TryStartThisServerInAutoType(_needServerTypes[i]);
+                    }
+                }
+                catch(Exception ex)
+                {
+                    SendNewLogMessage(ex.ToString(),LogMessageType.Error);
                 }
             }
         }
@@ -889,40 +903,47 @@ namespace OsEngine.Market
         /// <summary>
         /// try running this server
         /// </summary>
-        private static void TryStartThisSevrverInAutoType(ServerType type)
+        private static void TryStartThisServerInAutoType(ServerType type)
         {
-            for (int i = 0; i < _tryActivateServerTypes.Count; i++)
+            try
             {
-                if (_tryActivateServerTypes[i] == type)
+                for (int i = 0; i < _tryActivateServerTypes.Count; i++)
+                {
+                    if (_tryActivateServerTypes[i] == type)
+                    {
+                        return;
+                    }
+                }
+
+                _tryActivateServerTypes.Add(type);
+
+                if (GetServers() == null || GetServers().Find(server1 => server1.ServerType == type) == null)
+                { // if we don't have our server, create a new one / если у нас нашего сервера нет - создаём его
+                    CreateServer(type, true);
+                }
+
+                List<IServer> servers = GetServers();
+
+                if (servers == null)
+                { // something went wrong / что-то пошло не так
+                    return;
+                }
+
+                IServer server = servers.Find(server1 => server1.ServerType == type);
+
+                if (server == null)
                 {
                     return;
                 }
+
+                if (server.ServerStatus != ServerConnectStatus.Connect)
+                {
+                    server.StartServer();
+                }
             }
-
-            _tryActivateServerTypes.Add(type);
-
-            if (GetServers() == null || GetServers().Find(server1 => server1.ServerType == type) == null)
-            { // if we don't have our server, create a new one / если у нас нашего сервера нет - создаём его
-                CreateServer(type, true);
-            }
-
-            List<IServer> servers = GetServers();
-
-            if (servers == null)
-            { // something went wrong / что-то пошло не так
-                return;
-            }
-
-            IServer server = servers.Find(server1 => server1.ServerType == type);
-
-            if (server == null)
+            catch (Exception ex)
             {
-                return;
-            }
-
-            if (server.ServerStatus != ServerConnectStatus.Connect)
-            {
-                server.StartServer();
+                SendNewLogMessage(ex.ToString(),LogMessageType.Error);
             }
         }
 
@@ -997,6 +1018,10 @@ namespace OsEngine.Market
                 else if (type == ServerType.MoexAlgopack)
                 {
                     serverPermission = new MoexAlgopackServerPermission();
+                }
+                else if (type == ServerType.MoexFixFastSpot)
+                {
+                    serverPermission = new MoexFixFastSpotServerPermission();
                 }
                 else if (type == ServerType.XTSpot)
                 {
@@ -1105,6 +1130,10 @@ namespace OsEngine.Market
                 else if (type == ServerType.HTXSwap)
                 {
                     serverPermission = new HTXSwapServerPermission();
+                }
+                else if (type == ServerType.Plaza)
+                {
+                    serverPermission = new PlazaServerPermission();
                 }
 
                 if (serverPermission != null)
@@ -1526,5 +1555,10 @@ namespace OsEngine.Market
         /// HTXSwap exchange
         /// </summary>
         HTXSwap,
+
+        /// <summary>
+        /// FIX/FAST for MOEX Spot
+        /// </summary>
+        MoexFixFastSpot,
     }
 }

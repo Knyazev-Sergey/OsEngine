@@ -143,6 +143,7 @@ namespace OsEngine.Market.Servers.QuikLua
                     _useOther = (ServerParameterBool)ServerParameters[4];
 
                     QuikLua = new QuikSharp.Quik(QuikSharp.Quik.DefaultPort, new InMemoryStorage());
+                    //QuikLua.DefaultSendTimeout = new TimeSpan(0, 0, 5);
                     QuikLua.Events.OnConnected += EventsOnOnConnected;
                     QuikLua.Events.OnDisconnected += EventsOnOnDisconnected;
                     QuikLua.Events.OnConnectedToQuik += EventsOnOnConnectedToQuik;
@@ -1130,6 +1131,8 @@ namespace OsEngine.Market.Servers.QuikLua
 
         private object _getCandlesLocker = new object();
 
+        private RateGate _gateToGetCandles = new RateGate(1, TimeSpan.FromMilliseconds(500));
+
         /// <summary>
         /// take candles by instrument
         /// взять свечи по инструменту
@@ -1144,6 +1147,8 @@ namespace OsEngine.Market.Servers.QuikLua
             {
                 lock (_getCandlesLocker)
                 {
+                    _gateToGetCandles.WaitToProceed();
+
                     if (timeSpan.TotalMinutes > 1440 ||
                         timeSpan.TotalMinutes < 1)
                     {
