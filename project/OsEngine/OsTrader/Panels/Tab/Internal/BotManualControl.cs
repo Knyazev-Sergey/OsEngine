@@ -90,9 +90,9 @@ namespace OsEngine.OsTrader.Panels.Tab.Internal
 
             StopIsOn = false;
             ProfitIsOn = false;
-            DoubleExitIsOn = true;
-            SecondToOpenIsOn = true;
-            SecondToCloseIsOn = true;
+            DoubleExitIsOn = false;
+            SecondToOpenIsOn = false;
+            SecondToCloseIsOn = false;
             SetbackToOpenIsOn = false;
             SetbackToCloseIsOn = false;
 

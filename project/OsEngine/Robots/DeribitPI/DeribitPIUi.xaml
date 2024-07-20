@@ -10,24 +10,24 @@
             <GroupBox Header="Настройка опционной конструкции" Margin="5,5,5,300" Height="360" Width="390" Foreground="Gainsboro" FontSize="12" >
                 <UniformGrid Rows="7" Columns="2">
 
-                    <TextBlock Margin="5,0,5,0" Height="23" VerticalAlignment="Center" TextWrapping="Wrap">% от депозита</TextBlock>
-                    <TextBox Margin="5" Name="LabelPercentDeposit" TextChanged="LabelPercentDeposit_TextChanged"></TextBox>
-                    <TextBlock Margin="5,0,5,0" Height="23" VerticalAlignment="Center" TextWrapping="Wrap">Кол-во итераций</TextBlock>
-                    <TextBox Margin="5" Name="CountIteration" TextChanged="CountIteration_TextChanged"></TextBox>
-                    <TextBlock Margin="5,0,5,0" Height="38" TextWrapping="Wrap">Время до экспирации для разбора конструкции (мин)</TextBlock>
-                    <TextBox Margin="5" Name="TimeToCloseOption" TextChanged="TimeToCloseOption_TextChanged"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="23" VerticalAlignment="Center" TextWrapping="Wrap">% от депозита*</TextBlock>
+                    <TextBox Margin="5" Name="LabelPercentDeposit" TextChanged="LabelPercentDeposit_TextChanged" ToolTip="Здесь мы указываем % от депозита. От этого зависит расчет количества опционов в конструкции"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="23" VerticalAlignment="Center" TextWrapping="Wrap">Кол-во итераций*</TextBlock>
+                    <TextBox Margin="5" Name="CountIteration" TextChanged="CountIteration_TextChanged" ToolTip="Указываем количество интераций  - это то количество подходов, за которое будет набрана конструкци"></TextBox>
+                    <TextBlock Margin="5,0,5,0" Height="38" TextWrapping="Wrap">Время до экспирации для разбора конструкции (мин)*</TextBlock>
+                    <TextBox Margin="5" Name="TimeToCloseOption" TextChanged="TimeToCloseOption_TextChanged" ToolTip="Время до экспирации (в минутах), когда робот будет останавливать торговлю и закрывать врутридневные позиции по фьючерсу"></TextBox>
                     <TextBlock Margin="5,0,5,0" Height="38" VerticalAlignment="Center" TextWrapping="Wrap">Время на выставление лимитных заявок (сек)</TextBlock>
-                    <TextBox Margin="5" Name="LabelTimeFuturesLimit" TextChanged="LabelTimeFuturesLimit_TextChanged"></TextBox>
+                    <TextBox Margin="5" Name="LabelTimeFuturesLimit" TextChanged="LabelTimeFuturesLimit_TextChanged" ToolTip="Время на выставление лимитных заявок по фьючерсу(в секундах). Когда робот купил опцион, он начинает продавать (котировать) фьючерс, если за указанное время заявка не исполняется, то эта заявка уходит по рынку"></TextBox>
                     <TextBlock Margin="5,0,5,0" Height="22" TextWrapping="Wrap">Заявка по рынку</TextBlock>
-                    <CheckBox x:Name="checkBoxMarketOrder" IsThreeState="False" Margin="5,0,5,5" IsChecked="True" Height="20" Checked="checkBoxMarketOrder_Checked" Unchecked="checkBoxMarketOrder_Unchecked"/>
+                    <CheckBox x:Name="checkBoxMarketOrder" IsThreeState="False" Margin="5,0,5,5" IsChecked="True" Height="20" Checked="checkBoxMarketOrder_Checked" Unchecked="checkBoxMarketOrder_Unchecked" ToolTip="Заявка по рынку. Ставим флажок, если нам необходимо чтобы все фьючерсные заявки уходили по рынку"/>
                     <TextBlock Margin="5,0,5,0" Height="54" VerticalAlignment="Center" TextWrapping="Wrap">Время на исполнение опционной заявки до изменения цены (сек)</TextBlock>
-                    <TextBox Margin="5" Name="LabelTimeOptionLimit" TextChanged="LabelTimeOptionLimit_TextChanged"></TextBox>
+                    <TextBox Margin="5" Name="LabelTimeOptionLimit" TextChanged="LabelTimeOptionLimit_TextChanged" ToolTip="Время на исполнение опционной заявки до изменения цены (в секундах). Если время указать 0 сек, то данная опция не будет задействована. Если выставленная заявка не исполняется в течение указанного времени, то выставляется новая заявка с увеличенной ценой на минимальный шаг."/>
                     <TextBlock Margin="5,0,5,0" Height="38" TextWrapping="Wrap">Время набора конструкции (мин)</TextBlock>
-                    <TextBox Margin="5" Name="TimeLifeAssemblyConstruction" TextChanged="TimeLifeAssemblyConstruction_TextChanged"></TextBox>
+                    <TextBox Margin="5" Name="TimeLifeAssemblyConstruction" TextChanged="TimeLifeAssemblyConstruction_TextChanged" ToolTip="Время набора конструкции (в минутах). Общее время за которое робот будет набирать конструкцию. По истечению времени робот перейдет в режит «Торговля фьючерсом». Если указано 0, то опция не работает"></TextBox>
                     
                 </UniformGrid>
             </GroupBox>
-            <GroupBox Header="Настройка внутредневной торговли" Margin="0,5,5,300" Height="360" Width="390" Foreground="Gainsboro" FontSize="12" >
+            <GroupBox Header="Настройка внутридневной торговли" Margin="0,5,5,300" Height="360" Width="390" Foreground="Gainsboro" FontSize="12" >
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="35"></RowDefinition>
@@ -39,9 +39,9 @@
                         <ColumnDefinition Width="50*"></ColumnDefinition>
                         <ColumnDefinition Width="50*"></ColumnDefinition>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Margin="5,10,5,5" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Кол-во частей рабочей части</TextBlock>
+                    <TextBlock Margin="5,10,5,5" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Кол-во частей рабочей части*</TextBlock>
                     <TextBox Margin="5,0,5,0" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="CountWorkParts" TextChanged="CountWorkParts_TextChanged"/>
-                    <TextBlock Margin="5,0,5,0" Grid.Row="1" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Коэф расчета рабочей части</TextBlock>
+                    <TextBlock Margin="5,0,5,0" Grid.Row="1" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Коэф расчета рабочей части*</TextBlock>
                     <TextBox Margin="5,0,5,0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="RatioWorkParts" TextChanged="RatioWorkParts_TextChanged"></TextBox>
                     <TextBlock Margin="5,0,5,0" Height="44" TextWrapping="Wrap" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" VerticalAlignment="Center">Увеличение рабочей части (Х плюсовых сделок - увеличиваем НРЧ в Y раз):</TextBlock>
                     <Grid Margin="5,0,0,5" Grid.ColumnSpan="2" Grid.Column="0" Grid.Row="3">
@@ -94,8 +94,8 @@
                                     <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextPriceOption" Text=""></TextBlock>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Кол-во опционов к покупке:"></TextBlock>
-                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextSizeOption" Text=""></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Кол-во опционов к покупке:" ></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextSizeOption" Text="" ToolTip="Отображается количество опционов к покупке, зависящее от указанного % от депозита"></TextBlock>
                                 </StackPanel>
                                 
                             </StackPanel>                            

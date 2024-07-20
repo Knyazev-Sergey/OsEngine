@@ -4,6 +4,7 @@
 */
 
 using System;
+using System.Globalization;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -197,7 +198,7 @@ namespace OsEngine.Robots.DeribitPI
                 
         private void LabelPercentDeposit_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _strategy.PercentOfDeposit = TextChanger(sender);
+            _strategy.PercentOfDeposit = TextChangerToDecimal(sender);
             _strategy.SaveParameters();
         }
 
@@ -303,6 +304,7 @@ namespace OsEngine.Robots.DeribitPI
             TextBox textBox = sender as TextBox;
             if (textBox != null && !string.IsNullOrEmpty(textBox.Text))
             {
+                
                 if (int.TryParse(textBox.Text, out int num))
                 {
                     return num;
@@ -310,6 +312,33 @@ namespace OsEngine.Robots.DeribitPI
                 else
                 {
                     MessageBox.Show("В параметре должно быть числовое значение", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    textBox.Clear();
+                    return 0;
+                }
+            }
+            else if (textBox.Text == "0")
+            {
+                return 0;
+            }
+            else
+            {
+                return 0;
+            }
+        }
+
+        private decimal TextChangerToDecimal(object sender)
+        {
+            TextBox textBox = sender as TextBox;
+            if (textBox != null && !string.IsNullOrEmpty(textBox.Text))
+            {                
+                if (decimal.TryParse(textBox.Text, out decimal num))
+                {
+                    
+                    return num;
+                }
+                else
+                {
+                    MessageBox.Show("В параметре должно быть числовое значение. Для дробного числа нужно использовать запятую", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                     textBox.Clear();
                     return 0;
                 }
