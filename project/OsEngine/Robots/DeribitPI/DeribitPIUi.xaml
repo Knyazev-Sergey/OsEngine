@@ -30,7 +30,7 @@
             <GroupBox Header="Настройка внутридневной торговли" Margin="0,5,5,300" Height="360" Width="390" Foreground="Gainsboro" FontSize="12" >
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="35"></RowDefinition>
+                        <RowDefinition Height="50"></RowDefinition>
                         <RowDefinition Height="30"></RowDefinition>
                         <RowDefinition Height="45"></RowDefinition>
                         <RowDefinition Height="76*"></RowDefinition>
@@ -39,10 +39,10 @@
                         <ColumnDefinition Width="50*"></ColumnDefinition>
                         <ColumnDefinition Width="50*"></ColumnDefinition>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Margin="5,10,5,5" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Кол-во частей рабочей части*</TextBlock>
-                    <TextBox Margin="5,0,5,0" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="CountWorkParts" TextChanged="CountWorkParts_TextChanged"/>
-                    <TextBlock Margin="5,0,5,0" Grid.Row="1" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23">Коэф расчета рабочей части*</TextBlock>
-                    <TextBox Margin="5,0,5,0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="RatioWorkParts" TextChanged="RatioWorkParts_TextChanged"></TextBox>
+                    <TextBlock Margin="5,10,5,0" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="46">Кол-во частей рабочего диапазона*</TextBlock>
+                    <TextBox Margin="5,0,5,5" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="CountWorkParts" TextChanged="CountWorkParts_TextChanged" ToolTip="Указываем, на какое количество частей разбиваем рабочий диапазон"/>
+                    <TextBlock Margin="5,0,5,0" Grid.Row="1" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23" >Коэф расчета рабочей части*</TextBlock>
+                    <TextBox Margin="5,0,5,0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="RatioWorkParts" TextChanged="RatioWorkParts_TextChanged" ToolTip="Указываем коэффициент, на который мы делим общую сумму фьючерсов для построения стреддла, для получения рабочей части."></TextBox>
                     <TextBlock Margin="5,0,5,0" Height="44" TextWrapping="Wrap" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" VerticalAlignment="Center">Увеличение рабочей части (Х плюсовых сделок - увеличиваем НРЧ в Y раз):</TextBlock>
                     <Grid Margin="5,0,0,5" Grid.ColumnSpan="2" Grid.Column="0" Grid.Row="3">
                         <Grid.RowDefinitions>
@@ -110,16 +110,16 @@
                                     <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextDeposit" Text=""></TextBlock>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Кол-во опционов:"></TextBlock>
-                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextSizeOptionOnBoard" Text=""></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Кол-во опционов в набранной конструкции:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextSizeOptionOnBoard" Text="" ToolTip="Кол-во опционов в набранной конструкции"></TextBlock>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Кол-во фьючерсов:"></TextBlock>
-                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextSizeFuturesOnBoard" Text=""></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Кол-во фьючерсов в набранной конструкции:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextSizeFuturesOnBoard" Text="" ToolTip="Кол-во фьючерсов в набранной конструкции"></TextBlock>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Ордера на покупку:"></TextBlock>
-                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextOrdersBuy" Text=""></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center"  Text="Кол-во фьючерсов в интрадей:"></TextBlock>
+                                    <TextBlock Margin="5" Height="20" VerticalAlignment="Center" Name="TextSizeFutureIntraday" Text="" ToolTip="Кол-во фьючерсов торгуемых интрадей"></TextBlock>
                                 </StackPanel>
 
                             </StackPanel>

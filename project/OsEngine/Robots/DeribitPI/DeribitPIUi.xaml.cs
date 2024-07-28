@@ -139,6 +139,8 @@ namespace OsEngine.Robots.DeribitPI
             TextDeposit.Text = _strategy.Deposit.ToString();
             TextSizeOptionOnBoard.Text = _strategy.PositionOptionSize.ToString();
             TextSizeFuturesOnBoard.Text = _strategy.PositionFutureSize.ToString();
+            TextSizeFutureIntraday.Text = _strategy.PositionFutureIntraday.ToString();
+            
 
             /*while (!_strategy.ListLog.IsEmpty)
             {
