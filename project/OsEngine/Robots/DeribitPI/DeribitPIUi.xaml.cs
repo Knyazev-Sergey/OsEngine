@@ -4,12 +4,10 @@
 */
 
 using System;
-using System.Globalization;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using OsEngine.Language;
 
 namespace OsEngine.Robots.DeribitPI
 {
@@ -48,15 +46,14 @@ namespace OsEngine.Robots.DeribitPI
             ThreeIncreaseX.Text = _strategy.ThreeIncreaseX.ToString();
             ThreeIncreaseY.Text = _strategy.ThreeIncreaseY.ToString();
 
-            /*ListBoxLog.Items.Clear();
+            ListBoxLog.Items.Clear();
             for (int i = 0; i < _strategy.LogList.Count; i++)
             {
-                ListBoxLog.Items.Add(_strategy.LogList[i]);
-                if (ListBoxLog.Items.Count > 500)
-                {
-                    ListBoxLog.Items.RemoveAt(0);
-                }
-            } */
+                ListBoxLog.Items.Add(_strategy.LogList[i]);                
+            }
+            ListBoxLog.ScrollIntoView(ListBoxLog.Items[ListBoxLog.Items.Count - 1]);
+
+            _strategy.LogMessageEvent += _strategy_LogMessageEvent;
 
             StartThread();
 
@@ -64,108 +61,127 @@ namespace OsEngine.Robots.DeribitPI
             this.Focus();
         }
 
-        private void StartThread()
+        private void _strategy_LogMessageEvent(string arg1, Logging.LogMessageType arg2)
         {
-            Thread worker = new Thread(StartText) { IsBackground = true };
-            worker.Start();
-        }
-
-        private void StartText() 
-        {           
-            while (true)
+            Application.Current.Dispatcher.Invoke(() =>
             {
-                Thread.Sleep(1000);
+                if (arg2 == Logging.LogMessageType.User)
+                {
+                    ListBoxLog.Items.Add(arg1);
 
-                Dispatcher.Invoke(new Action(UpdateWpf));
-                Dispatcher.Invoke(new Action(VisibleParameters));
-            }
-        }
-
-        private void VisibleParameters()
-        {
-            if (_strategy.Regime != NameRegime.Off)
-            {
-                LabelPercentDeposit.IsReadOnly = true;
-                CountIteration.IsReadOnly = true;
-                TimeToCloseOption.IsReadOnly = true;
-                LabelTimeFuturesLimit.IsReadOnly = true;
-                checkBoxMarketOrder.IsHitTestVisible = false;
-                checkBoxMarketOrder.Focusable = false;
-                LabelTimeOptionLimit.IsReadOnly = true;
-                TimeLifeAssemblyConstruction.IsReadOnly = true;
-                CountWorkParts.IsReadOnly = true;
-                RatioWorkParts.IsReadOnly = true;
-                OneIncreaseX.IsReadOnly = true;
-                OneIncreaseY.IsReadOnly = true;
-                TwoIncreaseX.IsReadOnly = true;
-                TwoIncreaseY.IsReadOnly = true;
-                ThreeIncreaseX.IsReadOnly = true;
-                ThreeIncreaseY.IsReadOnly = true;
-            }
-            else
-            {
-                LabelPercentDeposit.IsReadOnly = false;
-                CountIteration.IsReadOnly = false;
-                TimeToCloseOption.IsReadOnly = false;
-                LabelTimeFuturesLimit.IsReadOnly = false;
-                checkBoxMarketOrder.IsHitTestVisible = true;
-                checkBoxMarketOrder.Focusable = true;
-                LabelTimeOptionLimit.IsReadOnly = false;
-                TimeLifeAssemblyConstruction.IsReadOnly = false;
-                CountWorkParts.IsReadOnly = false;
-                RatioWorkParts.IsReadOnly = false;
-                OneIncreaseX.IsReadOnly = false;
-                OneIncreaseY.IsReadOnly = false;
-                TwoIncreaseX.IsReadOnly = false;
-                TwoIncreaseY.IsReadOnly = false;
-                ThreeIncreaseX.IsReadOnly = false;
-                ThreeIncreaseY.IsReadOnly = false;
-            }            
-        }
-
-        private void UpdateWpf()
-        {
-            ComboBoxRegime.SelectedValue = _strategy.Regime;
-            if (_strategy.OnTradeRegime)
-            {
-                ComboBoxRegime.IsEnabled = true;
-            }
-            
-            TextLastPrice.Text = _strategy.UnderlyingPrice.ToString();
-            TextCurrStrike.Text = _strategy.CurrentStrike;
-            TextPriceOption.Text = _strategy.MarkPriceOption.ToString();
-            TextSizeOption.Text = _strategy.SettlementSizeOption.ToString();
-
-            TextDeposit.Text = _strategy.Deposit.ToString();
-            TextSizeOptionOnBoard.Text = _strategy.PositionOptionSize.ToString();
-            TextSizeFuturesOnBoard.Text = _strategy.PositionFutureSize.ToString();
-            TextSizeFutureIntraday.Text = _strategy.PositionFutureIntraday.ToString();
-            
-
-            /*while (!_strategy.ListLog.IsEmpty)
-            {
-                _strategy.ListLog.TryDequeue(out string message);
-
-                if (message != null)
-                {                    
-                    ListBoxLog.Items.Add(message);
-
-                    while (ListBoxLog.Items.Count > 500)
+                    while (ListBoxLog.Items.Count > _strategy.CountListLog) // кол-во записей в логе
                     {
                         ListBoxLog.Items.RemoveAt(0);
                     }
+                    ListBoxLog.ScrollIntoView(ListBoxLog.Items[ListBoxLog.Items.Count - 1]);
                 }
-            }*/
-
-
-
-
-            ListBoxLog.Items.Clear();
-            for (int i = 0; i < _strategy.LogList.Count; i++)
-            {
-                ListBoxLog.Items.Add(_strategy.LogList[i]);
-            }
+            });
+            
         }
+
+       private void StartThread()
+       {
+           Thread worker = new Thread(StartText) { IsBackground = true };
+           worker.Start();
+       }
+
+       private void StartText() 
+       {
+            
+            while (true)
+            {
+               Thread.Sleep(1000);
+
+               Dispatcher.Invoke(new Action(UpdateWpf));
+               Dispatcher.Invoke(new Action(VisibleParameters));
+            }
+       }
+
+       private void VisibleParameters()
+       {
+           if (_strategy.Regime != NameRegime.Off)
+           {
+               LabelPercentDeposit.IsReadOnly = true;
+               CountIteration.IsReadOnly = true;
+               TimeToCloseOption.IsReadOnly = true;
+               LabelTimeFuturesLimit.IsReadOnly = true;
+               checkBoxMarketOrder.IsHitTestVisible = false;
+               checkBoxMarketOrder.Focusable = false;
+               LabelTimeOptionLimit.IsReadOnly = true;
+               TimeLifeAssemblyConstruction.IsReadOnly = true;
+               CountWorkParts.IsReadOnly = true;
+               RatioWorkParts.IsReadOnly = true;
+               OneIncreaseX.IsReadOnly = true;
+               OneIncreaseY.IsReadOnly = true;
+               TwoIncreaseX.IsReadOnly = true;
+               TwoIncreaseY.IsReadOnly = true;
+               ThreeIncreaseX.IsReadOnly = true;
+               ThreeIncreaseY.IsReadOnly = true;
+           }
+           else
+           {
+               LabelPercentDeposit.IsReadOnly = false;
+               CountIteration.IsReadOnly = false;
+               TimeToCloseOption.IsReadOnly = false;
+               LabelTimeFuturesLimit.IsReadOnly = false;
+               checkBoxMarketOrder.IsHitTestVisible = true;
+               checkBoxMarketOrder.Focusable = true;
+               LabelTimeOptionLimit.IsReadOnly = false;
+               TimeLifeAssemblyConstruction.IsReadOnly = false;
+               CountWorkParts.IsReadOnly = false;
+               RatioWorkParts.IsReadOnly = false;
+               OneIncreaseX.IsReadOnly = false;
+               OneIncreaseY.IsReadOnly = false;
+               TwoIncreaseX.IsReadOnly = false;
+               TwoIncreaseY.IsReadOnly = false;
+               ThreeIncreaseX.IsReadOnly = false;
+               ThreeIncreaseY.IsReadOnly = false;
+           }            
+       }
+
+       private void UpdateWpf()
+       {
+           ComboBoxRegime.SelectedValue = _strategy.Regime;
+           if (_strategy.OnTradeRegime)
+           {
+               ComboBoxRegime.IsEnabled = true;
+           }
+
+           TextLastPrice.Text = _strategy.UnderlyingPrice.ToString();
+           TextCurrStrike.Text = _strategy.CurrentStrike;
+           TextPriceOption.Text = _strategy.MarkPriceOption.ToString();
+           TextSizeOption.Text = _strategy.SettlementSizeOption.ToString();
+
+           TextDeposit.Text = _strategy.Deposit.ToString();
+           TextSizeOptionOnBoard.Text = _strategy.PositionOptionSize.ToString();
+           TextSizeFuturesOnBoard.Text = _strategy.PositionFutureSize.ToString();
+           TextSizeFutureIntraday.Text = _strategy.PositionFutureIntraday.ToString();
+
+
+           /*while (!_strategy.ListLog.IsEmpty)
+           {
+               _strategy.ListLog.TryDequeue(out string message);
+
+               if (message != null)
+               {                    
+                   ListBoxLog.Items.Add(message);
+
+                   while (ListBoxLog.Items.Count > 500)
+                   {
+                       ListBoxLog.Items.RemoveAt(0);
+                   }
+               }
+           }*/
+
+
+
+
+                /*ListBoxLog.Items.Clear();
+                for (int i = 0; i < _strategy.LogList.Count; i++)
+                {
+                    ListBoxLog.Items.Add(_strategy.LogList[i]);
+                }*/
+            }
 
         /*private void Button_Click(object sender, RoutedEventArgs e)
         {

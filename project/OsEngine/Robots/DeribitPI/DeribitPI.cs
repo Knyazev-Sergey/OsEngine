@@ -44,8 +44,17 @@ namespace OsEngine.Robots.DeribitPI
 
             LoadParameters();
             LoadLog();
-            StartThread();                        
+            StartThread();
+            OrderEventThread();
         }
+
+        private void OrderEventThread()
+        {
+            Thread orderEventThread = new Thread(ParsingOrderEvent) { IsBackground = true };
+            orderEventThread.Start();
+        }
+
+        
 
         public override string GetNameStrategyType()
         {
@@ -109,7 +118,7 @@ namespace OsEngine.Robots.DeribitPI
         private string _firstFixedStrike;
         private bool _flagOptionChangeStrike = false;
         private DateTime _timeLifeAssemblyConsruction;
-        public ConcurrentQueue<string> ListLog = new ConcurrentQueue<string>();
+        private ConcurrentQueue<Order> _orderEventQueue = new ConcurrentQueue<Order>();
         private DateTime _futureTimeOrderLimit = DateTime.Now;
         private bool _flagTimerAssemblyConstruction = false;
         private List<ListOrders> _ordersIntradayFuture = new List<ListOrders>();
@@ -119,6 +128,7 @@ namespace OsEngine.Robots.DeribitPI
         private decimal _increaseWorkPartVolumeIntraday = 0;
         private int _countProfitOrders;
         private OrdersType _lastOrderType = OrdersType.None;
+        public int CountListLog = 1000;
 
         #endregion
 
@@ -218,152 +228,183 @@ namespace OsEngine.Robots.DeribitPI
                 SendNewLogMessage(ex.ToString(), LogMessageType.Error);
             }
         }
-
+                
         private void MyServer_NewOrderIncomeEvent(Order obj)
         {
             try
+            {                
+                _orderEventQueue.Enqueue(obj);
+            }
+            catch (Exception ex)
             {
-                if (obj.SecurityNameCode == _tabPerp.Securiti.Name)
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+            }           
+        }
+
+        private void ParsingOrderEvent()
+        {
+            try
+            {
+                while (true)
                 {
-                    if (Regime == DeribitPIUi.NameRegime.TradeFutures)
+                    Thread.Sleep(50);
+
+                    if (_orderEventQueue.IsEmpty)
                     {
+                        continue;
+                    }
 
-                        for (int i = 0; i < _ordersIntradayFuture.Count; i++) // проверка на пустые номера ордеров и присвоение номера
+                    Order obj;
+
+                    _orderEventQueue.TryDequeue(out obj);
+
+                    if (obj == null)
+                    {
+                        continue;
+                    }
+
+                    if (obj.SecurityNameCode == _tabPerp.Securiti.Name)
+                    {
+                        if (Regime == DeribitPIUi.NameRegime.TradeFutures)
                         {
-                            if (_ordersIntradayFuture[i].PriceOrder == obj.Price && _ordersIntradayFuture[i].NumberMarket == "")
-                            {
-                                if (obj.State == OrderStateType.Activ ||
-                                obj.State == OrderStateType.Done)
-                                {
-                                    _ordersIntradayFuture[i].NumberMarket = obj.NumberMarket;
-                                    string str = $"Num = {_ordersIntradayFuture[i].NumberMarket}, PriceOrder = {_ordersIntradayFuture[i].PriceOrder}, SideOrder = {_ordersIntradayFuture[i].SideOrder}, " +
-                                        $"Vol = {_ordersIntradayFuture[i].VolumeOrder}, ExVol = {_ordersIntradayFuture[i].ExecuteVolume}, " +
-                                        $"PriceCounterOrder = {_ordersIntradayFuture[i].PriceCounterOrder}, {_ordersIntradayFuture[i].OrderType}";
-                                    AddLogList(str);
-                                    SendNewLogMessage(str, LogMessageType.User);
-                                }
-                            }
-                        }
 
-                        if (obj.VolumeExecute > 0)
-                        {
-                            AddLogList("OrderEvent: " + obj.SecurityNameCode + ", Num: " + obj.NumberMarket + ", State: " + obj.State + ", " +
-                                    "Side: " + obj.Side + ", Price: " + obj.Price + ", Vol: " + obj.Volume + ", VolEx: " + obj.VolumeExecute);
-
-                            if (obj.State == OrderStateType.Activ ||
-                                obj.State == OrderStateType.Done)
+                            for (int i = 0; i < _ordersIntradayFuture.Count; i++) // проверка на пустые номера ордеров и присвоение номера
                             {
-                                for (int indexFirstOrder = 0; indexFirstOrder < _ordersIntradayFuture.Count; indexFirstOrder++)
+                                if (_ordersIntradayFuture[i].PriceOrder == obj.Price && _ordersIntradayFuture[i].NumberMarket == "")
                                 {
-                                    if (_ordersIntradayFuture[indexFirstOrder].NumberMarket == obj.NumberMarket) // находим ордер по которому пришел ивент
+                                    if (obj.State == OrderStateType.Activ ||
+                                    obj.State == OrderStateType.Done)
                                     {
-                                        _ordersIntradayFuture[indexFirstOrder].ExecuteVolume = obj.VolumeExecute;
-
-                                        if (_ordersIntradayFuture[indexFirstOrder].ExecuteVolume > 0)
-                                        {
-                                            bool tryCounterOrder = false;
-
-                                            for (int indexSecondOrder = 0; indexSecondOrder < _ordersIntradayFuture.Count; indexSecondOrder++) // находим противоположный ордер
-                                            {
-                                                if (_ordersIntradayFuture[indexSecondOrder].PriceOrder == _ordersIntradayFuture[indexFirstOrder].PriceCounterOrder) // если он есть
-                                                {
-                                                    tryCounterOrder = true;
-                                                    if (_ordersIntradayFuture[indexSecondOrder].VolumeOrder != obj.VolumeExecute) // если объемы ордера и противоположного ордера не равны
-                                                    {
-                                                        for (int closeOrder = 0; closeOrder < _tabIntraday.PositionsOpenAll.Count; closeOrder++)
-                                                        {
-                                                            if (_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket != "" && // если номер ордера не пустой
-                                                                _ordersIntradayFuture[indexSecondOrder].NumberMarket == _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket) // и если номер ордера такой же как в массиве
-                                                            {
-                                                                decimal volumeInteradayFuture = _workPartVolumeIntraday - _ordersIntradayFuture[indexFirstOrder].VolumeOrder + _ordersIntradayFuture[indexFirstOrder].ExecuteVolume; // определяем какой объем противоположного ордера выставить
-                                                             
-                                                                AddLogList($"Удаляем противоположный ордер {_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket} " +
-                                                                   $"с ценой {_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Price} " +
-                                                                   $"и выставляем новый противоположный ордер Price = {_ordersIntradayFuture[indexFirstOrder].PriceCounterOrder}, Vol = {volumeInteradayFuture}");
-
-                                                                // удаляем противоположный ордер
-                                                                Position pos = _tabIntraday.PositionsOpenAll[closeOrder];
-                                                                decimal vol = _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Volume;// здесь!!!
-                                                                AddLogList($"Объем удаляемой позиции = {vol}");
-                                                                decimal price = _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Price;
-                                                                _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
-
-                                                                if (_ordersIntradayFuture[indexFirstOrder].SideOrder == Side.Buy) // и выставляем новый противоположный ордер
-                                                                {
-                                                                    _tabIntraday.SellAtLimit(volumeInteradayFuture, _ordersIntradayFuture[indexFirstOrder].PriceCounterOrder);
-                                                                }
-                                                                else
-                                                                {
-                                                                    _tabIntraday.BuyAtLimit(volumeInteradayFuture, _ordersIntradayFuture[indexFirstOrder].PriceCounterOrder);
-                                                                }
-
-                                                                // вносим изменения в массив
-                                                                _ordersIntradayFuture[indexSecondOrder].VolumeOrder = volumeInteradayFuture;
-                                                                _ordersIntradayFuture[indexSecondOrder].NumberMarket = "";
-                                                                _ordersIntradayFuture[indexSecondOrder].ExecuteVolume = 0;
-                                                                break;
-                                                            }
-                                                        }
-                                                    }                                                    
-                                                    break;
-                                                }
-                                            }
-
-                                            if (!tryCounterOrder) // если противоположного ордера нет, то выставляем этот ордер
-                                            {
-                                                if (_ordersIntradayFuture[indexFirstOrder].SideOrder == Side.Buy)
-                                                {
-                                                    _tabIntraday.SellAtLimit(_ordersIntradayFuture[indexFirstOrder].ExecuteVolume, _ordersIntradayFuture[indexFirstOrder].PriceCounterOrder);
-                                                }
-                                                else
-                                                {
-                                                    _tabIntraday.BuyAtLimit(_ordersIntradayFuture[indexFirstOrder].ExecuteVolume, _ordersIntradayFuture[indexFirstOrder].PriceCounterOrder);
-                                                }
-                                                AddLogList($"Противоположного ордера нет, выставляем новый ордер Price = {_ordersIntradayFuture[indexFirstOrder].PriceCounterOrder}, Vol = {_ordersIntradayFuture[indexFirstOrder].ExecuteVolume}");
-
-                                                // заносим ордер в массив
-                                                _ordersIntradayFuture.Add(new ListOrders(_ordersIntradayFuture[indexFirstOrder].PriceCounterOrder,
-                                                    _ordersIntradayFuture[indexFirstOrder].SideOrder == Side.Buy ? Side.Sell : Side.Buy,
-                                                    obj.VolumeExecute,
-                                                    0,
-                                                    _ordersIntradayFuture[indexFirstOrder].PriceOrder,
-                                                    _ordersIntradayFuture[indexFirstOrder].OrderType == OrdersType.MainOrder ? OrdersType.CounterOrder : OrdersType.MainOrder,
-                                                    ""));
-                                            }
-                                        }
-                                        if (_ordersIntradayFuture[indexFirstOrder].ExecuteVolume == _ordersIntradayFuture[indexFirstOrder].VolumeOrder) // если объем выполненный равен объему ордера, то удаляем ордер из массива
-                                        {
-                                            CheckOrderType(_ordersIntradayFuture[indexFirstOrder].OrderType); //проверка на последовательность прохождения типов ордеров
-
-                                            _ordersIntradayFuture.RemoveAt(indexFirstOrder);
-
-                                            for (int indexCloseOrder = 0; indexCloseOrder < _tabIntraday.PositionsOpenAll.Count; indexCloseOrder++)
-                                            {
-                                                if (_tabIntraday.PositionsOpenAll[indexCloseOrder].OpenOrders[0].NumberMarket == obj.NumberMarket)
-                                                {
-                                                    Position pos = _tabIntraday.PositionsOpenAll[indexCloseOrder];
-                                                    decimal vol = _tabIntraday.PositionsOpenAll[indexCloseOrder].OpenOrders[0].Volume;
-                                                    decimal price = _tabIntraday.PositionsOpenAll[indexCloseOrder].OpenOrders[0].Price;
-                                                    _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
-                                                    break;
-                                                }
-                                            }
-                                            AddLogList($"Объем выполненный {obj.VolumeExecute} равен объему ордера {obj.Volume}, удаляем ордер {obj.NumberMarket} из массива и делаем фейк-закрытие");
-
-                                            CheckIncreaseWorkParts();// проверка на увеличение НРЧ
-                                        }
-                                        break;
+                                        _ordersIntradayFuture[i].NumberMarket = obj.NumberMarket;
+                                        string str = $"Num = {_ordersIntradayFuture[i].NumberMarket}, PriceOrder = {_ordersIntradayFuture[i].PriceOrder}, SideOrder = {_ordersIntradayFuture[i].SideOrder}, " +
+                                            $"Vol = {_ordersIntradayFuture[i].VolumeOrder}, ExVol = {_ordersIntradayFuture[i].ExecuteVolume}, " +
+                                            $"PriceCounterOrder = {_ordersIntradayFuture[i].PriceCounterOrder}, {_ordersIntradayFuture[i].OrderType}";
+                                        AddLogList(str);
+                                        SendNewLogMessage(str, LogMessageType.Signal);
                                     }
                                 }
-                                foreach (ListOrders item in _ordersIntradayFuture)
+                            }
+
+                            if (obj.VolumeExecute > 0)
+                            {
+                                AddLogList("OrderEvent: " + obj.SecurityNameCode + ", Num: " + obj.NumberMarket + ", State: " + obj.State + ", " +
+                                        "Side: " + obj.Side + ", Price: " + obj.Price + ", Vol: " + obj.Volume + ", VolEx: " + obj.VolumeExecute);
+
+                                if (obj.State == OrderStateType.Activ ||
+                                    obj.State == OrderStateType.Done)
                                 {
-                                    AddLogList($"Num = {item.NumberMarket}, PriceOrder = {item.PriceOrder}, SideOrder = {item.SideOrder}, Vol = {item.VolumeOrder}, ExVol = {item.ExecuteVolume}, PriceCounterOrder = {item.PriceCounterOrder}, {item.OrderType}");
+                                    for (int indexFirstOrder = 0; indexFirstOrder < _ordersIntradayFuture.Count; indexFirstOrder++)
+                                    {
+                                        if (_ordersIntradayFuture[indexFirstOrder].NumberMarket == obj.NumberMarket) // находим ордер по которому пришел ивент
+                                        {
+                                            _ordersIntradayFuture[indexFirstOrder].ExecuteVolume = obj.VolumeExecute;
+
+                                            if (_ordersIntradayFuture[indexFirstOrder].ExecuteVolume > 0)
+                                            {
+                                                bool tryCounterOrder = false;
+
+                                                for (int indexSecondOrder = 0; indexSecondOrder < _ordersIntradayFuture.Count; indexSecondOrder++) // находим противоположный ордер
+                                                {
+                                                    if (_ordersIntradayFuture[indexSecondOrder].PriceOrder == _ordersIntradayFuture[indexFirstOrder].PriceCounterOrder) // если он есть
+                                                    {
+                                                        tryCounterOrder = true;
+                                                        if (_ordersIntradayFuture[indexSecondOrder].VolumeOrder != obj.VolumeExecute) // если объемы ордера и противоположного ордера не равны
+                                                        {
+                                                            for (int closeOrder = 0; closeOrder < _tabIntraday.PositionsOpenAll.Count; closeOrder++)
+                                                            {
+                                                                if (_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket != "" && // если номер ордера не пустой
+                                                                    _ordersIntradayFuture[indexSecondOrder].NumberMarket == _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket) // и если номер ордера такой же как в массиве
+                                                                {
+                                                                    decimal volumeInteradayFuture = _workPartVolumeIntraday - _ordersIntradayFuture[indexFirstOrder].VolumeOrder + _ordersIntradayFuture[indexFirstOrder].ExecuteVolume; // определяем какой объем противоположного ордера выставить
+
+                                                                    AddLogList($"Удаляем противоположный ордер {_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket} " +
+                                                                       $"с ценой {_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Price} " +
+                                                                       $"и выставляем новый противоположный ордер Price = {_ordersIntradayFuture[indexFirstOrder].PriceCounterOrder}, Vol = {volumeInteradayFuture}");
+
+                                                                    // удаляем противоположный ордер
+                                                                    Position pos = _tabIntraday.PositionsOpenAll[closeOrder];
+                                                                    decimal vol = _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Volume;// здесь!!!
+                                                                    AddLogList($"Объем удаляемой позиции = {vol}");
+                                                                    decimal price = _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Price;
+                                                                    _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
+
+                                                                    if (_ordersIntradayFuture[indexFirstOrder].SideOrder == Side.Buy) // и выставляем новый противоположный ордер
+                                                                    {
+                                                                        _tabIntraday.SellAtLimit(volumeInteradayFuture, _ordersIntradayFuture[indexFirstOrder].PriceCounterOrder);
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        _tabIntraday.BuyAtLimit(volumeInteradayFuture, _ordersIntradayFuture[indexFirstOrder].PriceCounterOrder);
+                                                                    }
+
+                                                                    // вносим изменения в массив
+                                                                    _ordersIntradayFuture[indexSecondOrder].VolumeOrder = volumeInteradayFuture;
+                                                                    _ordersIntradayFuture[indexSecondOrder].NumberMarket = "";
+                                                                    _ordersIntradayFuture[indexSecondOrder].ExecuteVolume = 0;
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                        break;
+                                                    }
+                                                }
+
+                                                if (!tryCounterOrder) // если противоположного ордера нет, то выставляем этот ордер
+                                                {
+                                                    if (_ordersIntradayFuture[indexFirstOrder].SideOrder == Side.Buy)
+                                                    {
+                                                        _tabIntraday.SellAtLimit(_ordersIntradayFuture[indexFirstOrder].ExecuteVolume, _ordersIntradayFuture[indexFirstOrder].PriceCounterOrder);
+                                                    }
+                                                    else
+                                                    {
+                                                        _tabIntraday.BuyAtLimit(_ordersIntradayFuture[indexFirstOrder].ExecuteVolume, _ordersIntradayFuture[indexFirstOrder].PriceCounterOrder);
+                                                    }
+                                                    AddLogList($"Противоположного ордера нет, выставляем новый ордер Price = {_ordersIntradayFuture[indexFirstOrder].PriceCounterOrder}, Vol = {_ordersIntradayFuture[indexFirstOrder].ExecuteVolume}");
+
+                                                    // заносим ордер в массив
+                                                    _ordersIntradayFuture.Add(new ListOrders(_ordersIntradayFuture[indexFirstOrder].PriceCounterOrder,
+                                                        _ordersIntradayFuture[indexFirstOrder].SideOrder == Side.Buy ? Side.Sell : Side.Buy,
+                                                        obj.VolumeExecute,
+                                                        0,
+                                                        _ordersIntradayFuture[indexFirstOrder].PriceOrder,
+                                                        _ordersIntradayFuture[indexFirstOrder].OrderType == OrdersType.MainOrder ? OrdersType.CounterOrder : OrdersType.MainOrder,
+                                                        ""));
+                                                }
+                                            }
+                                            if (_ordersIntradayFuture[indexFirstOrder].ExecuteVolume == _ordersIntradayFuture[indexFirstOrder].VolumeOrder) // если объем выполненный равен объему ордера, то удаляем ордер из массива
+                                            {
+                                                CheckOrderType(_ordersIntradayFuture[indexFirstOrder].OrderType); //проверка на последовательность прохождения типов ордеров
+
+                                                _ordersIntradayFuture.RemoveAt(indexFirstOrder);
+
+                                                for (int indexCloseOrder = 0; indexCloseOrder < _tabIntraday.PositionsOpenAll.Count; indexCloseOrder++)
+                                                {
+                                                    if (_tabIntraday.PositionsOpenAll[indexCloseOrder].OpenOrders[0].NumberMarket == obj.NumberMarket)
+                                                    {
+                                                        Position pos = _tabIntraday.PositionsOpenAll[indexCloseOrder];
+                                                        decimal vol = _tabIntraday.PositionsOpenAll[indexCloseOrder].OpenOrders[0].Volume;
+                                                        decimal price = _tabIntraday.PositionsOpenAll[indexCloseOrder].OpenOrders[0].Price;
+                                                        _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
+                                                        break;
+                                                    }
+                                                }
+                                                AddLogList($"Объем выполненный {obj.VolumeExecute} равен объему ордера {obj.Volume}, удаляем ордер {obj.NumberMarket} из массива и делаем фейк-закрытие");
+
+                                                CheckIncreaseWorkParts();// проверка на увеличение НРЧ
+                                            }
+                                            break;
+                                        }
+                                    }
+                                    foreach (ListOrders item in _ordersIntradayFuture)
+                                    {
+                                        AddLogList($"Num = {item.NumberMarket}, PriceOrder = {item.PriceOrder}, SideOrder = {item.SideOrder}, Vol = {item.VolumeOrder}, ExVol = {item.ExecuteVolume}, PriceCounterOrder = {item.PriceCounterOrder}, {item.OrderType}");
+                                    }
                                 }
                             }
-                        }
-                        if (obj.State == OrderStateType.Cancel)
-                        {
-                            AddLogList($"Ордер отменен - {obj.NumberMarket}, Price = {obj.Price}, Vol = {obj.Volume}, ExVol = {obj.VolumeExecute}");
+                            if (obj.State == OrderStateType.Cancel)
+                            {
+                                AddLogList($"Ордер отменен - {obj.NumberMarket}, Price = {obj.Price}, Vol = {obj.Volume}, ExVol = {obj.VolumeExecute}");
+                            }
                         }
                     }
                 }
@@ -371,7 +412,7 @@ namespace OsEngine.Robots.DeribitPI
             catch (Exception ex)
             {
                 SendNewLogMessage(ex.ToString(), LogMessageType.Error);
-            }           
+            }
         }
 
         private void CheckOrderType(OrdersType type)
@@ -493,7 +534,7 @@ namespace OsEngine.Robots.DeribitPI
 
                 while (true)
                 {
-                    Thread.Sleep(100);
+                    Thread.Sleep(500);
 
                     if (_tabOption.Tabs == null || _tabOption.Tabs.Count == 0)
                     {
@@ -1058,12 +1099,13 @@ namespace OsEngine.Robots.DeribitPI
         {
             try
             {
-                while (LogList.Count > 2000) // кол-во записей в логе
+                SendNewLogMessage(DateTime.Now + " " + str, LogMessageType.User);
+
+                LogList.Add(DateTime.Now + " " + str);
+                while (LogList.Count > CountListLog) // кол-во записей в логе
                 {
                     LogList.RemoveAt(0);
-                }
-                LogList.Add(DateTime.Now + " " + str);
-                //ListLog.Enqueue(str);
+                }                
                 SaveLog();
             }
             catch (Exception ex)
@@ -1347,14 +1389,20 @@ namespace OsEngine.Robots.DeribitPI
 
         private void LoadParameters()
         {
-            if (!File.Exists(@"Engine\" + NameStrategyUniq + @"Parameters.txt"))
+            string filePath = @"Engine\" + NameStrategyUniq + @"Parameters.txt";
+
+            if (!File.Exists(filePath))
+            {
+                return;
+            }
+            else if (new FileInfo(filePath).Length == 0)
             {
                 return;
             }
             try
-            { // надо подумать если файл пустой
-                using (StreamReader reader = new StreamReader(@"Engine\" + NameStrategyUniq + @"Parameters.txt"))
-                {
+            {
+                using (StreamReader reader = new StreamReader(filePath))
+                {                    
                     PercentOfDeposit = Convert.ToDecimal(reader.ReadLine().Split('^')[1]);
                     CountIteration = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
                     TimeToCloseOption = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
@@ -1430,7 +1478,7 @@ namespace OsEngine.Robots.DeribitPI
                     {
                         if (!string.IsNullOrEmpty(line))
                         {                     
-                            if (LogList.Count > 500)
+                            if (LogList.Count > CountListLog)
                             {
                                 LogList.RemoveAt(0);
                             }
@@ -1446,7 +1494,7 @@ namespace OsEngine.Robots.DeribitPI
             }
         }
 
-        private void SaveLog()
+        public void SaveLog()
         {
             try
             {
