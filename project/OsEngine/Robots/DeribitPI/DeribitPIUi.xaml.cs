@@ -47,13 +47,16 @@ namespace OsEngine.Robots.DeribitPI
             ThreeIncreaseY.Text = _strategy.ThreeIncreaseY.ToString();
 
             ListBoxLog.Items.Clear();
-            for (int i = 0; i < _strategy.LogList.Count; i++)
+            if (_strategy.LogList.Count > 0)
             {
-                ListBoxLog.Items.Add(_strategy.LogList[i]);                
-            }
-            ListBoxLog.ScrollIntoView(ListBoxLog.Items[ListBoxLog.Items.Count - 1]);
+                for (int i = 0; i < _strategy.LogList.Count; i++)
+                {
+                    ListBoxLog.Items.Add(_strategy.LogList[i]);
+                }
+                ListBoxLog.ScrollIntoView(ListBoxLog.Items[ListBoxLog.Items.Count - 1]);
 
-            _strategy.LogMessageEvent += _strategy_LogMessageEvent;
+                _strategy.LogMessageEvent += _strategy_LogMessageEvent;
+            }            
 
             StartThread();
 
@@ -289,7 +292,7 @@ namespace OsEngine.Robots.DeribitPI
 
         private void OneIncreaseY_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _strategy.OneIncreaseY = TextChanger(sender);
+            _strategy.OneIncreaseY = TextChangerToDecimal(sender);
             _strategy.SaveParameters();
         }
 
@@ -301,7 +304,7 @@ namespace OsEngine.Robots.DeribitPI
 
         private void TwoIncreaseY_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _strategy.TwoIncreaseY = TextChanger(sender);
+            _strategy.TwoIncreaseY = TextChangerToDecimal(sender);
             _strategy.SaveParameters();
         }
 
@@ -313,7 +316,7 @@ namespace OsEngine.Robots.DeribitPI
 
         private void ThreeIncreaseY_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _strategy.ThreeIncreaseY = TextChanger(sender);
+            _strategy.ThreeIncreaseY = TextChangerToDecimal(sender);
             _strategy.SaveParameters();
         }
 

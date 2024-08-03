@@ -48,14 +48,6 @@ namespace OsEngine.Robots.DeribitPI
             OrderEventThread();
         }
 
-        private void OrderEventThread()
-        {
-            Thread orderEventThread = new Thread(ParsingOrderEvent) { IsBackground = true };
-            orderEventThread.Start();
-        }
-
-        
-
         public override string GetNameStrategyType()
         {
             return "DeribitPI";
@@ -89,11 +81,11 @@ namespace OsEngine.Robots.DeribitPI
         public int CountWorkParts = 0;
         public int RatioWorkParts = 0;
         public int OneIncreaseX = 0;
-        public int OneIncreaseY = 0;
+        public decimal OneIncreaseY = 0;
         public int TwoIncreaseX = 0;
-        public int TwoIncreaseY = 0;
+        public decimal TwoIncreaseY = 0;
         public int ThreeIncreaseX = 0;
-        public int ThreeIncreaseY = 0;
+        public decimal ThreeIncreaseY = 0;
         private int _currentTab;
         private FlagConstruction _flagConstruction = FlagConstruction.FirstBuyOption;
         public decimal PositionFutureSize;
@@ -109,7 +101,7 @@ namespace OsEngine.Robots.DeribitPI
         private decimal _futureSellOrderVolume;
         private decimal _futureSellOrderVolumeExecute;
         private decimal MarkPriceFuture;
-        private string _baseCurrency;
+        //private string _baseCurrency;
         private string _futureOrderNumber;
         private bool _flagFutureOrder;
         private decimal _bestAskVolumeFuture;
@@ -129,6 +121,7 @@ namespace OsEngine.Robots.DeribitPI
         private int _countProfitOrders;
         private OrdersType _lastOrderType = OrdersType.None;
         public int CountListLog = 1000;
+        
 
         #endregion
 
@@ -263,11 +256,10 @@ namespace OsEngine.Robots.DeribitPI
                         continue;
                     }
 
-                    if (obj.SecurityNameCode == _tabPerp.Securiti.Name)
+                    if (obj.SecurityNameCode == _tabIntraday.Securiti.Name)
                     {
                         if (Regime == DeribitPIUi.NameRegime.TradeFutures)
-                        {
-
+                        {                            
                             for (int i = 0; i < _ordersIntradayFuture.Count; i++) // проверка на пустые номера ордеров и присвоение номера
                             {
                                 if (_ordersIntradayFuture[i].PriceOrder == obj.Price && _ordersIntradayFuture[i].NumberMarket == "")
@@ -280,10 +272,11 @@ namespace OsEngine.Robots.DeribitPI
                                             $"Vol = {_ordersIntradayFuture[i].VolumeOrder}, ExVol = {_ordersIntradayFuture[i].ExecuteVolume}, " +
                                             $"PriceCounterOrder = {_ordersIntradayFuture[i].PriceCounterOrder}, {_ordersIntradayFuture[i].OrderType}";
                                         AddLogList(str);
-                                        SendNewLogMessage(str, LogMessageType.Signal);
+                                        SendNewLogMessage(str, LogMessageType.Signal);                                        
                                     }
                                 }
                             }
+                            
 
                             if (obj.VolumeExecute > 0)
                             {
@@ -315,7 +308,7 @@ namespace OsEngine.Robots.DeribitPI
                                                                 if (_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket != "" && // если номер ордера не пустой
                                                                     _ordersIntradayFuture[indexSecondOrder].NumberMarket == _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket) // и если номер ордера такой же как в массиве
                                                                 {
-                                                                    decimal volumeInteradayFuture = _workPartVolumeIntraday - _ordersIntradayFuture[indexFirstOrder].VolumeOrder + _ordersIntradayFuture[indexFirstOrder].ExecuteVolume; // определяем какой объем противоположного ордера выставить
+                                                                    decimal volumeInteradayFuture = _increaseWorkPartVolumeIntraday - _ordersIntradayFuture[indexFirstOrder].VolumeOrder + _ordersIntradayFuture[indexFirstOrder].ExecuteVolume; // определяем какой объем противоположного ордера выставить
 
                                                                     AddLogList($"Удаляем противоположный ордер {_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket} " +
                                                                        $"с ценой {_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Price} " +
@@ -326,6 +319,7 @@ namespace OsEngine.Robots.DeribitPI
                                                                     decimal vol = _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Volume;// здесь!!!
                                                                     AddLogList($"Объем удаляемой позиции = {vol}");
                                                                     decimal price = _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Price;
+                                                                    _tabIntraday.CloseOrder(_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0]);
                                                                     _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
 
                                                                     if (_ordersIntradayFuture[indexFirstOrder].SideOrder == Side.Buy) // и выставляем новый противоположный ордер
@@ -389,8 +383,6 @@ namespace OsEngine.Robots.DeribitPI
                                                     }
                                                 }
                                                 AddLogList($"Объем выполненный {obj.VolumeExecute} равен объему ордера {obj.Volume}, удаляем ордер {obj.NumberMarket} из массива и делаем фейк-закрытие");
-
-                                                CheckIncreaseWorkParts();// проверка на увеличение НРЧ
                                             }
                                             break;
                                         }
@@ -401,6 +393,9 @@ namespace OsEngine.Robots.DeribitPI
                                     }
                                 }
                             }
+
+                            CheckIncreaseWorkParts();// проверка на увеличение НРЧ
+                            
                             if (obj.State == OrderStateType.Cancel)
                             {
                                 AddLogList($"Ордер отменен - {obj.NumberMarket}, Price = {obj.Price}, Vol = {obj.Volume}, ExVol = {obj.VolumeExecute}");
@@ -441,6 +436,19 @@ namespace OsEngine.Robots.DeribitPI
         {
             if (_countProfitOrders == 0)
             {
+                return;
+            }
+
+            for (int i = 0; i < _ordersIntradayFuture.Count; i++)
+            {
+                if (_ordersIntradayFuture[i].NumberMarket == "")
+                {
+                    return;
+                }
+            }
+
+            if (_countProfitOrders == 0)
+            {
                 if (_increaseWorkPartVolumeIntraday > _workPartVolumeIntraday)
                 {
                     _increaseWorkPartVolumeIntraday = _workPartVolumeIntraday;
@@ -452,9 +460,9 @@ namespace OsEngine.Robots.DeribitPI
                 OneIncreaseX != 0 &&
                 OneIncreaseY != 0)
             {
-                if (_increaseWorkPartVolumeIntraday != _workPartVolumeIntraday * OneIncreaseY)
+                if (_increaseWorkPartVolumeIntraday != Math.Round(_workPartVolumeIntraday * OneIncreaseY, MidpointRounding.AwayFromZero))
                 {
-                    _increaseWorkPartVolumeIntraday = _workPartVolumeIntraday * OneIncreaseY;
+                    _increaseWorkPartVolumeIntraday = Math.Round(_workPartVolumeIntraday * OneIncreaseY, MidpointRounding.AwayFromZero);
                     ChangeWorkPartToOrders();
                     AddLogList($"Увеличиваем рабочую часть, по условию Х1, НРЧ = {_increaseWorkPartVolumeIntraday}");
                 }                
@@ -463,9 +471,9 @@ namespace OsEngine.Robots.DeribitPI
                 TwoIncreaseX != 0 &&
                 TwoIncreaseY != 0)
             {
-                if (_increaseWorkPartVolumeIntraday != _workPartVolumeIntraday * TwoIncreaseY)
+                if (_increaseWorkPartVolumeIntraday != Math.Round(_workPartVolumeIntraday * TwoIncreaseY, MidpointRounding.AwayFromZero))
                 {
-                    _increaseWorkPartVolumeIntraday = _workPartVolumeIntraday * TwoIncreaseY;
+                    _increaseWorkPartVolumeIntraday = Math.Round(_workPartVolumeIntraday * TwoIncreaseY, MidpointRounding.AwayFromZero);
                     ChangeWorkPartToOrders();
                     AddLogList($"Увеличиваем рабочую часть, по условию Х2, НРЧ = {_increaseWorkPartVolumeIntraday}");
                 }
@@ -474,9 +482,9 @@ namespace OsEngine.Robots.DeribitPI
                 ThreeIncreaseX != 0 &&
                 ThreeIncreaseY != 0)
             {
-                if (_increaseWorkPartVolumeIntraday != _workPartVolumeIntraday * ThreeIncreaseY)
+                if (_increaseWorkPartVolumeIntraday != Math.Round(_workPartVolumeIntraday * ThreeIncreaseY, MidpointRounding.AwayFromZero))
                 {
-                    _increaseWorkPartVolumeIntraday = _workPartVolumeIntraday * ThreeIncreaseY;
+                    _increaseWorkPartVolumeIntraday = Math.Round(_workPartVolumeIntraday * ThreeIncreaseY, MidpointRounding.AwayFromZero);
                     ChangeWorkPartToOrders();
                     AddLogList($"Увеличиваем рабочую часть, по условию Х3, НРЧ = {_increaseWorkPartVolumeIntraday}");
                 }
@@ -487,6 +495,10 @@ namespace OsEngine.Robots.DeribitPI
         {
             foreach (ListOrders item in _ordersIntradayFuture)
             {
+                /*if (item.OrderType == OrdersType.MainOrder)
+                {
+                    
+                }*/
                 item.VolumeOrder = _increaseWorkPartVolumeIntraday;
                 item.NumberMarket = "";
             }
@@ -547,6 +559,16 @@ namespace OsEngine.Robots.DeribitPI
                         Thread.Sleep(1000);
                         continue;
                     }
+                    if (_tabPerp.Securiti == null)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+                    if (_tabIntraday.Securiti == null)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
 
                     if (_tabPerp.Connector.MyServer.ServerStatus == Market.Servers.ServerConnectStatus.Disconnect)
                     {
@@ -561,10 +583,7 @@ namespace OsEngine.Robots.DeribitPI
                         {
                             _typeServer = "https://test.deribit.com";
                         }
-                        else
-                        {
-                            _typeServer = "https://www.deribit.com";
-                        }
+                        
                     }
 
                     // получаем данные по теор цене, текущему страйку и базовой цене
@@ -596,12 +615,12 @@ namespace OsEngine.Robots.DeribitPI
 
                         if (_tabPerp.Securiti != null) // для тестов, потом убрать
                         {
-                            GetFutureMarkPrice();
+                            GetFutureMarkPrice(_tabPerp);
                         }
 
                         for (int i = 0; i < positionOnBoard.Count; i++)
                         {
-                            if (positionOnBoard[i].SecurityNameCode == _baseCurrency)
+                            if (positionOnBoard[i].SecurityNameCode == "ETH")
                             {
                                 Deposit = positionOnBoard[i].ValueCurrent;
                             }
@@ -624,20 +643,41 @@ namespace OsEngine.Robots.DeribitPI
                             }
                         }
                     }
-                                        
-                    List<Position> positionsIntraday;
+
+                    /*List<Position> positionsIntraday;
                     if (_tabIntraday.PositionsOpenAll.Count > 0)
                     {
                         positionsIntraday = _tabIntraday.PositionsOpenAll;// удалить после тестирования
-                        /*decimal pos = _tabIntraday.Connector.MyServer.Portfolios[0].ValueCurrent;
+                        *//*decimal pos = _tabIntraday.Connector.MyServer.Portfolios[0].ValueCurrent;
                         for (int i = 0; i < _tabIntraday.PositionsOpenAll.Count; i++)
                         {
                             PositionFutureIntraday += _tabIntraday.PositionsOpenAll[i].OpenVolume;
-                        } */                       
+                        } *//*                       
+                    }*/
+                    // получаем данные по кол-ву фьючерсов интрадей
+                    if (_tabIntraday.PositionsOnBoard != null && _tabIntraday.PositionsOnBoard.Count > 0)
+                    {
+                        for (int i = 0; i < _tabIntraday.PositionsOnBoard.Count; i++)
+                        {
+                            if (_tabIntraday.PositionsOnBoard[i].SecurityNameCode == _tabIntraday.Securiti.Name)
+                            {
+                                PositionFutureIntraday = _tabIntraday.PositionsOnBoard[i].ValueCurrent;
+                            }
+                        }
                     }
 
-                    // получаем данные по портфелю фьючерсов
+                    // получаем данные по кол-ву фьючерсов в опционной конструкции
                     if (_tabPerp.PositionsOnBoard != null && _tabPerp.PositionsOnBoard.Count > 0)
+                    {
+                        for (int i = 0; i < _tabPerp.PositionsOnBoard.Count; i++)
+                        {
+                            if (_tabPerp.PositionsOnBoard[i].SecurityNameCode == _tabPerp.Securiti.Name)
+                            {
+                                PositionFutureSize = _tabPerp.PositionsOnBoard[i].ValueCurrent;
+                            }
+                        }
+                    }
+                   /* if (_tabPerp.PositionsOnBoard != null && _tabPerp.PositionsOnBoard.Count > 0)
                     {
                         PositionFutureSize = 0;
 
@@ -652,8 +692,16 @@ namespace OsEngine.Robots.DeribitPI
                                 PositionFutureSize -= _tabPerp.PositionsOpenAll[i].OpenVolume;
                             }
                         }
-                        PositionFutureIntraday = _tabIntraday.PositionsOnBoard[0].ValueCurrent - PositionFutureSize;
-                    }
+
+                        *//*if (_tabIntraday.Securiti.Name != _tabPerp.Securiti.Name)
+                        {
+                            PositionFutureIntraday = _tabIntraday.PositionsOnBoard[0].ValueCurrent;
+                        }
+                        else
+                        {
+                            PositionFutureIntraday = _tabIntraday.PositionsOnBoard[0].ValueCurrent - PositionFutureSize;
+                        }*//*
+                    }*/
 
                     // режим - выключено
                     if (Regime == DeribitPIUi.NameRegime.Off)
@@ -682,16 +730,18 @@ namespace OsEngine.Robots.DeribitPI
 
                         if (_flagTradeIntraday == true)
                         {
-                            for (int i = 0; i < _tabIntraday.PositionsOpenAll.Count; i++)
+                            /* for (int i = 0; i < _tabIntraday.PositionsOpenAll.Count; i++)
                             {
                                 if (_tabIntraday.PositionsOpenAll[i].OpenOrders[0].State == OrderStateType.Activ)
                                 {
                                     _tabIntraday.CloseOrder(_tabIntraday.PositionsOpenAll[i].OpenOrders[0]);
                                 }
                             }
+                            
+                            _ordersIntradayFuture.Clear();*/
+                            DeleteOpenOrdersIntraday();
                             _flagTradeIntraday = false;
-                            _ordersIntradayFuture.Clear();
-                            AddLogList("Заявки по фьючерсу сняты, массив очищен");
+                            
                         }
 
                     }
@@ -762,6 +812,8 @@ namespace OsEngine.Robots.DeribitPI
             {
                 if (!_flagTradeIntraday)
                 {
+                    DeleteOpenOrdersIntraday();
+
                     if (_ordersIntradayFuture.Count == 0)
                     {
                         decimal countRightBreakEven = 0;
@@ -815,14 +867,16 @@ namespace OsEngine.Robots.DeribitPI
                         _workPartVolumeIntraday = Math.Abs(Math.Round(volumeIntradayFuture / RatioWorkParts, MidpointRounding.AwayFromZero));
                         _increaseWorkPartVolumeIntraday = _workPartVolumeIntraday;
 
-                        _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier), Side.Buy, _workPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier + multiplier), OrdersType.MainOrder, ""));
+                        /*_ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier), Side.Buy, _workPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier + multiplier), OrdersType.MainOrder, ""));
                         _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 2), Side.Buy, _workPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 2 + multiplier), OrdersType.MainOrder, ""));
                         _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 4), Side.Buy, _workPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 4 + multiplier * 2), OrdersType.MainOrder, ""));
                         _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 12), Side.Buy, _workPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 12 + multiplier * 3), OrdersType.MainOrder, ""));
                         _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier), Side.Sell, _workPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier - multiplier / 2), OrdersType.MainOrder, ""));
                         _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 2), Side.Sell, _workPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 2 - multiplier), OrdersType.MainOrder, ""));
                         _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 4), Side.Sell, _workPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 4 - multiplier * 2), OrdersType.MainOrder, ""));
-                        _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12), Side.Sell, _workPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12 - multiplier * 3), OrdersType.MainOrder, ""));
+                        _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12), Side.Sell, _workPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12 - multiplier * 3), OrdersType.MainOrder, ""));*/
+
+                        FormOrderList(averagePriceFuture, multiplier);
                     }
 
                     if (_ordersIntradayFuture.Count != 0)
@@ -853,7 +907,145 @@ namespace OsEngine.Robots.DeribitPI
             }
         }
 
-        #endregion               
+        private void FormOrderList(decimal averagePriceFuture, decimal multiplier)
+        {
+            decimal centerPointPrice = averagePriceFuture;
+
+            if (PositionFutureIntraday != 0)
+            {
+                centerPointPrice = GetFutureMarkPrice(_tabIntraday);
+            }
+
+            if (GetPriceFutureForIntraday(averagePriceFuture, -multiplier) < centerPointPrice)
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier), Side.Buy, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier + multiplier), OrdersType.MainOrder, ""));
+            }
+            else
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier + multiplier), Side.Sell, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier), OrdersType.CounterOrder, ""));
+            }
+
+            if (GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 2) < centerPointPrice)
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 2), Side.Buy, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 2 + multiplier), OrdersType.MainOrder, ""));
+            }
+            else
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 2 + multiplier), Side.Sell, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 2), OrdersType.CounterOrder, ""));
+            }
+
+            if (GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 4) < centerPointPrice)
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 4), Side.Buy, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 4 + multiplier * 2), OrdersType.MainOrder, ""));
+            }
+            else
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 4 + multiplier * 2), Side.Sell, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 4), OrdersType.CounterOrder, ""));
+            }
+
+            if (GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 12) < centerPointPrice)
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 12), Side.Buy, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 12 + multiplier * 3), OrdersType.MainOrder, ""));
+            }
+            else
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 12 + multiplier * 3), Side.Sell, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, -multiplier * 12), OrdersType.CounterOrder, ""));
+            }
+
+            if (GetPriceFutureForIntraday(averagePriceFuture, multiplier) > centerPointPrice)
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier), Side.Sell, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier - multiplier / 2), OrdersType.MainOrder, ""));
+            }
+            else
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier - multiplier / 2), Side.Buy, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier), OrdersType.CounterOrder, ""));
+            }
+
+            if (GetPriceFutureForIntraday(averagePriceFuture, multiplier * 2) > centerPointPrice)
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 2), Side.Sell, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 2 - multiplier), OrdersType.MainOrder, ""));
+            }
+            else
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 2 - multiplier), Side.Buy, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 2), OrdersType.CounterOrder, ""));
+            }
+            if (GetPriceFutureForIntraday(averagePriceFuture, multiplier * 4) > centerPointPrice)
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 4), Side.Sell, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 4 - multiplier * 2), OrdersType.MainOrder, ""));
+            }
+            else
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 4 - multiplier * 2), Side.Buy, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 4), OrdersType.CounterOrder, ""));
+            }
+
+            if (GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12) > centerPointPrice)
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12), Side.Sell, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12 - multiplier * 3), OrdersType.MainOrder, ""));
+            }
+            else
+            {
+                _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12 - multiplier * 3), Side.Buy, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12), OrdersType.CounterOrder, ""));
+            }
+
+            CheckOpenPosition();            
+        }
+
+        private void CheckOpenPosition()
+        {
+            if (PositionFutureIntraday != 0)
+            {
+                int buyPos = 0;
+                for (int i = 0; i < _ordersIntradayFuture.Count; i++)
+                {
+                    if (_ordersIntradayFuture[i].SideOrder == Side.Buy)
+                    {
+                        buyPos++;
+                    }                    
+                }
+                if (4 - buyPos != 0)
+                {
+                    decimal result = ((4 - buyPos) * _workPartVolumeIntraday) - PositionFutureIntraday;
+                    if (result != 0)
+                    {
+                        string message = $"Необходимо будет {(result < 0 ? "продать" : "купить")} {Math.Abs(result)} единиц фьючерса";
+                        AddLogList(message);
+                        //MessageBox.Show(message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+        }
+
+        private void DeleteOpenOrdersIntraday()
+        {
+            if (_tabIntraday.PositionsOpenAll.Count > 0)
+            {
+                for (int i = 0; i < _tabIntraday.PositionsOpenAll.Count; i++)
+                {
+                    for (int idxOpen = 0; idxOpen < _tabIntraday.PositionsOpenAll[i].OpenOrders.Count; idxOpen++)
+                    {
+                        _tabIntraday.CloseOrder(_tabIntraday.PositionsOpenAll[i].OpenOrders[idxOpen]);
+                    }                    
+                }
+                AddLogList("Заявки по фьючерсу сняты, массив очищен");
+            }
+            _ordersIntradayFuture.Clear();
+
+            if (_tabIntraday.PositionsOpenAll.Count > 0)
+            {
+                for (int i = 0; i < _tabIntraday.PositionsOpenAll.Count; i++)
+                {
+                    for (int idxOpen = 0; idxOpen < _tabIntraday.PositionsOpenAll[i].OpenOrders.Count; idxOpen++)
+                    {
+                        Position pos = _tabIntraday.PositionsOpenAll[i];
+                        decimal vol = _tabIntraday.PositionsOpenAll[i].OpenOrders[idxOpen].Volume;
+                        decimal price = _tabIntraday.PositionsOpenAll[i].OpenOrders[idxOpen].Price;
+                        _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
+                    }
+                }
+            }
+        }
+
+        #endregion
 
         #region AssemblyConstruction
         private void AssemblyConstruction()
@@ -1095,6 +1287,12 @@ namespace OsEngine.Robots.DeribitPI
             worker.Start();
         }
 
+        private void OrderEventThread()
+        {
+            Thread orderEventThread = new Thread(ParsingOrderEvent) { IsBackground = true };
+            orderEventThread.Start();
+        }
+
         private void AddLogList(string str)
         {
             try
@@ -1161,7 +1359,7 @@ namespace OsEngine.Robots.DeribitPI
 
         private decimal GetFutureVolume()
         {
-            decimal amount = Math.Round(_optionBuyVolume / 2m * GetFutureMarkPrice(), MidpointRounding.AwayFromZero);
+            decimal amount = Math.Round(_optionBuyVolume / 2m * GetFutureMarkPrice(_tabPerp), MidpointRounding.AwayFromZero);
 
             return amount;
         }
@@ -1244,7 +1442,7 @@ namespace OsEngine.Robots.DeribitPI
 
                 if (_stepOrder > 0)
                 {
-                    if (_tabOption.Tabs[_currentTab].PositionsLast.EntryPrice != null)
+                    if (_tabOption.Tabs[_currentTab].PositionsLast != null)
                     {
                         priceOption = _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice + stepPrice;
                     }
@@ -1290,22 +1488,22 @@ namespace OsEngine.Robots.DeribitPI
             }
         }
 
-        private decimal GetFutureMarkPrice()
+        private decimal GetFutureMarkPrice(BotTabSimple tab)
         {
             decimal markPrice = 0;
             try
             {
-                IRestResponse responseMessage = RequestRest("/api/v2/public/get_book_summary_by_instrument?instrument_name=" + _tabPerp.Securiti.Name);
+                IRestResponse responseMessage = RequestRest("/api/v2/public/get_book_summary_by_instrument?instrument_name=" + tab.Securiti.Name);
 
                 if (responseMessage.StatusCode == System.Net.HttpStatusCode.OK)
                 {
                     ResponseMessageOptionMarkPrice response = JsonConvert.DeserializeObject<ResponseMessageOptionMarkPrice>(responseMessage.Content);
                     markPrice = Math.Round(response.result[0].mark_price, 4);
-                    _baseCurrency = response.result[0].base_currency; // для тестов, потом убрать
+                    //_baseCurrency = response.result[0].base_currency; // для тестов, потом убрать
                 }
                 else
                 {
-                    SendNewLogMessage("GetFutureMarkPrice - Http State Code: " + responseMessage.StatusCode + ", " + responseMessage.Content, LogMessageType.Error);
+                    SendNewLogMessage($"GetFutureMarkPrice ({tab.Securiti.Name}) - Http State Code: " + responseMessage.StatusCode + ", " + responseMessage.Content, LogMessageType.Error);
                 }
             }
             catch (Exception exception)
@@ -1413,11 +1611,11 @@ namespace OsEngine.Robots.DeribitPI
                     CountWorkParts = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
                     RatioWorkParts = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
                     OneIncreaseX = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
-                    OneIncreaseY = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
+                    OneIncreaseY = Convert.ToDecimal(reader.ReadLine().Split('^')[1]);
                     TwoIncreaseX = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
-                    TwoIncreaseY = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
+                    TwoIncreaseY = Convert.ToDecimal(reader.ReadLine().Split('^')[1]);
                     ThreeIncreaseX = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
-                    ThreeIncreaseY = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
+                    ThreeIncreaseY = Convert.ToDecimal(reader.ReadLine().Split('^')[1]);
 
                     reader.Close();
                 }
