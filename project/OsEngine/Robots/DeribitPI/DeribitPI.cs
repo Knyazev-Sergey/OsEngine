@@ -599,37 +599,20 @@ namespace OsEngine.Robots.DeribitPI
                         }
                         
                     }
-  
-                    // получаем данные по теор цене, текущему страйку и базовой цене
-                    if (_tabPerp.Connector.IsReadyToTrade)
-                    {
-                        if (Regime == DeribitPIUi.NameRegime.Off ||
-                            Regime == DeribitPIUi.NameRegime.AssemblyConstruction)
-                        {
-                            if (CurrentStrike != null)
-                            {
-                                GetOptionMarkPrice();
-                            }
-                            else
-                            {
-                                if (_tabOption.Tabs.Count > 0)
-                                {
-                                    CurrentStrike = _tabOption.Tabs[0].Securiti.Name;
-                                    GetOptionMarkPrice();
-                                }                                
-                            }
 
-                            if (!connectorOn)
-                            {
-                                connectorOn = true;
-                                _tabPerp.Connector.MyServer.NewOrderIncomeEvent += MyServer_NewOrderIncomeEvent;
-                                _tabPerp.Connector.MyServer.NewMarketDepthEvent += MyServer_NewMarketDepthEvent;
-                                AddLogList("Робот запущен");
-                            }
-                        }                        
+                    // получаем данные по теор цене, текущему страйку и базовой цене
+                    if (!_tabPerp.Connector.IsReadyToTrade)
+                    {
+                        continue;
                     }
 
-                    CheckExpirationDate();
+                    if (!connectorOn)
+                    {
+                        connectorOn = true;
+                        _tabPerp.Connector.MyServer.NewOrderIncomeEvent += MyServer_NewOrderIncomeEvent;
+                        _tabPerp.Connector.MyServer.NewMarketDepthEvent += MyServer_NewMarketDepthEvent;
+                        AddLogList("Робот запущен");
+                    }
 
                     // получаем данные по депозиту
                     if (_tabPerp.Portfolio != null)
@@ -711,17 +694,47 @@ namespace OsEngine.Robots.DeribitPI
                         }
                     }
 
-                    // режим - выключено
                     if (Regime == DeribitPIUi.NameRegime.Off)
+                    {
+                        if (_ordersIntradayFuture.Count > 0)
+                        {
+                            Regime = DeribitPIUi.NameRegime.TradeFutures;
+                            MessageBox.Show("У вас есть открытые позиции интрадей. Для их закрытия выберите режим - Настройка торговли", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                        continue;
+                    }
+
+                    if (Regime == DeribitPIUi.NameRegime.StopTrade ||
+                        Regime == DeribitPIUi.NameRegime.AssemblyConstruction)
+                    {
+                        if (CurrentStrike != null)
+                        {
+                            GetOptionMarkPrice();
+                        }
+                        else
+                        {
+                            if (_tabOption.Tabs.Count > 0)
+                            {
+                                CurrentStrike = _tabOption.Tabs[0].Securiti.Name;
+                                GetOptionMarkPrice();
+                            }
+                        }
+                    }
+
+                    CheckExpirationDate();
+
+                    // режим - Настройка торговли
+                    if (Regime == DeribitPIUi.NameRegime.StopTrade)
                     {
                         _flagTimerAssemblyConstruction = false;
                         _flagOptionChangeStrike = false;
-                        checkParameters = false;                        
+                        checkParameters = false;
+                        _expirationDate = 0;
 
                         if (_flagConstruction == FlagConstruction.QuoteBuyOption) // если есть выставленный ордер на покупку опциона, то отменяем его
                         {
                             CancelOptionOrder();
-                            AddLogList("Отмена ордера - выбран режим Выключено");
+                            AddLogList("Отмена ордера - выбран режим Настройка торговли");
                             _stepOrder = 0;
                         }
 
@@ -739,8 +752,7 @@ namespace OsEngine.Robots.DeribitPI
                         if (_flagTradeIntraday == true)
                         {
                             DeleteOpenOrdersIntraday();
-                            _flagTradeIntraday = false;
-                            _expirationDate = 0;
+                            _flagTradeIntraday = false;                            
                         }
                     }
 
@@ -775,7 +787,7 @@ namespace OsEngine.Robots.DeribitPI
                             if (PositionFutureSize == 0 || PositionOptionSize == 0)
                             {
                                 checkParameters = false;
-                                Regime = DeribitPIUi.NameRegime.Off;
+                                Regime = DeribitPIUi.NameRegime.StopTrade;
                                 MessageBox.Show("Невозможно запустить торговлю фьючерсами, нет набранной конструкции", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                                 continue;
                             }
@@ -801,12 +813,19 @@ namespace OsEngine.Robots.DeribitPI
 
         private void CheckExpirationDate()
         {
-               
             if (_expirationDate > 0 && TimeManager.GetDateTimeFromTimeStamp(_expirationDate).AddMinutes(-TimeToCloseOption) < DateTime.UtcNow)
             {
+                /*TimeSpan timeSpan = TimeManager.GetDateTimeFromTimeStamp(_expirationDate) - DateTime.UtcNow;
+
+                if (Math.Ceiling(timeSpan.TotalMinutes) < TimeToCloseOption)
+                {
+                    return;
+                }*/
+
                 AddLogList("Снимаем заявки под экспирацию");   
                 DeleteOpenOrdersIntraday();
-                Regime = DeribitPIUi.NameRegime.DisassemblyConstruction;
+                Regime = DeribitPIUi.NameRegime.Off;
+                _expirationDate = 0;
             }
         }
 
@@ -817,6 +836,15 @@ namespace OsEngine.Robots.DeribitPI
         {
             try
             {
+                
+                if (!SetExpirationDate())
+                {
+                    Regime = DeribitPIUi.NameRegime.StopTrade;
+                    MessageBox.Show("Уставновленное время до окончания экспирации уже прошло", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                
+
                 if (!_flagTradeIntraday)
                 {
                     DeleteOpenOrdersIntraday();
@@ -899,7 +927,7 @@ namespace OsEngine.Robots.DeribitPI
                         AddLogList($"Number = {item.NumberMarket}, PriceOrder = {item.PriceOrder}, SideOrder = {item.SideOrder}, VolumeOrder = {item.VolumeOrder}, ExecuteVolume = {item.ExecuteVolume}, PriceCounterOrder = {item.PriceCounterOrder}, {item.OrderType}");
                     }
                 }
-                SetExpirationDate();
+                
             }
             catch (Exception ex)
             {
@@ -907,14 +935,22 @@ namespace OsEngine.Robots.DeribitPI
             }
         }
 
-        private void SetExpirationDate()
-        {
+        private bool SetExpirationDate()
+        {  
             if (_expirationDate == 0)
             {
                 _expirationDate = GetExpirationDate();
                 TimeSpan timeSpan = TimeManager.GetDateTimeFromTimeStamp(_expirationDate) - DateTime.UtcNow;
-                AddLogList($"Дата экспирации выбранных опционов: {TimeManager.GetDateTimeFromTimeStamp(_expirationDate)}, до экспирации осталось {timeSpan.TotalMinutes} минут");
+
+                if (Math.Floor(timeSpan.TotalMinutes) < TimeToCloseOption)
+                {
+                    _expirationDate = 0;
+                    return false;
+                }
+
+                AddLogList($"Дата экспирации выбранных опционов: {TimeManager.GetDateTimeFromTimeStamp(_expirationDate)}, до экспирации осталось {Math.Floor(timeSpan.TotalMinutes)} минут");
             }
+            return true;
         }
 
         private void FormOrderList(decimal averagePriceFuture, decimal multiplier)
@@ -1092,7 +1128,7 @@ namespace OsEngine.Robots.DeribitPI
 
                             if (PositionOptionSize == 0)
                             {
-                                Regime = DeribitPIUi.NameRegime.Off;
+                                Regime = DeribitPIUi.NameRegime.StopTrade;
                             }
                             else
                             {
@@ -1828,7 +1864,7 @@ namespace OsEngine.Robots.DeribitPI
                 }
                 if (check == false)
                 {
-                    Regime = DeribitPIUi.NameRegime.Off;
+                    Regime = DeribitPIUi.NameRegime.StopTrade;
                     MessageBox.Show("Для начала работы необходимо заполнить параметры. Необходимые к заполнению параметры помечены звездочкой (*)", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
                 return check;

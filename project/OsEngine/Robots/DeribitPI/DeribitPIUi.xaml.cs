@@ -23,8 +23,8 @@ namespace OsEngine.Robots.DeribitPI
             _strategy = strategy;
 
             ComboBoxRegime.Items.Add(new { Value = NameRegime.Off, Description = "Выключен" });
+            ComboBoxRegime.Items.Add(new { Value = NameRegime.StopTrade, Description = "Настройка торговли" });
             ComboBoxRegime.Items.Add(new { Value = NameRegime.AssemblyConstruction, Description = "Набор конструкции" });
-            ComboBoxRegime.Items.Add(new { Value = NameRegime.DisassemblyConstruction, Description = "Разбор конструкции" });
             ComboBoxRegime.Items.Add(new { Value = NameRegime.TradeFutures, Description = "Торговля фьючерсами" });
             ComboBoxRegime.SelectedValue = _strategy.Regime;
             ComboBoxRegime.IsEnabled = false;
@@ -77,8 +77,7 @@ namespace OsEngine.Robots.DeribitPI
                     }
                     ListBoxLog.ScrollIntoView(ListBoxLog.Items[ListBoxLog.Items.Count - 1]);
                 }
-            });
-            
+            });            
         }
 
        private void StartThread()
@@ -88,8 +87,7 @@ namespace OsEngine.Robots.DeribitPI
        }
 
        private void StartText() 
-       {
-            
+       {            
             while (true)
             {
                Thread.Sleep(1000);
@@ -101,7 +99,7 @@ namespace OsEngine.Robots.DeribitPI
 
        private void VisibleParameters()
        {
-           if (_strategy.Regime != NameRegime.Off)
+           if (_strategy.Regime != NameRegime.StopTrade)
            {
                LabelPercentDeposit.IsReadOnly = true;
                CountIteration.IsReadOnly = true;
@@ -141,71 +139,24 @@ namespace OsEngine.Robots.DeribitPI
            }            
        }
 
-       private void UpdateWpf()
-       {
-           ComboBoxRegime.SelectedValue = _strategy.Regime;
-           if (_strategy.OnTradeRegime)
-           {
-               ComboBoxRegime.IsEnabled = true;
-           }
-
-           TextLastPrice.Text = _strategy.UnderlyingPrice.ToString();
-           TextCurrStrike.Text = _strategy.CurrentStrike;
-           TextPriceOption.Text = _strategy.MarkPriceOption.ToString();
-           TextSizeOption.Text = _strategy.SettlementSizeOption.ToString();
-
-           TextDeposit.Text = _strategy.Deposit.ToString();
-           TextSizeOptionOnBoard.Text = _strategy.PositionOptionSize.ToString();
-           TextSizeFuturesOnBoard.Text = _strategy.PositionFutureSize.ToString();
-           TextSizeFutureIntraday.Text = _strategy.PositionFutureIntraday.ToString();
-
-
-           /*while (!_strategy.ListLog.IsEmpty)
-           {
-               _strategy.ListLog.TryDequeue(out string message);
-
-               if (message != null)
-               {                    
-                   ListBoxLog.Items.Add(message);
-
-                   while (ListBoxLog.Items.Count > 500)
-                   {
-                       ListBoxLog.Items.RemoveAt(0);
-                   }
-               }
-           }*/
-
-
-
-
-                /*ListBoxLog.Items.Clear();
-                for (int i = 0; i < _strategy.LogList.Count; i++)
-                {
-                    ListBoxLog.Items.Add(_strategy.LogList[i]);
-                }*/
-            }
-
-        /*private void Button_Click(object sender, RoutedEventArgs e)
+        private void UpdateWpf()
         {
-            try
+            ComboBoxRegime.SelectedValue = _strategy.Regime;
+            if (_strategy.OnTradeRegime)
             {
-                *//*if (TextBoxVolumeOne.Text.ToDecimal() <= 0)
-                {
-                    throw new Exception("");
-                }*//*
-            }
-            catch (Exception)
-            {
-                MessageBox.Show(OsLocalization.Trader.Label13);
-                return;
+                ComboBoxRegime.IsEnabled = true;
             }
 
-           *//* _strategy.Volume = TextBoxVolumeOne.Text.ToDecimal();
-            Enum.TryParse(ComboBoxRegime.Text, true, out _strategy.Regime);
-            Enum.TryParse(ComboBoxDirection.Text, true, out _strategy.Direction);*//*
+            TextLastPrice.Text = _strategy.UnderlyingPrice.ToString();
+            TextCurrStrike.Text = _strategy.CurrentStrike;
+            TextPriceOption.Text = _strategy.MarkPriceOption.ToString();
+            TextSizeOption.Text = _strategy.SettlementSizeOption.ToString();
 
-            Close();
-        }*/
+            TextDeposit.Text = _strategy.Deposit.ToString();
+            TextSizeOptionOnBoard.Text = _strategy.PositionOptionSize.ToString();
+            TextSizeFuturesOnBoard.Text = _strategy.PositionFutureSize.ToString();
+            TextSizeFutureIntraday.Text = _strategy.PositionFutureIntraday.ToString();
+        }
 
         public enum NameRegime
         {
@@ -213,7 +164,7 @@ namespace OsEngine.Robots.DeribitPI
             AssemblyConstruction,
             DisassemblyConstruction,
             TradeFutures,
-            StopTradeFutures
+            StopTrade
         }
                 
         private void LabelPercentDeposit_TextChanged(object sender, TextChangedEventArgs e)
