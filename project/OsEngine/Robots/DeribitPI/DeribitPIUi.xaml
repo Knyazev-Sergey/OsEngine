@@ -128,11 +128,12 @@
                 </UniformGrid>
             </TabItem>
 
-            <TabItem Header="  Лог  ">
+            <TabItem Header="  Лог  " Selector.Selected="LogTabSelected">
                 <ListBox ScrollViewer.VerticalScrollBarVisibility="Visible" Background="Black" Name="ListBoxLog" Foreground="Gainsboro">
-                    
+
                 </ListBox>
             </TabItem>
+
 
         </TabControl>
 

@@ -26,7 +26,6 @@ namespace OsEngine.Robots.DeribitPI
             ComboBoxRegime.Items.Add(new { Value = NameRegime.AssemblyConstruction, Description = "Набор конструкции" });
             ComboBoxRegime.Items.Add(new { Value = NameRegime.DisassemblyConstruction, Description = "Разбор конструкции" });
             ComboBoxRegime.Items.Add(new { Value = NameRegime.TradeFutures, Description = "Торговля фьючерсами" });
-            ComboBoxRegime.Items.Add(new { Value = NameRegime.StopTradeFutures, Description = "Остановить торговлю фьючерсом" });
             ComboBoxRegime.SelectedValue = _strategy.Regime;
             ComboBoxRegime.IsEnabled = false;
 
@@ -378,6 +377,14 @@ namespace OsEngine.Robots.DeribitPI
         {
             _strategy.Regime = (NameRegime)ComboBoxRegime.SelectedValue;
             _strategy.SaveParameters();
+        }
+
+        private void LogTabSelected(object sender, RoutedEventArgs e)
+        {
+            if (ListBoxLog.Items.Count > 1)
+            {
+                ListBoxLog.ScrollIntoView(ListBoxLog.Items[ListBoxLog.Items.Count - 1]);
+            }            
         }
     }
 }
