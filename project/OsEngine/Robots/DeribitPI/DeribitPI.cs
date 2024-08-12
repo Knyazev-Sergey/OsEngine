@@ -826,7 +826,35 @@ namespace OsEngine.Robots.DeribitPI
                 DeleteOpenOrdersIntraday();
                 Regime = DeribitPIUi.NameRegime.Off;
                 _expirationDate = 0;
-            }
+
+                if (_tabPerp.PositionsOpenAll.Count > 0)
+                {
+                    for (int i = 0; i < _tabPerp.PositionsOpenAll.Count; i++)
+                    {
+                        Position pos = _tabPerp.PositionsOpenAll[i];
+                        decimal vol = _tabPerp.PositionsOpenAll[i].OpenOrders[0].Volume;
+                        decimal price = _tabPerp.PositionsOpenAll[i].OpenOrders[0].Price;
+                        _tabPerp.CloseAtFake(pos, vol, price, DateTime.Now);
+                    }
+                }                                
+                
+                if (_tabOption.Tabs.Count > 0)
+                {
+                    for (int i = 0; i < _tabOption.Tabs.Count; i++)
+                    {
+                        if (_tabOption.Tabs[i].PositionsOpenAll.Count > 0)
+                        {
+                            for (int j = 0; j < _tabOption.Tabs[i].PositionsOpenAll.Count; j++)
+                            {
+                                Position pos = _tabOption.Tabs[i].PositionsOpenAll[j];
+                                decimal vol = _tabOption.PositionsOpenAll[j].OpenOrders[0].Volume;
+                                decimal price = _tabOption.PositionsOpenAll[j].OpenOrders[0].Price;
+                                _tabOption.Tabs[i].CloseAtFake(pos, vol, price, DateTime.Now);
+                            }
+                        }                        
+                    }
+                }                
+            }           
         }
 
         #endregion
