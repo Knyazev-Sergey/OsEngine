@@ -29,6 +29,9 @@ namespace OsEngine.Robots.DeribitPI
             ComboBoxRegime.SelectedValue = _strategy.Regime;
             ComboBoxRegime.IsEnabled = false;
 
+            
+            
+
             LabelPercentDeposit.Text = _strategy.PercentOfDeposit.ToString();
             CountIteration.Text = _strategy.CountIteration.ToString();
             TimeToCloseOption.Text = _strategy.TimeToCloseOption.ToString();
@@ -52,10 +55,10 @@ namespace OsEngine.Robots.DeribitPI
                 {
                     ListBoxLog.Items.Add(_strategy.LogList[i]);
                 }
-                ListBoxLog.ScrollIntoView(ListBoxLog.Items[ListBoxLog.Items.Count - 1]);
+                ListBoxLog.ScrollIntoView(ListBoxLog.Items[ListBoxLog.Items.Count - 1]);  
+            }
 
-                _strategy.LogMessageEvent += _strategy_LogMessageEvent;
-            }            
+            _strategy.LogMessageEvent += _strategy_LogMessageEvent;
 
             StartThread();
 
@@ -136,8 +139,18 @@ namespace OsEngine.Robots.DeribitPI
                TwoIncreaseY.IsReadOnly = false;
                ThreeIncreaseX.IsReadOnly = false;
                ThreeIncreaseY.IsReadOnly = false;
-           }            
-       }
+           }         
+           
+           if(_strategy.Regime == NameRegime.Off &&
+                _strategy.OnTradeRegime)
+            {
+                ComboBoxExpir.IsEnabled = true;
+            }
+            else
+            {
+                ComboBoxExpir.IsEnabled = false;
+            }
+        }
 
         private void UpdateWpf()
         {
@@ -156,6 +169,19 @@ namespace OsEngine.Robots.DeribitPI
             TextSizeOptionOnBoard.Text = _strategy.PositionOptionSize.ToString();
             TextSizeFuturesOnBoard.Text = _strategy.PositionFutureSize.ToString();
             TextSizeFutureIntraday.Text = _strategy.PositionFutureIntraday.ToString();
+
+            /*if (ComboBoxExpir.Items.Count == 0)
+            {
+                if (_strategy.OptionSeries != null &&
+                _strategy.OptionSeries.Count > 0)
+                {
+                    ComboBoxExpir.Items.Clear();
+                    for (int i = 0; i < _strategy.OptionSeries.Count; i++)
+                    {
+                        ComboBoxExpir.Items.Add(_strategy.OptionSeries[i]);
+                    }
+                }
+            }   */              
         }
 
         public enum NameRegime
@@ -274,8 +300,7 @@ namespace OsEngine.Robots.DeribitPI
         {
             TextBox textBox = sender as TextBox;
             if (textBox != null && !string.IsNullOrEmpty(textBox.Text))
-            {
-                
+            {                
                 if (int.TryParse(textBox.Text, out int num))
                 {
                     return num;
@@ -336,6 +361,11 @@ namespace OsEngine.Robots.DeribitPI
             {
                 ListBoxLog.ScrollIntoView(ListBoxLog.Items[ListBoxLog.Items.Count - 1]);
             }            
+        }
+
+        private void ComboBoxExpir_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+
         }
     }
 }

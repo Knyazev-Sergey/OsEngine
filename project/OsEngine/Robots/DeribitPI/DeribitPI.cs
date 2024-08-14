@@ -114,7 +114,7 @@ namespace OsEngine.Robots.DeribitPI
         private OrdersType _lastOrderType = OrdersType.None;
         public int CountListLog = 1000;
         private long _expirationDate = 0;
-
+        public List<string> OptionSeries;
 
         #endregion
 
@@ -597,7 +597,10 @@ namespace OsEngine.Robots.DeribitPI
                         {
                             _typeServer = "https://test.deribit.com";
                         }
-                        
+                        else
+                        {
+                            _typeServer = "https://www.deribit.com";
+                        }
                     }
 
                     // получаем данные по теор цене, текущему страйку и базовой цене
@@ -612,6 +615,8 @@ namespace OsEngine.Robots.DeribitPI
                         _tabPerp.Connector.MyServer.NewOrderIncomeEvent += MyServer_NewOrderIncomeEvent;
                         _tabPerp.Connector.MyServer.NewMarketDepthEvent += MyServer_NewMarketDepthEvent;
                         AddLogList("Робот запущен");
+
+                        //GetListOptionSeries();
                     }
 
                     // получаем данные по депозиту
@@ -811,6 +816,45 @@ namespace OsEngine.Robots.DeribitPI
             }
         }
 
+        private void GetListOptionSeries()
+        {
+            OptionSeries = new List<string>();
+
+            for (int i = 0; i < _tabPerp.Connector.MyServer.Securities.Count; i++)
+            {
+                if (_tabPerp.Connector.MyServer.Securities[i].NameClass != "Option")
+                {
+                    continue;
+                }
+
+                string[] str = _tabPerp.Connector.MyServer.Securities[i].Name.Split('-');
+
+                if (str[0] != "ETH")
+                {
+                    continue;
+                }
+
+                if (str[3] != "C")
+                {
+                    continue;
+                }
+
+                if (OptionSeries.Contains(str[1]))
+                {
+                    continue;
+                }
+
+                OptionSeries.Add(str[1]);
+            }
+
+            /*string str2 = "";
+            foreach (string str in OptionSeries)
+            {
+                str2 += $" {str}";
+            }
+            SendNewLogMessage($"{str2}", LogMessageType.Error);*/
+        }
+
         private void CheckExpirationDate()
         {
             if (_expirationDate > 0 && TimeManager.GetDateTimeFromTimeStamp(_expirationDate).AddMinutes(-TimeToCloseOption) < DateTime.UtcNow)
@@ -863,8 +907,7 @@ namespace OsEngine.Robots.DeribitPI
         private void TradeFutures()
         {
             try
-            {
-                
+            {                
                 if (!SetExpirationDate())
                 {
                     Regime = DeribitPIUi.NameRegime.StopTrade;
