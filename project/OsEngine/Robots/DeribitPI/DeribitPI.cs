@@ -929,6 +929,7 @@ namespace OsEngine.Robots.DeribitPI
                         decimal sum2 = 0;
                         decimal averagePriceFuture = 0;
                         _countProfitOrders = 0;
+                        
 
                         for (int i = 0; i < _tabPerp.PositionsOpenAll.Count; i++)
                         {
@@ -1169,13 +1170,11 @@ namespace OsEngine.Robots.DeribitPI
             if (_tabIntraday.PositionsOpenAll.Count > 0)
             {
                 for (int i = 0; i < _tabIntraday.PositionsOpenAll.Count; i++)
-                {
-                    
+                {                    
                     Position pos = _tabIntraday.PositionsOpenAll[i];
                     decimal vol = _tabIntraday.PositionsOpenAll[i].OpenOrders[0].Volume;
                     decimal price = _tabIntraday.PositionsOpenAll[i].OpenOrders[0].Price;
-                    _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
-                                      
+                    _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);                                      
                 }
             }
         }

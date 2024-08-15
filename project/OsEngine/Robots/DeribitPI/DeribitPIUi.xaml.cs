@@ -15,6 +15,7 @@ namespace OsEngine.Robots.DeribitPI
     {
         private DeribitPI _strategy;
         public bool _visibleParameters;
+        private bool _flagCloseWindow;
 
         public DeribitPIUi(DeribitPI strategy)
         {
@@ -28,9 +29,6 @@ namespace OsEngine.Robots.DeribitPI
             ComboBoxRegime.Items.Add(new { Value = NameRegime.TradeFutures, Description = "Торговля фьючерсами" });
             ComboBoxRegime.SelectedValue = _strategy.Regime;
             ComboBoxRegime.IsEnabled = false;
-
-            
-            
 
             LabelPercentDeposit.Text = _strategy.PercentOfDeposit.ToString();
             CountIteration.Text = _strategy.CountIteration.ToString();
@@ -55,7 +53,7 @@ namespace OsEngine.Robots.DeribitPI
                 {
                     ListBoxLog.Items.Add(_strategy.LogList[i]);
                 }
-                ListBoxLog.ScrollIntoView(ListBoxLog.Items[ListBoxLog.Items.Count - 1]);  
+                ListBoxLog.ScrollIntoView(ListBoxLog.Items[ListBoxLog.Items.Count - 1]);
             }
 
             _strategy.LogMessageEvent += _strategy_LogMessageEvent;
@@ -64,6 +62,23 @@ namespace OsEngine.Robots.DeribitPI
 
             this.Activate();
             this.Focus();
+            this.Closed += DeribitPIUi_Closed;
+
+            _flagCloseWindow = false;
+        }
+
+        private void DeribitPIUi_Closed(object sender, EventArgs e)
+        {
+            try
+            {
+                _flagCloseWindow = true;
+                _strategy.LogMessageEvent -= _strategy_LogMessageEvent;
+                _strategy = null;
+            }
+            catch
+            {
+            }           
+
         }
 
         private void _strategy_LogMessageEvent(string arg1, Logging.LogMessageType arg2)
@@ -84,14 +99,16 @@ namespace OsEngine.Robots.DeribitPI
         }
 
        private void StartThread()
-       {
-           Thread worker = new Thread(StartText) { IsBackground = true };
-           worker.Start();
-       }
-
+       {    
+            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+            CancellationToken token = cancellationTokenSource.Token;
+            Thread worker = new Thread(StartText) { IsBackground = true };
+            worker.Start();
+       }    
+            
        private void StartText() 
        {            
-            while (true)
+            while (!_flagCloseWindow)
             {
                Thread.Sleep(1000);
 
