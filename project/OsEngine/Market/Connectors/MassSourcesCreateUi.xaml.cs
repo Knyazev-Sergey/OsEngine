@@ -242,6 +242,8 @@ namespace OsEngine.Market.Connectors
         {
             try
             {
+                _candlesRealizationGrid.EndEdit();
+
                 MassSourcesCreator curSettings = GetCurSettings();
 
                 SourcesCreator.CandleCreateMethodType = curSettings.CandleCreateMethodType;
@@ -626,7 +628,7 @@ namespace OsEngine.Market.Connectors
             // номер, класс, тип, сокращонное название бумаги, полное имя, дополнительное имя, влк/выкл
 
             DataGridView newGrid =
-                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.DisplayedCells);
+                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.AllCells);
 
             newGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             newGrid.ScrollBars = ScrollBars.Vertical;
@@ -1158,7 +1160,7 @@ namespace OsEngine.Market.Connectors
             try
             {
                 DataGridView newGrid =
-                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.DisplayedCells);
+                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.AllCells);
 
                 newGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
                 newGrid.ScrollBars = ScrollBars.Vertical;

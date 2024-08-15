@@ -476,6 +476,7 @@ namespace OsEngine.OsData
             SettingsToLoadSecurities.Tf1HourIsOn = param.Tf1HourIsOn;
             SettingsToLoadSecurities.Tf2HourIsOn = param.Tf2HourIsOn;
             SettingsToLoadSecurities.Tf4HourIsOn = param.Tf4HourIsOn;
+            SettingsToLoadSecurities.TfDayIsOn = param.TfDayIsOn;
             SettingsToLoadSecurities.TfTickIsOn = param.TfTickIsOn;
             SettingsToLoadSecurities.TfMarketDepthIsOn = param.TfMarketDepthIsOn;
 
@@ -721,6 +722,15 @@ namespace OsEngine.OsData
             else
             {
                 TryDeleteLoader(TimeFrame.Hour4);
+            }
+
+            if (SettingsToLoadSecurities.TfDayIsOn)
+            {
+                TryCreateLoader(TimeFrame.Day);
+            }
+            else
+            {
+                TryDeleteLoader(TimeFrame.Day);
             }
 
             if (SettingsToLoadSecurities.TfTickIsOn)
@@ -1214,6 +1224,7 @@ namespace OsEngine.OsData
                 DataPie newPie = new DataPie(_pathMyTempPieInTfFolder);
                 newPie.Start = timeStart;
                 newPie.End = timeNow;
+                newPie.LoadPieSettings();
 
                 if (newPie.End > DateTime.Now.AddDays(1))
                 {
@@ -1323,13 +1334,13 @@ namespace OsEngine.OsData
                     continue;
                 }
 
-                if (DataPies[i].CountTriesToLoadSet > 4 &&
+                if (DataPies[i].CountTriesToLoadSet >= 3 &&
                     i + 1 != DataPies.Count)
                 {
                     continue;
                 }
 
-                if (DataPies[i].CountTriesToLoadSet > 4 &&
+                if (DataPies[i].CountTriesToLoadSet >= 3 &&
                    i + 1 == DataPies.Count &&
                    param.NeadToUpdate == false)
                 {
@@ -1341,7 +1352,7 @@ namespace OsEngine.OsData
                     return;
                 }
 
-                DataPies[i].CountTriesToLoadSet++;
+                DataPies[i].CountTriesToLoadSet = DataPies[i].CountTriesToLoadSet + 1;
 
                 LoadCandleDataPieFromServer(DataPies[i], server);
 
@@ -1537,13 +1548,13 @@ namespace OsEngine.OsData
                     continue;
                 }
 
-                if (DataPies[i].CountTriesToLoadSet > 4 &&
+                if (DataPies[i].CountTriesToLoadSet >= 3 &&
                     i + 1 != DataPies.Count)
                 {
                     continue;
                 }
 
-                if (DataPies[i].CountTriesToLoadSet > 4 &&
+                if (DataPies[i].CountTriesToLoadSet >= 3 &&
                    i + 1 == DataPies.Count &&
                    param.NeadToUpdate == false)
                 {
@@ -1554,6 +1565,8 @@ namespace OsEngine.OsData
                 {
                     return;
                 }
+
+                DataPies[i].CountTriesToLoadSet = DataPies[i].CountTriesToLoadSet + 1;
 
                 LoadTradeDataPieFromServer(DataPies[i], server);
 
@@ -2088,6 +2101,15 @@ namespace OsEngine.OsData
 
             MarketDepthDepth = Convert.ToInt32(saveArray[22]);
             NeadToUpdate = Convert.ToBoolean(saveArray[23]);
+
+            try
+            {
+                TfDayIsOn = Convert.ToBoolean(saveArray[24]);
+            }
+            catch
+            {
+                // ignore
+            }
         }
 
         public string GetSaveStr()
@@ -2121,6 +2143,7 @@ namespace OsEngine.OsData
             result += TimeEnd.ToString(CultureInfo.InvariantCulture) + "%";
             result += MarketDepthDepth + "%";
             result += NeadToUpdate + "%";
+            result += TfDayIsOn + "%";
 
             return result;
         }
@@ -2147,6 +2170,7 @@ namespace OsEngine.OsData
         public bool Tf1HourIsOn;
         public bool Tf2HourIsOn;
         public bool Tf4HourIsOn;
+        public bool TfDayIsOn;
         public bool TfTickIsOn;
         public bool TfMarketDepthIsOn;
         public int MarketDepthDepth;
@@ -2162,7 +2186,24 @@ namespace OsEngine.OsData
 
         public string _pathMyTempPieInTfFolder;
 
-        public int CountTriesToLoadSet;
+        public int CountTriesToLoadSet
+        {
+            get
+            {
+                return _countTriesToLoadSet;
+            }
+            set
+            {
+                if( _countTriesToLoadSet == value )
+                {
+                    return;
+                }
+
+                _countTriesToLoadSet = value;
+                SavePieSettings();
+            }
+        }
+        private int _countTriesToLoadSet;
 
         public void Delete()
         {
@@ -2285,6 +2326,47 @@ namespace OsEngine.OsData
 
         private string _tempFileName;
 
+        public void LoadPieSettings()
+        {
+            string pathToTempFile = _pathMyTempPieInTfFolder  + "\\" + "Settings_" + TempFileName;
+
+            if (File.Exists(pathToTempFile) == false)
+            {
+                return;
+            }
+
+            try
+            {
+                using (StreamReader reader = new StreamReader(pathToTempFile))
+                {
+                    _countTriesToLoadSet = Convert.ToInt32(reader.ReadLine());
+                }
+            }
+            catch (Exception error)
+            {
+                //SendNewLogMessage(error.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void SavePieSettings()
+        {
+            string pathToTempFile = _pathMyTempPieInTfFolder  + "\\" + "Settings_" + TempFileName;
+
+            try
+            {
+                using (StreamWriter writer = new StreamWriter(pathToTempFile, false))
+                {
+
+                    writer.WriteLine(CountTriesToLoadSet);
+
+                }
+            }
+            catch (Exception error)
+            {
+                //SendNewLogMessage(error.ToString(), LogMessageType.Error);
+            }
+        }
+
         // свечи
 
         public void SetNewCandlesInPie(List<Candle> candles)
@@ -2295,7 +2377,7 @@ namespace OsEngine.OsData
 
         public CandlePieStatusInfo LoadCandlesPieStatus()
         {
-            string pathToTempFile = _pathMyTempPieInTfFolder + "\\" + Start.ToString("yyyyMMdd") + "_" + End.ToString("yyyyMMdd") + ".txt";
+            string pathToTempFile = _pathMyTempPieInTfFolder + "\\" + TempFileName;
 
             if (File.Exists(pathToTempFile) == false)
             {
@@ -2419,7 +2501,7 @@ namespace OsEngine.OsData
 
         public TradePieStatusInfo LoadTradesPieStatus()
         {
-            string pathToTempFile = _pathMyTempPieInTfFolder + "\\" + Start.ToString("yyyyMMdd") + "_" + End.ToString("yyyyMMdd") + ".txt";
+            string pathToTempFile = _pathMyTempPieInTfFolder + "\\" + TempFileName;
 
             if (File.Exists(pathToTempFile) == false)
             {

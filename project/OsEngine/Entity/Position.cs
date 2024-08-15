@@ -516,11 +516,15 @@ namespace OsEngine.Entity
                 
                 openOrder.TimeCancel = newOrder.TimeCancel;
 
-                if(openOrder.MyTrades == null ||
+                openOrder.Price = newOrder.Price;
+
+                openOrder.VolumeExecute = newOrder.VolumeExecute;
+
+                /*if (openOrder.MyTrades == null ||
                     openOrder.MyTrades.Count == 0)
                 { // если трейдов ещё нет, допускается установка значение исполненного объёма по записи в ордере
                     openOrder.VolumeExecute = newOrder.VolumeExecute;
-                }
+                }*/
 
                 if (openOrder.State == OrderStateType.Done 
                     && openOrder.TradesIsComing 
@@ -759,12 +763,13 @@ namespace OsEngine.Entity
                     return;
                 }
 
-                if (Direction == Side.Buy)
+                if (Direction == Side.Buy &&
+                    ask != 0)
                 {
                     ProfitOperationPersent = ask / entryPrice * 100 - 100;
                     ProfitOperationPunkt = ask - entryPrice;
                 }
-                else
+                else if(bid != 0)
                 {
                     ProfitOperationPersent = -(bid / entryPrice * 100 - 100);
                     ProfitOperationPunkt = entryPrice - bid;

@@ -239,6 +239,8 @@ namespace OsEngine.OsTrader.Panels.Tab
         {
             try
             {
+                _candlesRealizationGrid.EndEdit();
+
                 _screener.PortfolioName = ComboBoxPortfolio.Text;
                 if (CheckBoxIsEmulator.IsChecked != null)
                 {
@@ -637,7 +639,7 @@ namespace OsEngine.OsTrader.Panels.Tab
             // number, class, type, paper abbreviation, full name, additional name, on/off
 
             DataGridView newGrid =
-                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.DisplayedCells);
+                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.AllCells);
 
             newGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             newGrid.ScrollBars = ScrollBars.Vertical;
@@ -1625,7 +1627,7 @@ namespace OsEngine.OsTrader.Panels.Tab
             try
             {
                 DataGridView newGrid =
-                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.DisplayedCells);
+                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.AllCells);
 
                 newGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
                 newGrid.ScrollBars = ScrollBars.Vertical;

@@ -253,6 +253,8 @@ namespace OsEngine.Market.Connectors
                     return;
                 }
 
+                _candlesRealizationGrid.EndEdit();
+
                 Enum.TryParse(ComboBoxTypeServer.Text, true, out _connectorBot.ServerType);
 
                 _connectorBot.PortfolioName = ComboBoxPortfolio.Text;
@@ -604,7 +606,7 @@ namespace OsEngine.Market.Connectors
             try
             {
                 DataGridView newGrid =
-                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.DisplayedCells);
+                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.AllCells);
 
                 newGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
                 newGrid.ScrollBars = ScrollBars.Vertical;
@@ -1205,7 +1207,7 @@ namespace OsEngine.Market.Connectors
             try
             {
                 DataGridView newGrid =
-                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.DisplayedCells);
+                DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.AllCells);
 
                 newGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
                 newGrid.ScrollBars = ScrollBars.Vertical;
