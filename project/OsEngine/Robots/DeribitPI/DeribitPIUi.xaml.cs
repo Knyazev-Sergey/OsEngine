@@ -15,7 +15,8 @@ namespace OsEngine.Robots.DeribitPI
     {
         private DeribitPI _strategy;
         public bool _visibleParameters;
-        private bool _flagCloseWindow;
+        private CancellationTokenSource _cts = new CancellationTokenSource();
+        private Thread _worker;
 
         public DeribitPIUi(DeribitPI strategy)
         {
@@ -63,21 +64,21 @@ namespace OsEngine.Robots.DeribitPI
             this.Activate();
             this.Focus();
             this.Closed += DeribitPIUi_Closed;
-
-            _flagCloseWindow = false;
         }
 
         private void DeribitPIUi_Closed(object sender, EventArgs e)
         {
             try
             {
-                _flagCloseWindow = true;
+                _cts.Cancel();
+                _cts.Dispose();
+                ListBoxLog = null;
                 _strategy.LogMessageEvent -= _strategy_LogMessageEvent;
-                _strategy = null;
+                _worker = null;
             }
             catch
             {
-            }           
+            }
 
         }
 
@@ -99,25 +100,26 @@ namespace OsEngine.Robots.DeribitPI
         }
 
        private void StartThread()
-       {    
-            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-            CancellationToken token = cancellationTokenSource.Token;
-            Thread worker = new Thread(StartText) { IsBackground = true };
-            worker.Start();
+       {
+            CancellationToken token = _cts.Token;
+            _worker = new Thread(() => StartText(token));
+            _worker.Start();
+            
        }    
             
-       private void StartText() 
+       private void StartText(CancellationToken token) 
        {            
-            while (!_flagCloseWindow)
+            while (!token.IsCancellationRequested)
             {
-               Thread.Sleep(1000);
-
-               Dispatcher.Invoke(new Action(UpdateWpf));
-               Dispatcher.Invoke(new Action(VisibleParameters));
+                Thread.Sleep(1000);
+                Dispatcher.Invoke(new Action(UpdateWpf));
+                Dispatcher.Invoke(new Action(VisibleParameters));
             }
-       }
 
-       private void VisibleParameters()
+            _strategy = null;
+        }
+
+        private void VisibleParameters()
        {
            if (_strategy.Regime != NameRegime.StopTrade)
            {
