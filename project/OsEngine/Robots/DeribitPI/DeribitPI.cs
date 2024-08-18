@@ -241,7 +241,7 @@ namespace OsEngine.Robots.DeribitPI
                     }
 
                     Order obj;
-
+                    
                     _orderEventQueue.TryDequeue(out obj);
 
                     if (obj == null)
@@ -313,7 +313,7 @@ namespace OsEngine.Robots.DeribitPI
                                                                     AddLogList($"Объем удаляемой позиции = {vol}");
                                                                     decimal price = _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Price;
                                                                     _tabIntraday.CloseOrder(_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0]);
-                                                                    _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
+                                                                    //_tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
 
                                                                     if (_ordersIntradayFuture[indexFirstOrder].SideOrder == Side.Buy) // и выставляем новый противоположный ордер
                                                                     {
@@ -362,11 +362,12 @@ namespace OsEngine.Robots.DeribitPI
                                             }
                                             if (_ordersIntradayFuture[indexFirstOrder].ExecuteVolume == _ordersIntradayFuture[indexFirstOrder].VolumeOrder) // если объем выполненный равен объему ордера, то удаляем ордер из массива
                                             {
+                                                //if (obj.VolumeExecute == _)
                                                 CheckOrderType(_ordersIntradayFuture[indexFirstOrder].OrderType); //проверка на последовательность прохождения типов ордеров
 
                                                 _ordersIntradayFuture.RemoveAt(indexFirstOrder);
 
-                                                for (int indexCloseOrder = 0; indexCloseOrder < _tabIntraday.PositionsOpenAll.Count; indexCloseOrder++)
+                                                /*for (int indexCloseOrder = 0; indexCloseOrder < _tabIntraday.PositionsOpenAll.Count; indexCloseOrder++)
                                                 {
                                                     if (_tabIntraday.PositionsOpenAll[indexCloseOrder].OpenOrders[0].NumberMarket == obj.NumberMarket)
                                                     {
@@ -376,7 +377,7 @@ namespace OsEngine.Robots.DeribitPI
                                                         _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
                                                         break;
                                                     }
-                                                }
+                                                }*/
                                                 AddLogList($"Объем выполненный {obj.VolumeExecute} равен объему ордера {obj.Volume}, удаляем ордер {obj.NumberMarket} из массива и делаем фейк-закрытие");
                                             }
                                             break;
