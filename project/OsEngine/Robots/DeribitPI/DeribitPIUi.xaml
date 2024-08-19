@@ -5,10 +5,9 @@
 
     <Grid>
         
-        <Label Name="LabelRegime" Content="Режим работы:" HorizontalAlignment="Left" Margin="20,21,0,0" VerticalAlignment="Top" Foreground="Gainsboro" FontSize="14" />
-        <ComboBox Name="ComboBoxRegime" SelectionChanged="ComboBoxRegime_SelectionChanged" DisplayMemberPath="Description" SelectedValuePath="Value" Margin="130,21,400,0" VerticalAlignment="Top"/>
-        <Label Name="LabelExpir" Content="Серия опционов:" HorizontalAlignment="Left" Margin="420,21,0,0" VerticalAlignment="Top" Foreground="Gainsboro" FontSize="14" />
-        <ComboBox Name="ComboBoxExpir" SelectionChanged="ComboBoxExpir_SelectionChanged" SelectedValuePath="Value" Margin="550,21,10,0" VerticalAlignment="Top"/>
+        <Label Name="LabelRegime" Content="Режим работы:" HorizontalAlignment="Left" Margin="150,21,0,0" VerticalAlignment="Top" Foreground="Gainsboro" FontSize="14" />
+        <ComboBox Name="ComboBoxRegime" SelectionChanged="ComboBoxRegime_SelectionChanged" DisplayMemberPath="Description" SelectedValuePath="Value" Margin="260,21,150,0" VerticalAlignment="Top"/>
+        
         <StackPanel Orientation="Horizontal">
             <GroupBox Header="Настройка опционной конструкции" Margin="5,5,5,300" Height="360" Width="390" Foreground="Gainsboro" FontSize="12" >
                 <UniformGrid Rows="7" Columns="2">

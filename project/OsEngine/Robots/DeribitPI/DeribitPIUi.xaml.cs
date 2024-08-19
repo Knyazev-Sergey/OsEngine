@@ -160,7 +160,7 @@ namespace OsEngine.Robots.DeribitPI
                ThreeIncreaseY.IsReadOnly = false;
            }         
            
-           if(_strategy.Regime == NameRegime.Off &&
+          /* if(_strategy.Regime == NameRegime.Off &&
                 _strategy.OnTradeRegime)
             {
                 ComboBoxExpir.IsEnabled = true;
@@ -168,7 +168,7 @@ namespace OsEngine.Robots.DeribitPI
             else
             {
                 ComboBoxExpir.IsEnabled = false;
-            }
+            }*/
         }
 
         private void UpdateWpf()

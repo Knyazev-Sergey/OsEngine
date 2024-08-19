@@ -53,7 +53,7 @@ namespace OsEngine.Robots.DeribitPI
         public override void ShowIndividualSettingsDialog()
         {
             DeribitPIUi ui = new DeribitPIUi(this);
-            ui.ShowDialog();
+            ui.Show();
         }
 
         #region Variables
