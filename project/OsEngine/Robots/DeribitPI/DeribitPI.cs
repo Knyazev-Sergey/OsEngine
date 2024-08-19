@@ -268,8 +268,7 @@ namespace OsEngine.Robots.DeribitPI
                                         //SendNewLogMessage(str, LogMessageType.Signal);                                        
                                     }
                                 }
-                            }
-                            
+                            }                            
 
                             if (obj.VolumeExecute > 0)
                             {
@@ -313,7 +312,7 @@ namespace OsEngine.Robots.DeribitPI
                                                                     AddLogList($"Объем удаляемой позиции = {vol}");
                                                                     decimal price = _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Price;
                                                                     _tabIntraday.CloseOrder(_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0]);
-                                                                    //_tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
+                                                                    _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
 
                                                                     if (_ordersIntradayFuture[indexFirstOrder].SideOrder == Side.Buy) // и выставляем новый противоположный ордер
                                                                     {
@@ -368,6 +367,18 @@ namespace OsEngine.Robots.DeribitPI
                                                 }                                                
 
                                                 _ordersIntradayFuture.RemoveAt(indexFirstOrder);
+
+                                                for (int indexCloseOrder = 0; indexCloseOrder < _tabIntraday.PositionsOpenAll.Count; indexCloseOrder++)
+                                                {
+                                                    if (_tabIntraday.PositionsOpenAll[indexCloseOrder].OpenOrders[0].NumberMarket == obj.NumberMarket)
+                                                    {
+                                                        Position pos = _tabIntraday.PositionsOpenAll[indexCloseOrder];
+                                                        decimal vol = _tabIntraday.PositionsOpenAll[indexCloseOrder].OpenOrders[0].Volume;
+                                                        decimal price = _tabIntraday.PositionsOpenAll[indexCloseOrder].OpenOrders[0].Price;
+                                                        _tabIntraday.CloseAtFake(pos, vol, price, DateTime.Now);
+                                                        break;
+                                                    }
+                                                }
 
                                                 AddLogList($"Объем выполненный {obj.VolumeExecute} равен объему ордера {obj.Volume}, удаляем ордер {obj.NumberMarket} из массива и делаем фейк-закрытие");
                                             }
@@ -498,50 +509,16 @@ namespace OsEngine.Robots.DeribitPI
 
         private void ChangeWorkPartToOrders()
         {
-            
-
-            for (int i = 0; i < _tabIntraday.PositionsOpenAll.Count; i++)
-            {
-                foreach (ListOrders item in _ordersIntradayFuture)
-                {
-                    if (item.OrderType == OrdersType.MainOrder)
-                    {
-                        item.VolumeOrder = _increaseWorkPartVolumeIntraday;
-                    }
-                    if (_tabIntraday.PositionsOpenAll[i].OpenOrders[0].NumberMarket == item.NumberMarket)
-                    {
-                        _tabIntraday.PositionsOpenAll[i].OpenOrders[0].Volume = _increaseWorkPartVolumeIntraday;
-                        _tabIntraday.ChangeOrderPrice(_tabIntraday.PositionsOpenAll[i].OpenOrders[0], _tabIntraday.PositionsOpenAll[i].OpenOrders[0].Price);
-                    }
-                }
-            }
-
-            for (int i = 0; i < _tabIntraday.PositionsOpenAll.Count; i++)
-            {
-                _tabIntraday.CloseAllOrderToPosition(_tabIntraday.PositionsOpenAll[i]);
-            }
-
-            for (int i = 0; i < _ordersIntradayFuture.Count; i++)
-            {
-                if (_ordersIntradayFuture[i].SideOrder == Side.Buy)
-                {
-                    _tabIntraday.BuyAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder);
-                }
-                else
-                {
-                    _tabIntraday.SellAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder);
-                }
-            }
-            /*foreach (ListOrders item in _ordersIntradayFuture)
+            foreach (ListOrders item in _ordersIntradayFuture)
             {
                 if (item.OrderType == OrdersType.MainOrder)
                 {
-                    item.VolumeOrder = _increaseWorkPartVolumeIntraday;                
+                    item.VolumeOrder = _increaseWorkPartVolumeIntraday;
                 }
                 item.NumberMarket = "";
             }
 
-            for (int i = 0;  i < _tabIntraday.PositionsOpenAll.Count; i++)
+            for (int i = 0; i < _tabIntraday.PositionsOpenAll.Count; i++)
             {
                 _tabIntraday.CloseAllOrderToPosition(_tabIntraday.PositionsOpenAll[i]);
             }
@@ -556,7 +533,7 @@ namespace OsEngine.Robots.DeribitPI
                 {
                     _tabIntraday.SellAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder);
                 }
-            }*/
+            }
         }
 
         private void _tabPerp_CandleUpdateEvent(List<Candle> candle)
