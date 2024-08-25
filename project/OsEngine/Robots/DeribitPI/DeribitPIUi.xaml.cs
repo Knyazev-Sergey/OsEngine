@@ -25,7 +25,7 @@ namespace OsEngine.Robots.DeribitPI
             _strategy = strategy;
 
             ComboBoxRegime.Items.Add(new { Value = NameRegime.Off, Description = "Выключен" });
-            ComboBoxRegime.Items.Add(new { Value = NameRegime.StopTrade, Description = "Настройка торговли" });
+            ComboBoxRegime.Items.Add(new { Value = NameRegime.SettingsTrade, Description = "Настройка торговли" });
             ComboBoxRegime.Items.Add(new { Value = NameRegime.AssemblyConstruction, Description = "Набор конструкции" });
             ComboBoxRegime.Items.Add(new { Value = NameRegime.TradeFutures, Description = "Торговля фьючерсами" });
             ComboBoxRegime.SelectedValue = _strategy.Regime;
@@ -103,8 +103,7 @@ namespace OsEngine.Robots.DeribitPI
        {
             CancellationToken token = _cts.Token;
             _worker = new Thread(() => StartText(token));
-            _worker.Start();
-            
+            _worker.Start();            
        }    
             
        private void StartText(CancellationToken token) 
@@ -121,7 +120,7 @@ namespace OsEngine.Robots.DeribitPI
 
         private void VisibleParameters()
        {
-           if (_strategy.Regime != NameRegime.StopTrade)
+           if (_strategy.Regime != NameRegime.SettingsTrade)
            {
                LabelPercentDeposit.IsReadOnly = true;
                CountIteration.IsReadOnly = true;
@@ -209,7 +208,7 @@ namespace OsEngine.Robots.DeribitPI
             AssemblyConstruction,
             DisassemblyConstruction,
             TradeFutures,
-            StopTrade
+            SettingsTrade
         }
                 
         private void LabelPercentDeposit_TextChanged(object sender, TextChangedEventArgs e)

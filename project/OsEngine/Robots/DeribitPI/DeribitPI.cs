@@ -3,6 +3,7 @@ using OsEngine.Entity;
 using OsEngine.Logging;
 using OsEngine.Market.Servers.Deribit;
 using OsEngine.Market.Servers.Entity;
+using OsEngine.Market.Servers.GateIo.GateIoFutures.Entities.Response;
 using OsEngine.OsTrader.Panels;
 using OsEngine.OsTrader.Panels.Attributes;
 using OsEngine.OsTrader.Panels.Tab;
@@ -255,17 +256,37 @@ namespace OsEngine.Robots.DeribitPI
                         {                            
                             for (int i = 0; i < _ordersIntradayFuture.Count; i++) // проверка на пустые номера ордеров и присвоение номера
                             {
-                                if (_ordersIntradayFuture[i].PriceOrder == obj.Price && _ordersIntradayFuture[i].NumberMarket == "")
-                                {
+                                if (_ordersIntradayFuture[i].PriceOrder == obj.Price && 
+                                    _ordersIntradayFuture[i].NumberMarket == "")
+                                {                                    
                                     if (obj.State == OrderStateType.Activ ||
                                     obj.State == OrderStateType.Done)
-                                    {
-                                        _ordersIntradayFuture[i].NumberMarket = obj.NumberMarket;
-                                        string str = $"Num = {_ordersIntradayFuture[i].NumberMarket}, PriceOrder = {_ordersIntradayFuture[i].PriceOrder}, SideOrder = {_ordersIntradayFuture[i].SideOrder}, " +
-                                            $"Vol = {_ordersIntradayFuture[i].VolumeOrder}, ExVol = {_ordersIntradayFuture[i].ExecuteVolume}, " +
-                                            $"PriceCounterOrder = {_ordersIntradayFuture[i].PriceCounterOrder}, {_ordersIntradayFuture[i].OrderType}";
-                                        AddLogList(str);
-                                        //SendNewLogMessage(str, LogMessageType.Signal);                                        
+                                    {                                        
+                                        if (obj.Volume != _ordersIntradayFuture[i].VolumeOrder)
+                                        {
+                                            _tabIntraday.CloseOrder(obj);
+
+                                            if (_ordersIntradayFuture[i].SideOrder == Side.Sell)
+                                            {
+                                                _tabIntraday.SellAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder);
+                                            }
+                                            else
+                                            {
+                                                _tabIntraday.BuyAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder);
+                                            }
+
+                                            AddLogList($"В массиве ордер с данной ценой ({_ordersIntradayFuture[i].PriceOrder} уже есть, и его объем ({_ordersIntradayFuture[i].VolumeOrder})" +
+                                                $" отличается ({obj.Volume}), удаляем данную заявку и ставим новую");
+                                        }
+                                        else
+                                        {
+                                            _ordersIntradayFuture[i].NumberMarket = obj.NumberMarket;
+                                            string str = $"Num = {_ordersIntradayFuture[i].NumberMarket}, PriceOrder = {_ordersIntradayFuture[i].PriceOrder}, SideOrder = {_ordersIntradayFuture[i].SideOrder}, " +
+                                                $"Vol = {_ordersIntradayFuture[i].VolumeOrder}, ExVol = {_ordersIntradayFuture[i].ExecuteVolume}, " +
+                                                $"PriceCounterOrder = {_ordersIntradayFuture[i].PriceCounterOrder}, {_ordersIntradayFuture[i].OrderType}";
+                                            AddLogList(str);
+                                        }                                        
+                                        break;                                
                                     }
                                 }
                             }                            
@@ -295,13 +316,17 @@ namespace OsEngine.Robots.DeribitPI
                                                         tryCounterOrder = true;
                                                         if (_ordersIntradayFuture[indexSecondOrder].VolumeOrder != obj.VolumeExecute) // если объемы ордера и противоположного ордера не равны
                                                         {
+                                                            if (_ordersIntradayFuture[indexSecondOrder].NumberMarket == "")//
+                                                            {
+                                                                AddLogList($"В массиве объем ордера ({_ordersIntradayFuture[indexSecondOrder].VolumeOrder}) не равен объему пришедшего ордера ({obj.VolumeExecute}), и номера ордера нет.");
+                                                                _ordersIntradayFuture[indexSecondOrder].VolumeOrder = obj.VolumeExecute;
+                                                            }
                                                             for (int closeOrder = 0; closeOrder < _tabIntraday.PositionsOpenAll.Count; closeOrder++)
                                                             {
                                                                 if (_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket != "" && // если номер ордера не пустой
                                                                     _ordersIntradayFuture[indexSecondOrder].NumberMarket == _tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket) // и если номер ордера такой же как в массиве
                                                                 {
-                                                                    //decimal volumeInteradayFuture = _increaseWorkPartVolumeIntraday - _ordersIntradayFuture[indexFirstOrder].VolumeOrder + _ordersIntradayFuture[indexFirstOrder].ExecuteVolume; // определяем какой объем противоположного ордера выставить
-                                                                    decimal volumeInteradayFuture = GetVolumeInteradayFuture(obj);
+                                                                    decimal volumeInteradayFuture = GetVolumeInteradayFuture(obj, _ordersIntradayFuture[indexSecondOrder]);
                                                                     AddLogList($"Удаляем противоположный ордер {_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].NumberMarket} " +
                                                                        $"с ценой {_tabIntraday.PositionsOpenAll[closeOrder].OpenOrders[0].Price} " +
                                                                        $"и выставляем новый противоположный ордер Price = {_ordersIntradayFuture[indexFirstOrder].PriceCounterOrder}, Vol = {volumeInteradayFuture}");
@@ -408,7 +433,7 @@ namespace OsEngine.Robots.DeribitPI
             }
         }
 
-        private decimal GetVolumeInteradayFuture(Order order)
+        private decimal GetVolumeInteradayFuture(Order order, ListOrders listOrders)
         {
             if (order.Volume == order.VolumeExecute)
             {
@@ -420,12 +445,22 @@ namespace OsEngine.Robots.DeribitPI
                 return _increaseWorkPartVolumeIntraday;
             }
 
-            if (order.VolumeExecute > 0)
+            return listOrders.VolumeOrder - listOrders.ExecuteVolume + order.VolumeExecute;           
+        }
+
+        private decimal GetVolumeInteradayFuture(Order order)
+        {
+            if (order.Volume == order.VolumeExecute)
             {
-                return _increaseWorkPartVolumeIntraday - order.Volume + order.VolumeExecute;
+                return _increaseWorkPartVolumeIntraday;
             }
-           
-            return order.VolumeExecute;           
+
+            if (order.VolumeExecute > _increaseWorkPartVolumeIntraday)
+            {
+                return _increaseWorkPartVolumeIntraday;
+            }
+
+            return order.VolumeExecute;
         }
 
         private void CheckOrderType(OrdersType type)
@@ -514,6 +549,25 @@ namespace OsEngine.Robots.DeribitPI
                 if (item.OrderType == OrdersType.MainOrder)
                 {
                     item.VolumeOrder = _increaseWorkPartVolumeIntraday;
+
+                    for (int i = 0; i < _tabIntraday.PositionsOpenAll.Count; i++)
+                    {
+                        if (_tabIntraday.PositionsOpenAll[i].OpenOrders[0].NumberMarket == item.NumberMarket)
+                        {
+                            _tabIntraday.PositionsOpenAll[i].OpenOrders[0].Volume = item.VolumeOrder;
+                            _tabIntraday.PositionsOpenAll[i].OpenOrders[0].Price = _tabIntraday.PositionsOpenAll[i].OpenOrders[0].Price - 1;
+                            _tabIntraday.ChangeOrderPrice(_tabIntraday.PositionsOpenAll[i].OpenOrders[0], item.PriceOrder);
+                        }
+                    }
+                }                
+            }
+                      
+
+            /*foreach (ListOrders item in _ordersIntradayFuture)
+            {
+                if (item.OrderType == OrdersType.MainOrder)
+                {
+                    item.VolumeOrder = _increaseWorkPartVolumeIntraday;
                 }
                 item.NumberMarket = "";
             }
@@ -533,7 +587,7 @@ namespace OsEngine.Robots.DeribitPI
                 {
                     _tabIntraday.SellAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder);
                 }
-            }
+            }*/
         }
 
         private void _tabPerp_CandleUpdateEvent(List<Candle> candle)
@@ -707,12 +761,17 @@ namespace OsEngine.Robots.DeribitPI
                         if (_ordersIntradayFuture.Count > 0)
                         {
                             Regime = DeribitPIUi.NameRegime.TradeFutures;
-                            MessageBox.Show("У вас есть открытые позиции интрадей. Для их закрытия выберите режим - Настройка торговли", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                            MessageBox.Show("У вас есть открытые позиции интрадей. Для их закрытия выберите режим - Настройка торговли", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);                            
                         }
+                        else
+                        {
+                            CurrentStrike = null;
+                        }
+                        
                         continue;
                     }
 
-                    if (Regime == DeribitPIUi.NameRegime.StopTrade ||
+                    if (Regime == DeribitPIUi.NameRegime.SettingsTrade ||
                         Regime == DeribitPIUi.NameRegime.AssemblyConstruction)
                     {
                         if (CurrentStrike != null)
@@ -732,7 +791,7 @@ namespace OsEngine.Robots.DeribitPI
                     CheckExpirationDate();
 
                     // режим - Настройка торговли
-                    if (Regime == DeribitPIUi.NameRegime.StopTrade)
+                    if (Regime == DeribitPIUi.NameRegime.SettingsTrade)
                     {
                         _flagTimerAssemblyConstruction = false;
                         _flagOptionChangeStrike = false;
@@ -795,7 +854,7 @@ namespace OsEngine.Robots.DeribitPI
                             if (PositionFutureSize == 0 || PositionOptionSize == 0)
                             {
                                 checkParameters = false;
-                                Regime = DeribitPIUi.NameRegime.StopTrade;
+                                Regime = DeribitPIUi.NameRegime.SettingsTrade;
                                 MessageBox.Show("Невозможно запустить торговлю фьючерсами, нет набранной конструкции", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                                 continue;
                             }
@@ -913,7 +972,7 @@ namespace OsEngine.Robots.DeribitPI
             {                
                 if (!SetExpirationDate())
                 {
-                    Regime = DeribitPIUi.NameRegime.StopTrade;
+                    Regime = DeribitPIUi.NameRegime.SettingsTrade;
                     MessageBox.Show("Уставновленное время до окончания экспирации уже прошло", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
@@ -1119,7 +1178,6 @@ namespace OsEngine.Robots.DeribitPI
             {
                 _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12 - multiplier * 3), Side.Buy, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12), OrdersType.CounterOrder, ""));
             }
-
             CheckOpenPosition();            
         }
 
@@ -1151,8 +1209,6 @@ namespace OsEngine.Robots.DeribitPI
                     }
                     Thread.Sleep(500);*/
                 }
-                
-           
         }
 
         private void DeleteOpenOrdersIntraday()
@@ -1201,7 +1257,7 @@ namespace OsEngine.Robots.DeribitPI
 
                             if (PositionOptionSize == 0)
                             {
-                                Regime = DeribitPIUi.NameRegime.StopTrade;
+                                Regime = DeribitPIUi.NameRegime.SettingsTrade;
                             }
                             else
                             {
@@ -1937,7 +1993,7 @@ namespace OsEngine.Robots.DeribitPI
                 }
                 if (check == false)
                 {
-                    Regime = DeribitPIUi.NameRegime.StopTrade;
+                    Regime = DeribitPIUi.NameRegime.SettingsTrade;
                     MessageBox.Show("Для начала работы необходимо заполнить параметры. Необходимые к заполнению параметры помечены звездочкой (*)", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
                 return check;
