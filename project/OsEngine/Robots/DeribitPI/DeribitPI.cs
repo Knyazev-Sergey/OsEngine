@@ -3,7 +3,6 @@ using OsEngine.Entity;
 using OsEngine.Logging;
 using OsEngine.Market.Servers.Deribit;
 using OsEngine.Market.Servers.Entity;
-using OsEngine.Market.Servers.GateIo.GateIoFutures.Entities.Response;
 using OsEngine.OsTrader.Panels;
 using OsEngine.OsTrader.Panels.Attributes;
 using OsEngine.OsTrader.Panels.Tab;
@@ -36,6 +35,7 @@ namespace OsEngine.Robots.DeribitPI
             _tabOption.NewTabCreateEvent += _tabOption_NewTabCreateEvent;
             //_tabPerp.OrderUpdateEvent += _tabPerp_OrderUpdateEvent;
             _tabOption.OrderUpdateEvent += _tabOption_OrderUpdateEvent;
+            _tabIntraday.CandleUpdateEvent += _tabIntraday_CandleUpdateEvent;
             
             DisableManualPositionSupport(_tabPerp);
             DisableManualPositionSupport(_tabIntraday);
@@ -44,6 +44,11 @@ namespace OsEngine.Robots.DeribitPI
             LoadLog();
             StartThread();
             OrderEventThread();
+        }
+
+        private void _tabIntraday_CandleUpdateEvent(List<Candle> obj)
+        {
+            _lastPriceIntraday = obj[obj.Count - 1].Close;
         }
 
         public override string GetNameStrategyType()
@@ -76,7 +81,7 @@ namespace OsEngine.Robots.DeribitPI
         public bool CheckBoxMarketOrder = true;
         public int TimeOptionLimit = 0;
         public int TimeLifeAssemblyConstruction = 0;
-        public int CountWorkParts = 0;
+        public int StepGrid = 0;
         public int RatioWorkParts = 0;
         public int OneIncreaseX = 0;
         public decimal OneIncreaseY = 0;
@@ -116,6 +121,8 @@ namespace OsEngine.Robots.DeribitPI
         public int CountListLog = 1000;
         private long _expirationDate = 0;
         public List<string> OptionSeries;
+        private decimal _lastPriceIntraday;
+        
 
         #endregion
 
@@ -396,7 +403,7 @@ namespace OsEngine.Robots.DeribitPI
                                             {
                                                 if (obj.VolumeExecute >= _increaseWorkPartVolumeIntraday)
                                                 {
-                                                    CheckOrderType(_ordersIntradayFuture[indexFirstOrder].OrderType); //проверка на последовательность прохождения типов ордеров
+                                                    //CheckOrderType(_ordersIntradayFuture[indexFirstOrder].OrderType); //проверка на последовательность прохождения типов ордеров
                                                 }                                                
 
                                                 _ordersIntradayFuture.RemoveAt(indexFirstOrder);
@@ -414,6 +421,8 @@ namespace OsEngine.Robots.DeribitPI
                                                 }
 
                                                 AddLogList($"Объем выполненный {obj.VolumeExecute} равен объему ордера {obj.Volume}, удаляем ордер {obj.NumberMarket} из массива и делаем фейк-закрытие");
+
+                                                ChangeOrdersInGrid(obj);
                                             }
                                             break;
                                         }
@@ -425,7 +434,7 @@ namespace OsEngine.Robots.DeribitPI
                                 }
                             }
 
-                            CheckIncreaseWorkParts();// проверка на увеличение НРЧ
+                            //CheckIncreaseWorkParts();// проверка на увеличение НРЧ
                             
                             if (obj.State == OrderStateType.Cancel)
                             {
@@ -438,6 +447,69 @@ namespace OsEngine.Robots.DeribitPI
             catch (Exception ex)
             {
                 SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void ChangeOrdersInGrid(Order obj)
+        {
+            decimal minPriceOrder = _tabIntraday.PositionsOpenAll[0].OpenOrders[0].Price;
+            decimal maxPriceOrder = _tabIntraday.PositionsOpenAll[0].OpenOrders[0].Price;
+            Position minOrder = null;
+            Position maxOrder = null;
+
+            for (int i = 0; i < _tabIntraday.PositionsOpenAll.Count; i++)
+            {
+                if (minPriceOrder > _tabIntraday.PositionsOpenAll[i].OpenOrders[0].Price)
+                {
+                    minPriceOrder = _tabIntraday.PositionsOpenAll[i].OpenOrders[0].Price;
+                    minOrder = _tabIntraday.PositionsOpenAll[i];
+                }
+                if (maxPriceOrder < _tabIntraday.PositionsOpenAll[i].OpenOrders[0].Price)
+                {
+                    maxPriceOrder = _tabIntraday.PositionsOpenAll[i].OpenOrders[0].Price;
+                    maxOrder = _tabIntraday.PositionsOpenAll[i];
+                }
+            }
+
+            if (obj.Side == Side.Buy)
+            {
+                // add buy order and delete sell order at grid                
+
+                decimal nextOrderAtBuyInGrid = minPriceOrder - StepGrid;
+
+                for (int i = 0; i < _ordersIntradayFuture.Count; i++)
+                {
+                    if (nextOrderAtBuyInGrid == _ordersIntradayFuture[i].PriceOrder)
+                    {
+                        _tabIntraday.BuyAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder); 
+                        break;
+                    }
+                }
+
+                if (maxOrder != null)
+                {
+                    _tabIntraday.CloseOrder(maxOrder.OpenOrders[0]);
+                    _tabIntraday.CloseAtFake(maxOrder, maxOrder.OpenOrders[0].Volume, maxOrder.OpenOrders[0].Price, DateTime.Now);
+                }                
+            }
+            else
+            {
+                decimal nextOrderAtSellInGrid = maxPriceOrder + StepGrid;
+
+                for (int i = 0; i < _ordersIntradayFuture.Count; i++)
+                {
+                    if (nextOrderAtSellInGrid == _ordersIntradayFuture[i].PriceOrder)
+                    {
+                        _tabIntraday.SellAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder);
+                        break;
+                    }
+                }
+
+                if (minOrder != null)
+                {
+                    _tabIntraday.CloseOrder(minOrder.OpenOrders[0]);
+                    _tabIntraday.CloseAtFake(minOrder, minOrder.OpenOrders[0].Volume, minOrder.OpenOrders[0].Price, DateTime.Now);
+                }
             }
         }
 
@@ -1233,33 +1305,23 @@ namespace OsEngine.Robots.DeribitPI
                         decimal leftBreakEven = Math.Round(countLeftBreakEven / volumeCall);
                         AddLogList("Left Breakeven = " + leftBreakEven + ", Right Breakeven = " + rightBreakEven);
 
-                        decimal multiplier = Math.Round((rightBreakEven - leftBreakEven) / 2 / CountWorkParts, 2, MidpointRounding.AwayFromZero); 
+                        /*decimal multiplier = Math.Round((rightBreakEven - leftBreakEven) / 2 / CountWorkParts, 2, MidpointRounding.AwayFromZero); 
                         AddLogList($"Шаг цены ордера = {multiplier}");
 
-                        decimal volumeIntradayFuture = PositionFutureSize;
+                        decimal volumeIntradayFuture = PositionFutureSize;*/
 
-                        _workPartVolumeIntraday = Math.Abs(Math.Round(volumeIntradayFuture / RatioWorkParts, MidpointRounding.AwayFromZero));
+                        int countGrid = Convert.ToInt32(Math.Floor(rightBreakEven - leftBreakEven) / 2 / StepGrid);
+
+                        _workPartVolumeIntraday = Math.Floor(PositionFutureSize / 3 / countGrid);
                         _increaseWorkPartVolumeIntraday = _workPartVolumeIntraday;
 
-                        FormOrderList(averagePriceFuture, multiplier);
-                    }
+                        FormOrderGrid(averagePriceFuture, countGrid);
 
-                    if (_ordersIntradayFuture.Count != 0)
-                    {
-                        for (int i = 0; i < _ordersIntradayFuture.Count; i++)
-                        {
-                            if (_ordersIntradayFuture[i].SideOrder == Side.Buy)
-                            {
-                                _tabIntraday.BuyAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder);
-                            }
-                            else
-                            {
-                                _tabIntraday.SellAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder);
-                            }
-                        }
+                        GetOrdersToExchange();
+
                         _flagTradeIntraday = true;
                     }
-
+               
                     foreach (ListOrders item in _ordersIntradayFuture)
                     {
                         AddLogList($"Number = {item.NumberMarket}, PriceOrder = {item.PriceOrder}, SideOrder = {item.SideOrder}, VolumeOrder = {item.VolumeOrder}, ExecuteVolume = {item.ExecuteVolume}, PriceCounterOrder = {item.PriceCounterOrder}, {item.OrderType}");
@@ -1270,6 +1332,30 @@ namespace OsEngine.Robots.DeribitPI
             catch (Exception ex)
             {
                 SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void GetOrdersToExchange()
+        {
+            int countOrdersInGrid = 3;
+
+            for (int i = 0; i < _ordersIntradayFuture.Count; i++)
+            {
+                if (_ordersIntradayFuture[i].SideOrder == Side.Buy)
+                {
+                    if (_ordersIntradayFuture[i].PriceOrder >= _lastPriceIntraday - ((countOrdersInGrid + 1) * StepGrid))
+                    {
+                        _tabIntraday.BuyAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder);
+                    }
+                }
+                else
+                {
+                    if (_ordersIntradayFuture[i].PriceOrder <= _lastPriceIntraday + ((countOrdersInGrid + 1) * StepGrid))
+                    {
+                        _tabIntraday.SellAtLimit(_ordersIntradayFuture[i].VolumeOrder, _ordersIntradayFuture[i].PriceOrder);
+                    }
+                }
+                
             }
         }
 
@@ -1291,14 +1377,20 @@ namespace OsEngine.Robots.DeribitPI
             return true;
         }
 
-        private void FormOrderList(decimal averagePriceFuture, decimal multiplier)
-        {
-            /*decimal centerPointPrice = averagePriceFuture;
-
-            if (PositionFutureIntraday != 0)
+        private void FormOrderGrid(decimal averagePriceFuture, int countGrid)
+        {            
+            for (int i = 1; i <= countGrid; i++)
             {
-                centerPointPrice = GetFutureMarkPrice(_tabIntraday);
-            }*/
+                decimal priceOrderBuy = averagePriceFuture - StepGrid * countGrid;
+                _ordersIntradayFuture.Add(new ListOrders(priceOrderBuy, Side.Buy, _increaseWorkPartVolumeIntraday, 0, priceOrderBuy + StepGrid, OrdersType.MainOrder, ""));
+                //_tabIntraday.BuyAtLimit(_increaseWorkPartVolumeIntraday, priceOrderBuy);
+
+                decimal priceOrderSell = averagePriceFuture + StepGrid * countGrid;
+                _ordersIntradayFuture.Add(new ListOrders(priceOrderSell, Side.Sell, _increaseWorkPartVolumeIntraday, 0, priceOrderSell - StepGrid, OrdersType.MainOrder, ""));
+                //_tabIntraday.SellAtLimit(_increaseWorkPartVolumeIntraday, priceOrderSell);
+            }
+
+/*
             decimal centerPointPrice = GetFutureMarkPrice(_tabIntraday);
             AddLogList($"MarkPrice = {centerPointPrice}");
 
@@ -1382,7 +1474,7 @@ namespace OsEngine.Robots.DeribitPI
             {
                 _ordersIntradayFuture.Add(new ListOrders(GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12 - multiplier * 3), Side.Buy, _increaseWorkPartVolumeIntraday, 0, GetPriceFutureForIntraday(averagePriceFuture, multiplier * 12), OrdersType.CounterOrder, ""));
             }
-            CheckOpenPosition();            
+            //CheckOpenPosition();     */       
         }
 
         private void CheckOpenPosition()
@@ -2054,7 +2146,7 @@ namespace OsEngine.Robots.DeribitPI
                     CheckBoxMarketOrder = Convert.ToBoolean(reader.ReadLine().Split('^')[1]);
                     TimeOptionLimit = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
                     TimeLifeAssemblyConstruction = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
-                    CountWorkParts = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
+                    StepGrid = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
                     RatioWorkParts = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
                     OneIncreaseX = Convert.ToInt32(reader.ReadLine().Split('^')[1]);
                     OneIncreaseY = Convert.ToDecimal(reader.ReadLine().Split('^')[1]);
@@ -2086,7 +2178,7 @@ namespace OsEngine.Robots.DeribitPI
                     writer.WriteLine("CheckBoxMarketOrder^" + CheckBoxMarketOrder);
                     writer.WriteLine("TimeOptionLimit^" + TimeOptionLimit);
                     writer.WriteLine("TimeLifeAssemblyConstruction^" + TimeLifeAssemblyConstruction);
-                    writer.WriteLine("CountWorkParts^" + CountWorkParts);
+                    writer.WriteLine("CountWorkParts^" + StepGrid);
                     writer.WriteLine("RatioWorkParts^" + RatioWorkParts);
                     writer.WriteLine("OneIncreaseX^" + OneIncreaseX);
                     writer.WriteLine("OneIncreaseY^" + OneIncreaseY);
@@ -2201,14 +2293,11 @@ namespace OsEngine.Robots.DeribitPI
                 {
                     check = false;
                 }
-                if (CountWorkParts == 0)
+                if (StepGrid == 0)
                 {
                     check = false;
                 }
-                if (RatioWorkParts == 0)
-                {
-                    check = false;
-                }
+               
                 if (check == false)
                 {
                     Regime = DeribitPIUi.NameRegime.SettingsTrade;

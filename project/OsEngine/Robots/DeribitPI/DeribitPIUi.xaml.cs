@@ -38,7 +38,7 @@ namespace OsEngine.Robots.DeribitPI
             checkBoxMarketOrder.IsChecked = _strategy.CheckBoxMarketOrder;
             LabelTimeOptionLimit.Text = _strategy.TimeOptionLimit.ToString();
             TimeLifeAssemblyConstruction.Text = _strategy.TimeLifeAssemblyConstruction.ToString();
-            CountWorkParts.Text = _strategy.CountWorkParts.ToString();
+            StepGrid.Text = _strategy.StepGrid.ToString();
             RatioWorkParts.Text = _strategy.RatioWorkParts.ToString();
             OneIncreaseX.Text = _strategy.OneIncreaseX.ToString();
             OneIncreaseY.Text = _strategy.OneIncreaseY.ToString();
@@ -130,7 +130,7 @@ namespace OsEngine.Robots.DeribitPI
                checkBoxMarketOrder.Focusable = false;
                LabelTimeOptionLimit.IsReadOnly = true;
                TimeLifeAssemblyConstruction.IsReadOnly = true;
-               CountWorkParts.IsReadOnly = true;
+               StepGrid.IsReadOnly = true;
                RatioWorkParts.IsReadOnly = true;
                OneIncreaseX.IsReadOnly = true;
                OneIncreaseY.IsReadOnly = true;
@@ -149,7 +149,7 @@ namespace OsEngine.Robots.DeribitPI
                checkBoxMarketOrder.Focusable = true;
                LabelTimeOptionLimit.IsReadOnly = false;
                TimeLifeAssemblyConstruction.IsReadOnly = false;
-               CountWorkParts.IsReadOnly = false;
+               StepGrid.IsReadOnly = false;
                RatioWorkParts.IsReadOnly = false;
                OneIncreaseX.IsReadOnly = false;
                OneIncreaseY.IsReadOnly = false;
@@ -266,9 +266,9 @@ namespace OsEngine.Robots.DeribitPI
             _strategy.SaveParameters();
         }
 
-        private void CountWorkParts_TextChanged(object sender, TextChangedEventArgs e)
+        private void StepGrid_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _strategy.CountWorkParts = TextChanger(sender);
+            _strategy.StepGrid = TextChanger(sender);
             _strategy.SaveParameters();
         }
 

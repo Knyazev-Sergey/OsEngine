@@ -41,8 +41,8 @@
                         <ColumnDefinition Width="50*"></ColumnDefinition>
                         <ColumnDefinition Width="50*"></ColumnDefinition>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Margin="5,10,5,0" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="46">Кол-во частей рабочего диапазона*</TextBlock>
-                    <TextBox Margin="5,0,5,5" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="CountWorkParts" TextChanged="CountWorkParts_TextChanged" ToolTip="Указываем, на какое количество частей разбиваем рабочий диапазон"/>
+                    <TextBlock Margin="5,10,5,0" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="46">Шаг сетки ($)*</TextBlock>
+                    <TextBox Margin="5,0,5,5" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="StepGrid" TextChanged="StepGrid_TextChanged" ToolTip="Указываем, на какое количество частей разбиваем рабочий диапазон"/>
                     <TextBlock Margin="5,0,5,0" Grid.Row="1" Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center" Height="23" >Коэф расчета рабочей части*</TextBlock>
                     <TextBox Margin="5,0,5,0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Height="23" Name="RatioWorkParts" TextChanged="RatioWorkParts_TextChanged" ToolTip="Указываем коэффициент, на который мы делим общую сумму фьючерсов для построения стреддла, для получения рабочей части."></TextBox>
                     <TextBlock Margin="5,0,5,0" Height="44" TextWrapping="Wrap" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" VerticalAlignment="Center">Увеличение рабочей части (Х плюсовых сделок - увеличиваем НРЧ в Y раз):</TextBlock>
