@@ -39,7 +39,7 @@ namespace OsEngine.Robots.DeribitPI
             LabelTimeOptionLimit.Text = _strategy.TimeOptionLimit.ToString();
             TimeLifeAssemblyConstruction.Text = _strategy.TimeLifeAssemblyConstruction.ToString();
             StepGrid.Text = _strategy.StepGrid.ToString();
-            RatioWorkParts.Text = _strategy.RatioWorkParts.ToString();
+            CountGrid.Text = _strategy.CountGrid.ToString();
             OneIncreaseX.Text = _strategy.OneIncreaseX.ToString();
             OneIncreaseY.Text = _strategy.OneIncreaseY.ToString();
             TwoIncreaseX.Text = _strategy.TwoIncreaseX.ToString();
@@ -131,7 +131,7 @@ namespace OsEngine.Robots.DeribitPI
                LabelTimeOptionLimit.IsReadOnly = true;
                TimeLifeAssemblyConstruction.IsReadOnly = true;
                StepGrid.IsReadOnly = true;
-               RatioWorkParts.IsReadOnly = true;
+               CountGrid.IsReadOnly = true;
                OneIncreaseX.IsReadOnly = true;
                OneIncreaseY.IsReadOnly = true;
                TwoIncreaseX.IsReadOnly = true;
@@ -150,7 +150,7 @@ namespace OsEngine.Robots.DeribitPI
                LabelTimeOptionLimit.IsReadOnly = false;
                TimeLifeAssemblyConstruction.IsReadOnly = false;
                StepGrid.IsReadOnly = false;
-               RatioWorkParts.IsReadOnly = false;
+               CountGrid.IsReadOnly = false;
                OneIncreaseX.IsReadOnly = false;
                OneIncreaseY.IsReadOnly = false;
                TwoIncreaseX.IsReadOnly = false;
@@ -272,9 +272,9 @@ namespace OsEngine.Robots.DeribitPI
             _strategy.SaveParameters();
         }
 
-        private void RatioWorkParts_TextChanged(object sender, TextChangedEventArgs e)
+        private void CountGrid_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _strategy.RatioWorkParts = TextChanger(sender);
+            _strategy.CountGrid = TextChanger(sender);
             _strategy.SaveParameters();
         }
 
