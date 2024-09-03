@@ -1721,13 +1721,13 @@ namespace OsEngine.Robots.DeribitPI
                 else
                 {
                     SendNewLogMessage(CurrentStrike + " - GetOptionMarkPrice - Http State Code: " + responseMessage.StatusCode + ", " + responseMessage.Content, LogMessageType.Error);
-                    Thread.Sleep(1000);
+                    Thread.Sleep(5000);
                 }
             }
             catch (Exception exception)
             {
                 SendNewLogMessage(exception.ToString(), LogMessageType.Error);
-                Thread.Sleep(1000);
+                Thread.Sleep(5000);
             }
         }
 
@@ -1746,13 +1746,13 @@ namespace OsEngine.Robots.DeribitPI
                 else
                 {
                     SendNewLogMessage($"GetFutureMarkPrice ({tab.Securiti.Name}) - Http State Code: " + responseMessage.StatusCode + ", " + responseMessage.Content, LogMessageType.Error);
-                    Thread.Sleep(1000);
+                    Thread.Sleep(5000);
                 }
             }
             catch (Exception exception)
             {
                 SendNewLogMessage(exception.ToString(), LogMessageType.Error);
-                Thread.Sleep(1000);
+                Thread.Sleep(5000);
             }
 
             return markPrice;
@@ -1773,13 +1773,13 @@ namespace OsEngine.Robots.DeribitPI
                 else
                 {
                     SendNewLogMessage($"GetExpirationDate - Http State Code: " + responseMessage.StatusCode + ", " + responseMessage.Content, LogMessageType.Error);
-                    Thread.Sleep(1000);
+                    Thread.Sleep(5000);
                 }
             }
             catch (Exception exception)
             {
                 SendNewLogMessage(exception.ToString(), LogMessageType.Error);
-                Thread.Sleep(1000);
+                Thread.Sleep(5000);
             }
 
             return expirDate;
