@@ -187,6 +187,10 @@ namespace OsEngine.Robots.DeribitPI
             TextSizeOptionOnBoard.Text = _strategy.PositionOptionSize.ToString();
             TextSizeFuturesOnBoard.Text = _strategy.PositionFutureSize.ToString();
             TextSizeFutureIntraday.Text = _strategy.PositionFutureIntraday.ToString();
+            TextCenterConstruction.Text = _strategy.AveragePriceFuture.ToString();
+            TextLBE.Text = _strategy.LeftBreakEven.ToString();
+            TextRBE.Text = _strategy.RightBreakEven.ToString();
+            TextCountGrid.Text = _strategy.CountGridInConstruction.ToString();
 
             /*if (ComboBoxExpir.Items.Count == 0)
             {
