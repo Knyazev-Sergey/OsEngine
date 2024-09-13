@@ -15,6 +15,12 @@ using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Windows;
+using Telegram.Bot;
+using Telegram.Bot.Types;
+using Telegram.Bot.Polling;
+using System.Threading.Tasks;
+using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace OsEngine.Robots.DeribitPI
 {
@@ -49,6 +55,121 @@ namespace OsEngine.Robots.DeribitPI
             LoadLog();
             StartThread();
             OrderEventThread();
+
+            string _chatId = "1999681087:AAGoN5hWcH9e9fVTkW-tZDuwXM5S3xLD_38";
+
+            ITelegramBotClient bot = new TelegramBotClient(_chatId);
+            
+            CancellationTokenSource cts = new CancellationTokenSource();
+            CancellationToken cancellationToken = cts.Token;
+            ReceiverOptions receiverOptions = new ReceiverOptions();
+            receiverOptions.AllowedUpdates = null; // receive all update types
+
+            bot.StartReceiving(
+                HandleUpdateAsync,
+                HandleErrorAsync,
+                receiverOptions,
+                cancellationToken
+            );
+        }
+
+
+        public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            Console.WriteLine(JsonConvert.SerializeObject(update));
+            if (update.Type == UpdateType.Message)
+            {
+                Telegram.Bot.Types.Message message = update.Message;
+                /*if (message.Text.ToLower() == "/start")
+                {
+                    ReplyKeyboardMarkup replyKeyboard = new ReplyKeyboardMarkup(
+                                    new List<KeyboardButton[]>()
+                                    {
+                                        new KeyboardButton[]
+                                        {
+                                            new KeyboardButton("Выключен"),                                           
+                                        },
+                                        new KeyboardButton[]
+                                        {
+                                            new KeyboardButton("Настройка торговли")
+                                        },
+                                        new KeyboardButton[]
+                                        {
+                                            new KeyboardButton("Turn on pattern \"Acceleration by last candles\""),
+                                            new KeyboardButton("Turn on pattern \"Bollinger breakout into trend\""),
+                                        },
+                                        new KeyboardButton[]
+                                        {
+                                            new KeyboardButton("Reconnect bot")
+                                        }
+                                    })
+                    {
+                        ResizeKeyboard = true,
+                    };
+
+                    await botClient.SendTextMessageAsync(
+                                    message.Chat.Id, "Server ON",
+                                    replyMarkup: replyKeyboard); // опять передаем клавиатуру в параметр replyMarkup
+
+                    return;
+                }*/
+                if (message.Text == "/regime")
+                {
+                    ReplyKeyboardMarkup replyKeyboard = new ReplyKeyboardMarkup(
+                                    new List<KeyboardButton[]>()
+                                    {
+                                        new KeyboardButton[]
+                                        {
+                                            new KeyboardButton("Выключен")
+                                        },
+                                        new KeyboardButton[]
+                                        {
+                                            new KeyboardButton("Настройка торговли")
+                                        },
+                                        new KeyboardButton[]
+                                        {
+                                            new KeyboardButton("Набор конструкции")
+                                        },
+                                        new KeyboardButton[]
+                                        {
+                                            new KeyboardButton("Торговля фьючерсами")
+                                        }
+                                    })
+                    {
+                        ResizeKeyboard = true,
+                        OneTimeKeyboard = true
+                    };
+
+                    await botClient.SendTextMessageAsync(
+                                    message.Chat.Id, $"Выбран режим: {Regime}",
+                                    replyMarkup: replyKeyboard); 
+                }
+                if (message.Text == "Выключен")
+                {
+                    Regime = DeribitPIUi.NameRegime.Off;
+
+                    return;
+                }
+
+                if (message.Text == "Настройка торговли")
+                {
+                    Regime = DeribitPIUi.NameRegime.SettingsTrade;
+
+                    return;
+                }
+
+                if (message.Text == "Торговля фьючерсами")
+                {
+                    Regime = DeribitPIUi.NameRegime.TradeFutures;
+
+                    return;
+                }
+            }
+        }
+
+        public static async Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
+        {
+            Console.WriteLine(JsonConvert.SerializeObject(exception));
         }
 
         private void _tabIntraday_CandleUpdateEvent(List<Candle> obj)
@@ -2141,7 +2262,7 @@ namespace OsEngine.Robots.DeribitPI
         {
             string filePath = @"Engine\" + NameStrategyUniq + @"Parameters.txt";
 
-            if (!File.Exists(filePath))
+            if (!System.IO.File.Exists(filePath))
             {
                 return;
             }
@@ -2213,7 +2334,7 @@ namespace OsEngine.Robots.DeribitPI
 
         private void LoadLog()
         {
-            if (!File.Exists(@"Engine\" + NameStrategyUniq + @"Log.txt"))
+            if (!System.IO.File.Exists(@"Engine\" + NameStrategyUniq + @"Log.txt"))
             {
                 return;
             }
