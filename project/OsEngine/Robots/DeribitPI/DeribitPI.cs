@@ -44,7 +44,6 @@ namespace OsEngine.Robots.DeribitPI
 
             _tabPerp.CandleUpdateEvent += _tabPerp_CandleUpdateEvent;
             _tabOption.NewTabCreateEvent += _tabOption_NewTabCreateEvent;
-            //_tabPerp.OrderUpdateEvent += _tabPerp_OrderUpdateEvent;
             _tabOption.OrderUpdateEvent += _tabOption_OrderUpdateEvent;
             _tabIntraday.CandleUpdateEvent += _tabIntraday_CandleUpdateEvent;
             
@@ -55,11 +54,16 @@ namespace OsEngine.Robots.DeribitPI
             LoadLog();
             StartThread();
             OrderEventThread();
+              
+            TelegramBot();
+        }
 
-            string _chatId = "1999681087:AAGoN5hWcH9e9fVTkW-tZDuwXM5S3xLD_38";
+        private void TelegramBot()
+        {
+            LoadTelegramBotSet();
 
-            ITelegramBotClient bot = new TelegramBotClient(_chatId);
-            
+            ITelegramBotClient bot = new TelegramBotClient(_botToken);
+
             CancellationTokenSource cts = new CancellationTokenSource();
             CancellationToken cancellationToken = cts.Token;
             ReceiverOptions receiverOptions = new ReceiverOptions();
@@ -73,103 +77,108 @@ namespace OsEngine.Robots.DeribitPI
             );
         }
 
+        private string _botToken;
+        private long _chatId;
+
+        public void LoadTelegramBotSet()
+        {
+            try
+            {
+                if (System.IO.File.Exists(@"Engine\telegramSet.txt"))
+                {
+                    StreamReader reader = new StreamReader(@"Engine\telegramSet.txt");
+                    _botToken = reader.ReadLine();
+                    _chatId = Convert.ToInt64(reader.ReadLine());                                        
+                    reader.Close();
+                }
+                else
+                {
+                    _botToken = string.Empty;
+                    _chatId = 0;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+        }
 
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            Console.WriteLine(JsonConvert.SerializeObject(update));
-            if (update.Type == UpdateType.Message)
+            if (update.Message.Chat.Id == _chatId)
             {
-                Telegram.Bot.Types.Message message = update.Message;
-                /*if (message.Text.ToLower() == "/start")
+                if (update.Type == UpdateType.Message)
                 {
-                    ReplyKeyboardMarkup replyKeyboard = new ReplyKeyboardMarkup(
-                                    new List<KeyboardButton[]>()
-                                    {
-                                        new KeyboardButton[]
-                                        {
-                                            new KeyboardButton("Выключен"),                                           
-                                        },
-                                        new KeyboardButton[]
-                                        {
-                                            new KeyboardButton("Настройка торговли")
-                                        },
-                                        new KeyboardButton[]
-                                        {
-                                            new KeyboardButton("Turn on pattern \"Acceleration by last candles\""),
-                                            new KeyboardButton("Turn on pattern \"Bollinger breakout into trend\""),
-                                        },
-                                        new KeyboardButton[]
-                                        {
-                                            new KeyboardButton("Reconnect bot")
-                                        }
-                                    })
+                    Telegram.Bot.Types.Message message = update.Message;
+
+                    if (message.Text == "/regime")
                     {
-                        ResizeKeyboard = true,
-                    };
-
-                    await botClient.SendTextMessageAsync(
-                                    message.Chat.Id, "Server ON",
-                                    replyMarkup: replyKeyboard); // опять передаем клавиатуру в параметр replyMarkup
-
-                    return;
-                }*/
-                if (message.Text == "/regime")
-                {
-                    ReplyKeyboardMarkup replyKeyboard = new ReplyKeyboardMarkup(
-                                    new List<KeyboardButton[]>()
-                                    {
-                                        new KeyboardButton[]
+                        InlineKeyboardMarkup myInlineKeyboard = new InlineKeyboardMarkup(
+                                        new InlineKeyboardButton[][]
                                         {
-                                            new KeyboardButton("Выключен")
-                                        },
-                                        new KeyboardButton[]
+                                        new InlineKeyboardButton[] // First row
                                         {
-                                            new KeyboardButton("Настройка торговли")
-                                        },
-                                        new KeyboardButton[]
-                                        {
-                                            new KeyboardButton("Набор конструкции")
-                                        },
-                                        new KeyboardButton[]
-                                        {
-                                            new KeyboardButton("Торговля фьючерсами")
+                                            InlineKeyboardButton.WithCallbackData( //Second column
+                                                "Выключен", // Button Name
+                                                "RegimeOff" // Answer you'll recieve
+                                            ),
+                                                InlineKeyboardButton.WithCallbackData( //Second column
+                                                "Настройка торговли", // Button Name
+                                                "RegimeSettingsTrade" // Answer you'll recieve
+                                            )
                                         }
-                                    })
+                                        }
+                                    );
+
+                        // Отправляем сообщение с кнопками inline
+                        await botClient.SendTextMessageAsync(message.Chat.Id, $"Текущий режим: {Regime}", replyMarkup: myInlineKeyboard);
+                        return;                       
+                    }
+                    /*if (message.Text == "Выключен")
                     {
-                        ResizeKeyboard = true,
-                        OneTimeKeyboard = true
-                    };
+                        Regime = DeribitPIUi.NameRegime.Off;
 
-                    await botClient.SendTextMessageAsync(
-                                    message.Chat.Id, $"Выбран режим: {Regime}",
-                                    replyMarkup: replyKeyboard); 
+                        return;
+                    }
+
+                    if (message.Text == "Настройка торговли")
+                    {
+                        Regime = DeribitPIUi.NameRegime.SettingsTrade;
+
+                        return;
+                    }
+
+                    if (message.Text == "Торговля фьючерсами")
+                    {
+                        Regime = DeribitPIUi.NameRegime.TradeFutures;
+
+                        return;
+                    }    */              
                 }
-                if (message.Text == "Выключен")
+                if (update.Type == UpdateType.CallbackQuery)
                 {
-                    Regime = DeribitPIUi.NameRegime.Off;
-
-                    return;
-                }
-
-                if (message.Text == "Настройка торговли")
-                {
-                    Regime = DeribitPIUi.NameRegime.SettingsTrade;
-
-                    return;
-                }
-
-                if (message.Text == "Торговля фьючерсами")
-                {
-                    Regime = DeribitPIUi.NameRegime.TradeFutures;
-
-                    return;
+                    switch (update.CallbackQuery.Data)
+                    {
+                        case "RegimeOff":
+                            Regime = DeribitPIUi.NameRegime.Off;
+                            await botClient.EditMessageTextAsync(update.CallbackQuery.Message.Chat.Id, update.CallbackQuery.Message.MessageId, $"Текущий режим: {Regime}", replyMarkup: null);
+                            break;
+                        case "RegimeSettingsTrade":
+                            Regime = DeribitPIUi.NameRegime.SettingsTrade;
+                            await botClient.EditMessageTextAsync(update.CallbackQuery.Message.Chat.Id, update.CallbackQuery.Message.MessageId, $"Текущий режим: {Regime}", replyMarkup: null);
+                            break;
+                    }
                 }
             }
+            else
+            {
+                await botClient.SendTextMessageAsync(update.Message.Chat.Id, $"Не корректный ID");
+            }           
         }
 
         public static async Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
         {
-            Console.WriteLine(JsonConvert.SerializeObject(exception));
+            //Console.WriteLine(JsonConvert.SerializeObject(exception));
         }
 
         private void _tabIntraday_CandleUpdateEvent(List<Candle> obj)
