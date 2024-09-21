@@ -392,7 +392,7 @@ namespace OsEngine.Journal
                     }
                     else if (TabControlPrime.SelectedIndex == 5)
                     {
-                        PaintClosePositionGrid(allSortPoses);
+                        PaintClosePositionGrid();
                     }
                 }
             }
@@ -557,9 +557,9 @@ namespace OsEngine.Journal
                     CreateTableToStatistic();
                 }
 
-                List<string> positionsAllState = PositionStaticticGenerator.GetStatisticNew(positionsAll);
-                List<string> positionsLongState = PositionStaticticGenerator.GetStatisticNew(positionsLong);
-                List<string> positionsShortState = PositionStaticticGenerator.GetStatisticNew(positionsShort);
+                List<string> positionsAllState = PositionStatisticGenerator.GetStatisticNew(positionsAll);
+                List<string> positionsLongState = PositionStatisticGenerator.GetStatisticNew(positionsLong);
+                List<string> positionsShortState = PositionStatisticGenerator.GetStatisticNew(positionsShort);
 
                 if (positionsAllState == null)
                 {
@@ -2016,6 +2016,10 @@ namespace OsEngine.Journal
                     //nRow.Cells[5].Style.SelectionBackColor = Color.DarkOrange;
                 }
 
+                int decimalsPrice = position.PriceStep.ToStringWithNoEndZero().DecimalsCount();
+
+                decimalsPrice++;
+
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
                 nRow.Cells[6].Value = position.State;
 
@@ -2029,25 +2033,25 @@ namespace OsEngine.Journal
                 nRow.Cells[9].Value = position.WaitVolume;
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[10].Value = position.EntryPrice.ToStringWithNoEndZero();
+                nRow.Cells[10].Value = Math.Round(position.EntryPrice, decimalsPrice).ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[11].Value = position.ClosePrice.ToStringWithNoEndZero();
+                nRow.Cells[11].Value = Math.Round(position.ClosePrice, decimalsPrice).ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[12].Value = position.ProfitPortfolioPunkt.ToStringWithNoEndZero();
+                nRow.Cells[12].Value = Math.Round(position.ProfitPortfolioPunkt, decimalsPrice).ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[13].Value = position.StopOrderRedLine.ToStringWithNoEndZero();
+                nRow.Cells[13].Value = Math.Round(position.StopOrderRedLine, decimalsPrice).ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[14].Value = position.StopOrderPrice.ToStringWithNoEndZero();
+                nRow.Cells[14].Value = Math.Round(position.StopOrderPrice, decimalsPrice).ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[15].Value = position.ProfitOrderRedLine.ToStringWithNoEndZero();
+                nRow.Cells[15].Value = Math.Round(position.ProfitOrderRedLine, decimalsPrice).ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[16].Value = position.ProfitOrderPrice.ToStringWithNoEndZero();
+                nRow.Cells[16].Value = Math.Round(position.ProfitOrderPrice, decimalsPrice).ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
                 nRow.Cells[17].Value = position.SignalTypeOpen;
@@ -2259,15 +2263,32 @@ namespace OsEngine.Journal
             }
         }
 
-        private void PaintClosePositionGrid(List<Position> positionsAll)
+        private void PaintClosePositionGrid()
         {
             try
             {
+
                 if (_closePositionGrid == null)
                 {
                     CreateClosePositionTable();
                 }
+
                 _closePositionGrid.Rows.Clear();
+
+                List<Journal> myJournals = GetActiveJournals();
+
+                if (myJournals == null
+                    || myJournals.Count == 0)
+                {
+                    return;
+                }
+
+                List<Position> positionsAll = new List<Position>();
+
+                for (int i = 0; i < myJournals.Count; i++)
+                {
+                    if (myJournals[i].AllPosition != null) positionsAll.AddRange(myJournals[i].AllPosition);
+                }
 
                 if (positionsAll == null
                     || positionsAll.Count == 0)
@@ -2306,6 +2327,12 @@ namespace OsEngine.Journal
 
                 for (int i = 0; i < closePositions.Count; i++)
                 {
+                    if (closePositions[i].TimeCreate < _startTime
+                       || closePositions[i].TimeCreate > _endTime)
+                    {
+                        continue;
+                    }
+
                     _closePositionGrid.Rows.Insert(0, GetRow(closePositions[i]));
                 }
             }
@@ -2393,24 +2420,24 @@ namespace OsEngine.Journal
                 }
 
                 StringBuilder workSheet = new StringBuilder();
-                workSheet.Append(OsLocalization.Entity.PositionColumn1);
-                workSheet.Append(OsLocalization.Entity.PositionColumn2);
-                workSheet.Append(OsLocalization.Entity.PositionColumn3);
-                workSheet.Append(OsLocalization.Entity.PositionColumn4);
-                workSheet.Append(OsLocalization.Entity.PositionColumn5);
-                workSheet.Append(OsLocalization.Entity.PositionColumn6);
-                workSheet.Append(OsLocalization.Entity.PositionColumn7);
-                workSheet.Append(OsLocalization.Entity.PositionColumn8);
-                workSheet.Append(OsLocalization.Entity.PositionColumn9);
-                workSheet.Append(OsLocalization.Entity.PositionColumn10);
-                workSheet.Append(OsLocalization.Entity.PositionColumn11);
-                workSheet.Append(OsLocalization.Entity.PositionColumn12);
-                workSheet.Append(OsLocalization.Entity.PositionColumn13);
-                workSheet.Append(OsLocalization.Entity.PositionColumn14);
-                workSheet.Append(OsLocalization.Entity.PositionColumn15);
-                workSheet.Append(OsLocalization.Entity.PositionColumn16);
-                workSheet.Append(OsLocalization.Entity.PositionColumn17);
-                workSheet.Append(OsLocalization.Entity.PositionColumn18);
+                workSheet.Append(OsLocalization.Entity.PositionColumn1 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn2 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn3 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn4 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn5 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn6 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn7 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn8 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn9 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn10 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn11 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn12 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn13 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn14 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn15 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn16 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn17 + ";");
+                workSheet.Append(OsLocalization.Entity.PositionColumn18 + ";");
                 workSheet.Append(OsLocalization.Entity.PositionColumn19 + "\r\n");
 
                 for (int i = 0; i < _closePositionGrid.Rows.Count; i++)

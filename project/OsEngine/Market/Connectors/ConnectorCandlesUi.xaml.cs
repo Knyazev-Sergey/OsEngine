@@ -464,6 +464,10 @@ namespace OsEngine.Market.Connectors
                     return;
                 }
 
+                if (_connectorBot == null)
+                {
+                    return;
+                }
 
                 if (!ComboBoxClass.CheckAccess())
                 {
@@ -479,6 +483,7 @@ namespace OsEngine.Market.Connectors
                 }
 
                 ComboBoxPortfolio.Items.Clear();
+
 
 
                 string portfolio = _connectorBot.PortfolioName;
@@ -787,13 +792,11 @@ namespace OsEngine.Market.Connectors
         {
             try
             {
-                _gridSecurities.Rows.Clear();
-
-                _gridSecurities.ClearSelection();
-
                 if (securities == null
                     || securities.Count == 0)
                 {
+                    _gridSecurities.Rows.Clear();
+                    _gridSecurities.ClearSelection();
                     return;
                 }
 
@@ -816,6 +819,8 @@ namespace OsEngine.Market.Connectors
 
                 int selectedRow = 0;
 
+                List<DataGridViewRow> rows = new List<DataGridViewRow>();
+
                 for (int indexSecuriti = 0; indexSecuriti < securities.Count; indexSecuriti++)
                 {
                     DataGridViewRow nRow = new DataGridViewRow();
@@ -835,7 +840,6 @@ namespace OsEngine.Market.Connectors
                     DataGridViewCheckBoxCell checkBox = new DataGridViewCheckBoxCell();
                     nRow.Cells.Add(checkBox);
 
-
                     if (securities[indexSecuriti].NameClass == selectedClass
                             &&
                            securities[indexSecuriti].Name == selectedName)
@@ -844,11 +848,27 @@ namespace OsEngine.Market.Connectors
                         selectedRow = indexSecuriti;
                     }
 
-                    _gridSecurities.Rows.Add(nRow);
+                    rows.Add(nRow);
                 }
 
-                _gridSecurities.Rows[selectedRow].Selected = true;
-                _gridSecurities.FirstDisplayedScrollingRowIndex = selectedRow;
+                SecurityTable.Child = null;
+
+                _gridSecurities.Rows.Clear();
+                _gridSecurities.ClearSelection();
+
+                if (rows.Count > 0)
+                {
+                    _gridSecurities.Rows.AddRange(rows.ToArray());
+                }
+
+                SecurityTable.Child = _gridSecurities;
+
+                if(selectedRow > 0
+                    && selectedRow < securities.Count)
+                {
+                    _gridSecurities.Rows[selectedRow].Selected = true;
+                    _gridSecurities.FirstDisplayedScrollingRowIndex = selectedRow;
+                }
             }
             catch (Exception ex)
             {

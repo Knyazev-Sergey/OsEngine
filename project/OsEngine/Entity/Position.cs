@@ -319,6 +319,16 @@ namespace OsEngine.Entity
         public string SignalTypeClose;
 
         /// <summary>
+        /// Closing signal type if a stop order is triggered
+        /// </summary>
+        public string SignalTypeStop;
+
+        /// <summary>
+        /// Closing signal type if a profit order is triggered
+        /// </summary>
+        public string SignalTypeProfit;
+
+        /// <summary>
         /// Maximum volume by position
         /// </summary>
         public decimal MaxVolume
@@ -1036,6 +1046,17 @@ namespace OsEngine.Entity
                     }
 
                     result += "\n";
+
+                    result += OsLocalization.Trader.Label421 + ": " + TimeOpen.ToString(OsLocalization.CurCulture);
+
+                    if (State == PositionStateType.Done)
+                    {
+                        result += ", " + OsLocalization.Trader.Label420 + ": " + TimeClose.ToString(OsLocalization.CurCulture) + " ";
+                    }
+
+                    result += "\n";
+
+
                 }
 
                 if (OpenVolume == 0)
