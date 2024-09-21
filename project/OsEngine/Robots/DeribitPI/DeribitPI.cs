@@ -165,10 +165,10 @@ namespace OsEngine.Robots.DeribitPI
                         }
                     }
                 }
-                if (obj.State == OrderStateType.Cancel)
+                /*if (obj.State == OrderStateType.Cancel)
                 {
                     _flagConstruction = FlagConstruction.FirstBuyOption;
-                }
+                }*/
 
                 if (obj.State == OrderStateType.Done)
                 {
@@ -255,7 +255,7 @@ namespace OsEngine.Robots.DeribitPI
                             _tabPerp_OrderUpdateEvent(obj);
                         }
                     }
-
+                                        
                     if (obj.SecurityNameCode == _tabIntraday.Securiti.Name)
                     {
                         if (Regime == DeribitPIUi.NameRegime.TradeFutures)
@@ -887,7 +887,7 @@ namespace OsEngine.Robots.DeribitPI
                         CancelOptionOrder();
                         AddLogList("Отмена ордера " + _tabOption.Tabs[_currentTab].Securiti.Name + " по смене страйка");
                         GetOptionMarkPrice();
-
+                        
                         return;
                     }
 
@@ -1345,6 +1345,7 @@ namespace OsEngine.Robots.DeribitPI
                             _flagConstruction == FlagConstruction.FirstBuyOption)
                         {
                             CancelOptionOrder();
+                            _flagConstruction = FlagConstruction.FirstBuyOption;
                             AddLogList("Отмена ордера " + _tabOption.Tabs[_currentTab].Securiti.Name + " вышло время набора конструкции");
 
                             if (PositionOptionSize == 0)
@@ -1393,7 +1394,7 @@ namespace OsEngine.Robots.DeribitPI
                         CancelOptionOrder();
                         AddLogList("Отмена ордера " + _tabOption.Tabs[_currentTab].Securiti.Name + " по смене страйка");
                         GetOptionMarkPrice();
-
+                        _flagConstruction = FlagConstruction.FirstBuyOption;
                         return;
                     }
 
@@ -1412,7 +1413,7 @@ namespace OsEngine.Robots.DeribitPI
                         }
 
                         CancelOptionOrder();
-
+                        _flagConstruction = FlagConstruction.FirstBuyOption;
                         return;
                     }
 
@@ -1434,6 +1435,7 @@ namespace OsEngine.Robots.DeribitPI
                                 if (Math.Abs(MarkPriceOption - _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice) > stepPrice / 2) // как надо заказчику
                                 {
                                     CancelOptionOrder();
+                                    _flagConstruction = FlagConstruction.FirstBuyOption;
                                     AddLogList("Отмена ордера " + _tabOption.Tabs[_currentTab].Securiti.Name + " по изменению теор цены = " + MarkPriceOption);
                                 }                                
                             }
@@ -1442,6 +1444,7 @@ namespace OsEngine.Robots.DeribitPI
                                 if (MarkPriceOption - _tabOption.Tabs[_currentTab].PositionsLast.EntryPrice >= stepPrice)
                                 {
                                     CancelOptionOrder();
+                                    _flagConstruction = FlagConstruction.FirstBuyOption;
                                     AddLogList("Отмена ордера " + _tabOption.Tabs[_currentTab].Securiti.Name + " по изменению теор цены = " + MarkPriceOption);
                                     _stepOrder = 0;
                                 }
