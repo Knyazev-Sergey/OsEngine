@@ -1035,6 +1035,7 @@ namespace OsEngine.Robots.DeribitPI
                         decimal vol = _tabPerp.PositionsOpenAll[i].OpenOrders[0].Volume;
                         decimal price = _tabPerp.PositionsOpenAll[i].OpenOrders[0].Price;
                         _tabPerp.CloseAtFake(pos, vol, price, DateTime.Now);
+                        i--;
                     }
                 }                                
                 
@@ -1050,6 +1051,7 @@ namespace OsEngine.Robots.DeribitPI
                                 decimal vol = _tabOption.PositionsOpenAll[j].OpenOrders[0].Volume;
                                 decimal price = _tabOption.PositionsOpenAll[j].OpenOrders[0].Price;
                                 _tabOption.Tabs[i].CloseAtFake(pos, vol, price, DateTime.Now);
+                                i--;
                             }
                         }                        
                     }
