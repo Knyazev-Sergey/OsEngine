@@ -1088,12 +1088,23 @@
     <Compile Include="Robots\CounterTrend\ClusterCountertrend.cs" />
     <Compile Include="Robots\CurrencyArbitrage\CurrencyArbitrageClassic.cs" />
     <Compile Include="Robots\CurrencyArbitrage\CurrencyMoveExplorer.cs" />
+    <Compile Include="Robots\DeribitPI\DeribitPI.cs" />
+    <Compile Include="Robots\DeribitPI\DeribitPIUi.xaml.cs">
+      <DependentUpon>DeribitPIUi.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Robots\Engines\EnginePair.cs" />
     <Compile Include="Robots\Engines\PolygonalEngine.cs" />
+    <Compile Include="Robots\High Frequency\MarketDepthScreener.cs" />
     <Compile Include="Robots\IndexArbitrage\IndexArbitrageClassic.cs" />
     <Compile Include="Robots\IndexArbitrage\MultiExchangePairArbitrageOnTheIndex.cs" />
     <Compile Include="Robots\IndexArbitrage\MultiOneLegArbitrageInTrend.cs" />
     <Compile Include="Robots\IndexArbitrage\MultiOneLegArbitrageMeanReversion.cs" />
+    <Compile Include="Robots\MarketMaker\MarketMakerBotUi.xaml.cs">
+      <DependentUpon>MarketMakerBotUi.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Robots\MarketMaker\PairTraderSpreadSmaUi.xaml.cs">
+      <DependentUpon>PairTraderSpreadSmaUi.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Robots\OnScriptIndicators\GridSample.cs" />
     <Compile Include="Robots\Engines\CandleEngine.cs" />
     <Compile Include="Robots\Engines\ClusterEngine.cs" />
@@ -1118,6 +1129,7 @@
     <Compile Include="Robots\Screeners\PinBarScreener.cs" />
     <Compile Include="Robots\TechSamples\AllSourcesInOneSample.cs" />
     <Compile Include="Robots\TechSamples\BlockIndicatorsSample.cs" />
+    <Compile Include="Robots\TechSamples\CandlesLoggingSample.cs" />
     <Compile Include="Robots\TechSamples\ChangePriceBotExtStopMarket.cs" />
     <Compile Include="Robots\TechSamples\CustomChartInParamWindowSample.cs" />
     <Compile Include="Robots\TechSamples\CustomParamsUseBotSample.cs" />
@@ -1133,6 +1145,7 @@
     <Compile Include="Robots\OnScriptIndicators\SmaTrendSample.cs" />
     <Compile Include="Robots\OnScriptIndicators\TimeOfDayBot.cs" />
     <Compile Include="Robots\Screeners\SmaScreener.cs" />
+    <Compile Include="Robots\TechSamples\CustomTableInTheParamWindowSample.cs" />
     <Compile Include="Robots\TechSamples\ElementsOnChartSampleBot.cs" />
     <Compile Include="Robots\TechSamples\FakeOutExample.cs" />
     <Compile Include="Robots\AutoTestBots\TestBotTradesInCandlesTest.cs" />
@@ -1695,6 +1708,18 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="Robots\CounterTrend\RsiContrtrendUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Robots\CounterTrend\StrategyBollingerUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Robots\CounterTrend\WilliamsRangeTradeUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="Robots\DeribitPI\DeribitPIUi.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -1734,6 +1759,42 @@
     <Page Include="PrimeSettings\PrimeSettingsMasterUi.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Robots\MarketMaker\MarketMakerBotUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Robots\MarketMaker\PairTraderSimpleUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Robots\MarketMaker\PairTraderSpreadSmaUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Robots\Patterns\PatternTraderUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Robots\Patterns\PivotPointsRobotUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Robots\Trend\MomentumMacdUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Robots\Trend\ParabolicSarTradeUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Robots\Trend\PriceChannelTradeUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Robots\Trend\SmaStochasticUi.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
     </Page>
   </ItemGroup>
   <ItemGroup>
