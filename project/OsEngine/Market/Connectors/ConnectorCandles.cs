@@ -1632,6 +1632,12 @@ namespace OsEngine.Market.Connectors
         #region Events
 
         /// <summary>
+        /// 
+        /// изменились "греки" опциона
+        /// </summary>
+        public event Action<OptionGreeks> NewOptionGreeksEvent;
+
+        /// <summary>
         /// orders are changed
         /// изменились Ордера
         /// </summary>

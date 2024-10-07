@@ -174,6 +174,8 @@ namespace OsEngine.Market.Servers.Deribit
         
         private List<string> _arrayChannelsAccount = new List<string>();
 
+        private List<string> _arrayChannelsGreeks = new List<string>();
+
         #endregion
 
         #region 3 Securities
@@ -726,6 +728,12 @@ namespace OsEngine.Market.Servers.Deribit
                                 continue;
                             }
 
+                            if (_arrayChannelsGreeks.Contains(action.@params.channel))
+                            {
+                                UpdateOptionGreeks(message);
+                                continue;
+                            }
+
                             if (action.@params.channel.Equals("user.changes.any.any.raw"))
                             {
                                 ResponseChannelUserChanges response = JsonConvert.DeserializeObject<ResponseChannelUserChanges>(message);
@@ -770,6 +778,36 @@ namespace OsEngine.Market.Servers.Deribit
                     Thread.Sleep(5000);
                 }
             }
+        }
+        private void UpdateOptionGreeks(string message)
+        {
+            ResponseChannelGreeks response = JsonConvert.DeserializeObject<ResponseChannelGreeks>(message);
+
+            if (response == null)
+            {
+                return;
+            }
+
+            if (response.@params.data == null)
+            {
+                return;
+            }
+                        
+            if (response.@params.data.greeks == null)
+            {
+                return;
+            }
+
+            OptionGreeks greeks = new OptionGreeks();
+
+            greeks.Delta = response.@params.data.greeks.delta.ToDecimal();
+            greeks.Gamma = response.@params.data.greeks.gamma.ToDecimal();
+            greeks.Vega = response.@params.data.greeks.vega.ToDecimal();
+            greeks.Theta = response.@params.data.greeks.theta.ToDecimal();
+            greeks.Rho = response.@params.data.greeks.rho.ToDecimal();
+            greeks.MarkIV = response.@params.data.mark_iv.ToDecimal();
+
+            NewOptionGreeksEvent(greeks);              
         }
 
         private void UpdateTrade(string message)
@@ -1011,6 +1049,8 @@ namespace OsEngine.Market.Servers.Deribit
         public event Action<MarketDepth> MarketDepthEvent;
 
         public event Action<Trade> NewTradesEvent;
+
+        public event Action<OptionGreeks> NewOptionGreeksEvent;
 
         #endregion
 
@@ -1442,6 +1482,7 @@ namespace OsEngine.Market.Servers.Deribit
 
             _arrayChannelsBook.Add($"book.{security.Name}.none.20.100ms"); // массив каналов для получения стаканов
             _arrayChannelsTrade.Add($"trades.{security.Name}.raw"); // массив каналов для получения сделок
+            _arrayChannelsGreeks.Add($"ticker.{security.Name}.raw");
 
             List<string> arrayChannels = new List<string> { "user.changes.any.any.raw" }; // собираем все каналы со всех массивов в один массив
 

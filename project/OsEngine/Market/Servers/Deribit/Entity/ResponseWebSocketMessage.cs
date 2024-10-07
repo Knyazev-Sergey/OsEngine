@@ -40,6 +40,34 @@ namespace OsEngine.Market.Servers.Deribit.Entity
         }
     }
 
+    public class ResponseChannelGreeks
+    {
+        public Params @params { get; set; }
+
+        public class Params
+        {
+            public Data data { get; set; }
+        }
+
+        public class Data
+        {
+            public string instrument_name { get; set; }
+            public string timestamp { get; set; }
+            public string mark_iv { get; set; }
+            public Greeks greeks { get; set; }
+        }
+
+        public class Greeks
+        {
+            public string delta { get; set; }
+            public string gamma { get; set; }
+            public string rho { get; set; }
+            public string theta{ get; set; }
+            public string vega { get; set; }
+           
+        }
+    }
+
     public class ResponseChannelBook
     {
         public Params @params { get; set; }
