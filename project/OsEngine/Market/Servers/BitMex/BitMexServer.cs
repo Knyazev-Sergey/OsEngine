@@ -2120,6 +2120,8 @@ namespace OsEngine.Market.Servers.BitMex
         /// </summary>
         public event Action<Trade> NewTradesEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         private void _client_SendLogMessage(string message, LogMessageType type)
         {
             if (LogMessageEvent != null)

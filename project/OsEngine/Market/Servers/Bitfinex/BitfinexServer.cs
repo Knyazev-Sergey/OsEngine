@@ -1174,6 +1174,8 @@ namespace OsEngine.Market.Servers.Bitfinex
 
         public event Action DisconnectEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         private void SendLogMessage(string message, LogMessageType type)
         {
             if (LogMessageEvent != null)

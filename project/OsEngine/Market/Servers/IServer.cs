@@ -174,6 +174,12 @@ namespace OsEngine.Market.Servers
         /// </summary>
         event Action<List<Trade>> NewTradeEvent;
 
+        /// <summary>
+        /// 
+        /// новый данные греков по опциону
+        /// </summary>
+        event Action<OptionGreeks> NewOptionGreeksEvent;
+
         #endregion
 
         #region Data upload

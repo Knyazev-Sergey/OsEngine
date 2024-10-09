@@ -893,6 +893,8 @@ namespace OsEngine.Market.Servers.BitMax
             MyOrderEvent?.Invoke(order);
         }
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion
 
         #region events

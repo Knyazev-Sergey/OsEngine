@@ -1843,6 +1843,8 @@ namespace OsEngine.Market.Servers.Bybit
             }
         }
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion 10
 
         #region 11 Trade

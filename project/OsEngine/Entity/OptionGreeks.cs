@@ -15,5 +15,9 @@ namespace OsEngine.Entity
         public decimal Rho;
 
         public decimal MarkIV;
+
+        public string SecurityName;
+
+        public DateTime TimeCreate;
     }
 }

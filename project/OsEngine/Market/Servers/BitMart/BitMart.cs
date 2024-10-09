@@ -1538,6 +1538,8 @@ namespace OsEngine.Market.Servers.BitMart
 
         public event Action<MyTrade> MyTradeEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion
 
         #region 11 Trade

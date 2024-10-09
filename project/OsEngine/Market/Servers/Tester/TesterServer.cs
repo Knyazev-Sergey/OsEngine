@@ -83,6 +83,9 @@ namespace OsEngine.Market.Servers.Tester
             get { return ServerType.Tester; }
         }
 
+        public event Action<OptionGreeks> NewOptionGreeksEvent;
+
+
         private TesterServerUi _ui;
 
         /// <summary>

@@ -855,6 +855,8 @@ namespace OsEngine.Market.Servers.BingX.BingXFutures
 
         public event Action<MarketDepth> MarketDepthEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         private void MessageReader()
         {
             Thread.Sleep(1000);

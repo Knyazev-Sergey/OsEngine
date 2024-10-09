@@ -40,6 +40,8 @@ namespace OsEngine.Market.Servers
                 _serverRealization.SecurityEvent += _serverRealization_SecurityEvent;
                 _serverRealization.LogMessageEvent += SendLogMessage;
 
+                _serverRealization.OptionGreeksEvent += _serverRealization_OptionGreeksEvent;
+
                 CreateParameterBoolean(OsLocalization.Market.ServerParam1, false);
                 _neadToSaveTicksParam = (ServerParameterBool)ServerParameters[ServerParameters.Count - 1];
                 _neadToSaveTicksParam.ValueChange += SaveTradesHistoryParam_ValueChange;
@@ -127,6 +129,8 @@ namespace OsEngine.Market.Servers
             }
             get { return _serverRealization; }
         }
+
+        
 
         private IServerRealization _serverRealization;
 
@@ -1007,6 +1011,18 @@ namespace OsEngine.Market.Servers
                             }
                         }
                     }
+                    else if (!_optionGreeksToSend.IsEmpty)
+                    {
+                        OptionGreeks greeks;
+
+                        if (_optionGreeksToSend.TryDequeue(out greeks))
+                        {
+                            if (NewOptionGreeksEvent != null)
+                            {
+                                NewOptionGreeksEvent(greeks);
+                            }
+                        }
+                    }
                     else
                     {
                         if (MainWindow.ProccesIsWorked == false)
@@ -1069,6 +1085,8 @@ namespace OsEngine.Market.Servers
         /// queue of updated bid and ask by security
         /// </summary>
         private ConcurrentQueue<BidAskSender> _bidAskToSend = new ConcurrentQueue<BidAskSender>();
+
+        private ConcurrentQueue<OptionGreeks> _optionGreeksToSend = new ConcurrentQueue<OptionGreeks>();
 
         #endregion
 
@@ -2799,6 +2817,20 @@ namespace OsEngine.Market.Servers
         /// outgoing messages for the log event
         /// </summary>
         public event Action<string, LogMessageType> LogMessageEvent;
+
+        #endregion
+
+        #region Option Greeks
+        private void _serverRealization_OptionGreeksEvent(OptionGreeks obj)
+        {
+            _optionGreeksToSend.Enqueue(obj);
+        }
+
+        /// <summary>
+        /// new option greeks
+        /// </summary>
+        public event Action<OptionGreeks> NewOptionGreeksEvent;
+
 
         #endregion
     }

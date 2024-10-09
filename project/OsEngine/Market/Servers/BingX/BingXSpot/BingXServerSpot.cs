@@ -788,6 +788,8 @@ namespace OsEngine.Market.Servers.BinGxSpot
 
         public event Action<Trade> NewTradesEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         private void MessageReader()
         {
             Thread.Sleep(1000);

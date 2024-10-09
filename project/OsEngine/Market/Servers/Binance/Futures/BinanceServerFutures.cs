@@ -2058,6 +2058,8 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
         public event Action<MyTrade> MyTradeEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion
 
         #region 11 Trade

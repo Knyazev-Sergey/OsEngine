@@ -21,12 +21,12 @@ namespace OsEngine.Robots.HomeWork
             TabCreate(BotTabType.Simple);
             _tab = TabsSimple[0];
 
-            _tab.Connector.NewOptionGreeksEvent += Connector_NewOptionGreeksEvent;
+            _tab.Connector.OptionGreeksEvent += Connector_NewOptionGreeksEvent;
         }
 
         private void Connector_NewOptionGreeksEvent(OptionGreeks obj)
         {
-            SendNewLogMessage(obj.Delta.ToString(), Logging.LogMessageType.Trade);
+            SendNewLogMessage(obj.MarkIV.ToString(), Logging.LogMessageType.User);
         }
 
         public override string GetNameStrategyType()

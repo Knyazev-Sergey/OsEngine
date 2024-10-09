@@ -79,6 +79,8 @@ namespace OsEngine.Market.Servers.Optimizer
 
         }
 
+        public event Action<OptionGreeks> NewOptionGreeksEvent;
+
         /// <summary>
 		/// Tester data type for ordering
         /// тип данных которые заказывает тестер

@@ -77,6 +77,8 @@ namespace OsEngine.Market.Servers.AstsBridge
             }
         }
 
+        public event Action<OptionGreeks> NewOptionGreeksEvent;
+
         private object trades_locker = new object();
 
         /// <summary>
@@ -691,6 +693,8 @@ namespace OsEngine.Market.Servers.AstsBridge
         /// </summary>
         private ConcurrentQueue<List<Trade>> _tradesTableToSend;
 
+
+
         /// <summary>
         /// place where connection is controled
         /// место в котором контролируется соединение
@@ -1273,6 +1277,8 @@ namespace OsEngine.Market.Servers.AstsBridge
         /// вызывается когда изменяется стакан
         /// </summary>
         public event Action<MarketDepth> NewMarketDepthEvent;
+
+
 
 // ticks
 // тики

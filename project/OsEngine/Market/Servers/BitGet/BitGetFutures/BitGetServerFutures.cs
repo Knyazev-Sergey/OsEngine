@@ -1233,6 +1233,8 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
 
         public event Action<Trade> NewTradesEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion
 
         #region 11 Trade

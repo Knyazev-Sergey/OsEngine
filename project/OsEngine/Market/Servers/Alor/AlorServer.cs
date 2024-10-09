@@ -1631,6 +1631,8 @@ namespace OsEngine.Market.Servers.Alor
 
         public event Action<MarketDepth> MarketDepthEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         private void PortfolioMessageReader()
         {
             Thread.Sleep(1000);

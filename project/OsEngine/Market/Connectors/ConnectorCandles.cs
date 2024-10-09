@@ -205,6 +205,7 @@ namespace OsEngine.Market.Connectors
                 _myServer.NewTradeEvent -= ConnectorBot_NewTradeEvent;
                 _myServer.TimeServerChangeEvent -= myServer_TimeServerChangeEvent;
                 _myServer.NeadToReconnectEvent -= _myServer_NeadToReconnectEvent;
+                
                 _myServer = null;
             }
 
@@ -972,6 +973,8 @@ namespace OsEngine.Market.Connectors
             server.TimeServerChangeEvent -= myServer_TimeServerChangeEvent;
             server.NeadToReconnectEvent -= _myServer_NeadToReconnectEvent;
             server.PortfoliosChangeEvent -= Server_PortfoliosChangeEvent;
+            server.NewOptionGreeksEvent -= Server_NewOptionGreeksEvent;
+
         }
 
         private void SubscribleOnServer(IServer server)
@@ -984,6 +987,7 @@ namespace OsEngine.Market.Connectors
             server.TimeServerChangeEvent -= myServer_TimeServerChangeEvent;
             server.NeadToReconnectEvent -= _myServer_NeadToReconnectEvent;
             server.PortfoliosChangeEvent -= Server_PortfoliosChangeEvent;
+            server.NewOptionGreeksEvent -= Server_NewOptionGreeksEvent;
 
             if (NeadToLoadServerData)
             {
@@ -994,10 +998,13 @@ namespace OsEngine.Market.Connectors
                 server.NewMyTradeEvent += ConnectorBot_NewMyTradeEvent;
                 server.NewOrderIncomeEvent += ConnectorBot_NewOrderIncomeEvent;
                 server.PortfoliosChangeEvent += Server_PortfoliosChangeEvent;
+                server.NewOptionGreeksEvent += Server_NewOptionGreeksEvent;
             }
 
             server.NeadToReconnectEvent += _myServer_NeadToReconnectEvent;
         }
+
+        
 
         public bool NeadToLoadServerData = true;
 
@@ -1329,6 +1336,22 @@ namespace OsEngine.Market.Connectors
             }
         }
 
+        private void Server_NewOptionGreeksEvent(OptionGreeks greeks)
+        {
+            try
+            {
+                if (greeks != null &&
+                    OptionGreeksEvent != null)
+                {
+                    OptionGreeksEvent(greeks);
+                }
+            }
+            catch (Exception error)
+            {
+                SendNewLogMessage(error.ToString(), LogMessageType.Error);
+            }
+        }
+
         #endregion
 
         #region Trade data access interface
@@ -1635,7 +1658,7 @@ namespace OsEngine.Market.Connectors
         /// 
         /// изменились "греки" опциона
         /// </summary>
-        public event Action<OptionGreeks> NewOptionGreeksEvent;
+        public event Action<OptionGreeks> OptionGreeksEvent;
 
         /// <summary>
         /// orders are changed

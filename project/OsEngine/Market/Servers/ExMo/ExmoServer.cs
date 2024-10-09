@@ -356,6 +356,8 @@ namespace OsEngine.Market.Servers.ExMo
         /// </summary>
         public event Action DisconnectEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         // log messages
         // сообщения для лога
 

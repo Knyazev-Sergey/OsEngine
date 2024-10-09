@@ -25,6 +25,7 @@ namespace OsEngine.Market.Servers.Deribit
 
             CreateParameterString("Client ID", "");
             CreateParameterString("Client Secret", "");
+            CreateParameterEnum("Currency", "All", new List<string> { "All", "BTC", "ETH", "USDC", "USDT", "SOL", "MATIC", "XRP" });
             CreateParameterEnum("Server", "Real", new List<string> { "Real", "Test" }); // можно выбрать сервер - реальный или тестовый, на каждам свои аккауты и api ключи
             CreateParameterBoolean("Post Only for Limit Orders", false);
         }
@@ -47,7 +48,9 @@ namespace OsEngine.Market.Servers.Deribit
             threadCheckAliveWebsocket.IsBackground = true;
             threadCheckAliveWebsocket.Name = "CheckAliveWebSocket";
             threadCheckAliveWebsocket.Start();
-        }
+
+            
+    }
 
         public DateTime ServerTime { get; set; }
 
@@ -55,24 +58,35 @@ namespace OsEngine.Market.Servers.Deribit
         {
             _clientID = ((ServerParameterString)ServerParameters[0]).Value;
             _secretKey = ((ServerParameterString)ServerParameters[1]).Value;
-            if (((ServerParameterEnum)ServerParameters[2]).Value == "Real")
+
+            if (((ServerParameterEnum)ServerParameters[3]).Value == "Real")
             {
                 _baseUrl = "https://www.deribit.com";
                 _webSocketUrl = "wss://www.deribit.com/ws/api/v2";
+                testServer = false;
             }
             else
             {
                 _baseUrl = "https://test.deribit.com";
                 _webSocketUrl = "wss://test.deribit.com/ws/api/v2";
+                testServer = true;
             }
 
-            if (((ServerParameterBool)ServerParameters[3]).Value == true)
+            if (((ServerParameterBool)ServerParameters[4]).Value == true)
             {
                 _postOnly = "true";
             }
             else
             {
                 _postOnly = "false";
+            }
+            if (((ServerParameterEnum)ServerParameters[2]).Value == "All")
+            {
+                _listCurrency = new List<string>() { "BTC", "ETH", "USDC", "USDT", "SOL", "MATIC", "XRP" };
+            }
+            else
+            {
+                _listCurrency = new List<string>() { ((ServerParameterEnum)ServerParameters[2]).Value };
             }
 
             HttpResponseMessage responseMessage = _httpClient.GetAsync(_baseUrl + "/api/v2/public/get_currencies?").Result;
@@ -162,12 +176,14 @@ namespace OsEngine.Market.Servers.Deribit
 
         private string _webSocketUrl;
 
-        private string _postOnly;
+        public static string _postOnly;
+
+        public static bool testServer;
 
         private int _limitCandles = 5000;
 
-        private List<string> _listCurrency = new List<string>() { "BTC", "ETH", "USDC", "USDT", "SOL", "MATIC", "XRP" }; // список валют на бирже
-        
+        private List<string> _listCurrency = new List<string>(); // список валют на бирже
+
         private List<string> _arrayChannelsBook = new List<string>();
         
         private List<string> _arrayChannelsTrade = new List<string>();
@@ -228,7 +244,7 @@ namespace OsEngine.Market.Servers.Deribit
                     newSecurity.Exchange = ServerType.Deribit.ToString();
                     newSecurity.Name = item.instrument_name;
                     newSecurity.NameFull = item.instrument_name;
-                    newSecurity.NameClass = "Futures";
+                    newSecurity.NameClass = GetSecurityType(item.kind).ToString();
                     newSecurity.NameId = item.instrument_id;
                     newSecurity.SecurityType = GetSecurityType(item.kind);
                     newSecurity.DecimalsVolume = item.contract_size.DecimalsCount();
@@ -257,6 +273,9 @@ namespace OsEngine.Market.Servers.Deribit
                     break;
                 case "spot":
                     _securityType = SecurityType.CurrencyPair;
+                    break;
+                case "option":
+                    _securityType = SecurityType.Option;
                     break;
             }
             return _securityType;
@@ -806,8 +825,10 @@ namespace OsEngine.Market.Servers.Deribit
             greeks.Theta = response.@params.data.greeks.theta.ToDecimal();
             greeks.Rho = response.@params.data.greeks.rho.ToDecimal();
             greeks.MarkIV = response.@params.data.mark_iv.ToDecimal();
+            greeks.SecurityName = response.@params.data.instrument_name;
+            greeks.TimeCreate = TimeManager.GetDateTimeFromTimeStamp(Convert.ToInt64(response.@params.data.timestamp));
 
-            NewOptionGreeksEvent(greeks);              
+            OptionGreeksEvent(greeks);              
         }
 
         private void UpdateTrade(string message)
@@ -1050,7 +1071,7 @@ namespace OsEngine.Market.Servers.Deribit
 
         public event Action<Trade> NewTradesEvent;
 
-        public event Action<OptionGreeks> NewOptionGreeksEvent;
+        public event Action<OptionGreeks> OptionGreeksEvent;
 
         #endregion
 
@@ -1507,6 +1528,13 @@ namespace OsEngine.Market.Servers.Deribit
                 if (!arrayChannels.Contains(_arrayChannelsTrade[i]))
                 {
                     arrayChannels.Add(_arrayChannelsTrade[i]);
+                }
+            }
+            for (int i = 0; i < _arrayChannelsGreeks.Count; i++)
+            {
+                if (!arrayChannels.Contains(_arrayChannelsGreeks[i]))
+                {
+                    arrayChannels.Add(_arrayChannelsGreeks[i]);
                 }
             }
             if (arrayChannels.Count > 800)

@@ -193,6 +193,8 @@ namespace OsEngine.Market.Servers.Finam
         /// </summary>
         public event Action<string> ConnectStatusChangeEvent;
 
+        public event Action<OptionGreeks> NewOptionGreeksEvent;
+
         public int CountDaysTickNeadToSave { get; set; }
 
         public bool NeadToSaveTicks { get; set; }
@@ -1759,6 +1761,8 @@ namespace OsEngine.Market.Servers.Finam
         /// является ли текущий объект скачивающим тики
         /// </summary>
         public bool IsTick;
+
+        public event Action<OptionGreeks> OptionGreeksEvent;
 
         /// <summary>
         /// update data

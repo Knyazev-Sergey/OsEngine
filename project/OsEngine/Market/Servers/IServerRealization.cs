@@ -121,6 +121,8 @@ namespace OsEngine.Market.Servers
         /// </summary>
         event Action<Trade> NewTradesEvent;
 
+        event Action<OptionGreeks> OptionGreeksEvent;
+        
         #endregion
 
         #region Data upload
