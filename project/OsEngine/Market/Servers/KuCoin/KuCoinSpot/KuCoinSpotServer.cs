@@ -965,6 +965,8 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinSpot
 
         public event Action<Trade> NewTradesEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion
 
         #region 10 Trade

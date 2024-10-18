@@ -1269,6 +1269,8 @@ namespace OsEngine.Market.Servers.HTX.Swap
 
         public event Action<Trade> NewTradesEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion
 
         #region 11 Trade

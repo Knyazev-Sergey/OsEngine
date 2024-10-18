@@ -1112,6 +1112,8 @@ namespace OsEngine.Market.Servers.Woo
 
         public event Action<Trade> NewTradesEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion
 
         #region 11 Trade

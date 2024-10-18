@@ -571,6 +571,7 @@ namespace OsEngine.Market.Servers.ZB
         public event Action ConnectEvent;
         public event Action DisconnectEvent;
         public event Action<string, LogMessageType> LogMessageEvent;
+        public event Action<OptionGreeks> OptionGreeksEvent;
 
         private void SendLogMessage(string message, LogMessageType logMessageType)
         {

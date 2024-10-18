@@ -129,6 +129,8 @@ namespace OsEngine.Market.Servers.MoexAlgopack
 
             public event Action<Trade> NewTradesEvent;
 
+            public event Action<OptionGreeks> OptionGreeksEvent;
+
             #endregion
 
             #region 3 Securities

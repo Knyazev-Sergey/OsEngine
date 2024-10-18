@@ -1228,6 +1228,8 @@ namespace OsEngine.Market.Servers.HTX.Futures
 
         public event Action<Trade> NewTradesEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion
 
         #region 11 Trade

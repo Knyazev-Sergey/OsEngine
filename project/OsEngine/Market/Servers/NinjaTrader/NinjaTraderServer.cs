@@ -267,11 +267,13 @@ namespace OsEngine.Market.Servers.NinjaTrader
         /// </summary>
         public event Action DisconnectEvent;
 
-		// log messages
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
+        // log messages
         // сообщения для лога
 
         /// <summary>
-		/// add a new log message
+        /// add a new log message
         /// добавить в лог новое сообщение
         /// </summary>
         private void SendLogMessage(string message, LogMessageType type)

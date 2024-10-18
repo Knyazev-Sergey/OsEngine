@@ -3131,6 +3131,8 @@ namespace OsEngine.Market.Servers.Plaza
 
         #region 13 Helpers
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         private int GetIsinId(string isin)
         {
 

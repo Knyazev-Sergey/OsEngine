@@ -1183,6 +1183,8 @@ namespace OsEngine.Market.Servers.GateIo.GateIoSpot
 
         public event Action<Trade> NewTradesEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion
 
         #region 11 Trade

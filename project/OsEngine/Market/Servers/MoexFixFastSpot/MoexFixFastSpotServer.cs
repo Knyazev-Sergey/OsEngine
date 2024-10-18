@@ -3536,6 +3536,8 @@ namespace OsEngine.Market.Servers.MoexFixFastSpot
 
         public event Action<MyTrade> MyTradeEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion
 
         #region 9 Trade

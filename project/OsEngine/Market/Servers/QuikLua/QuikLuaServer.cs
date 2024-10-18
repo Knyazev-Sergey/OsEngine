@@ -273,6 +273,8 @@ namespace OsEngine.Market.Servers.QuikLua
         /// </summary>
         public event Action<string, LogMessageType> LogMessageEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         #endregion
 
         #region 3 Securities

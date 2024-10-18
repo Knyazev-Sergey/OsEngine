@@ -12,10 +12,7 @@ namespace OsEngine.Robots.HomeWork
     public class Test : BotPanel
     {
         private BotTabSimple _tab;
-        private decimal _priceBid;
-        private decimal _volume = 10;
-        private int _step = 2;
-
+        
         public Test(string name, StartProgram startProgram) : base(name, startProgram)
         {
             TabCreate(BotTabType.Simple);
@@ -26,7 +23,8 @@ namespace OsEngine.Robots.HomeWork
 
         private void Connector_NewOptionGreeksEvent(OptionGreeks obj)
         {
-            SendNewLogMessage(obj.MarkIV.ToString(), Logging.LogMessageType.User);
+            SendNewLogMessage($"{obj.SecurityName}: Mark IV = {obj.MarkIV}, Delta = {obj.Delta}, " +
+                $"Gamma = {obj.Gamma}, Vega = {obj.Vega}, Theta = {obj.Theta}", Logging.LogMessageType.User);
         }
 
         public override string GetNameStrategyType()

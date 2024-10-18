@@ -853,6 +853,8 @@ namespace OsEngine.Market.Servers.Hitbtc
             throw new NotImplementedException();
         }
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         internal class OrderCoupler
         {
             public int OsOrderNumberUser;

@@ -1878,6 +1878,8 @@ namespace OsEngine.Market.Servers.TinkoffInvestments
 
         public event Action<MarketDepth> MarketDepthEvent;
 
+        public event Action<OptionGreeks> OptionGreeksEvent;
+
         private async void PortfolioMessageReader()
         {
             Thread.Sleep(1000);
