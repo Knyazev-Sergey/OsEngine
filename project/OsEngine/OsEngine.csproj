@@ -1049,6 +1049,7 @@
     <Compile Include="OsTrader\Panels\BotPanelChartUI.xaml.cs">
       <DependentUpon>BotPanelChartUI.xaml</DependentUpon>
     </Compile>
+    <Compile Include="OsTrader\Panels\Tab\BotTabOption.cs" />
     <Compile Include="OsTrader\Panels\Tab\BotTabPair.cs" />
     <Compile Include="OsTrader\Panels\Tab\BotTabPairAutoSelectPairsUi.xaml.cs">
       <DependentUpon>BotTabPairAutoSelectPairsUi.xaml</DependentUpon>
@@ -1132,6 +1133,7 @@
     <Compile Include="Robots\HomeWork\HomeWork3_ParamBot.cs" />
     <Compile Include="Robots\HomeWork\HomeWork4_IndicatorsTrend.cs" />
     <Compile Include="Robots\HomeWork\MoexSpreadScreener.cs" />
+    <Compile Include="Robots\HomeWork\OptionDesk.cs" />
     <Compile Include="Robots\HomeWork\SmartGrid.cs" />
     <Compile Include="Robots\HomeWork\TableBot.cs" />
     <Compile Include="Robots\HomeWork\TelegramBot.cs" />

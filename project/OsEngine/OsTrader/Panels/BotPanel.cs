@@ -58,7 +58,12 @@ namespace OsEngine.OsTrader.Panels
         /// <summary>
         /// tab for tradind Currency Arbitrage
         /// </summary>
-        Polygon
+        Polygon,
+
+        /// <summary>
+        /// tab for tradind Option
+        /// </summary>
+        Option
     }
 
     /// <summary>
