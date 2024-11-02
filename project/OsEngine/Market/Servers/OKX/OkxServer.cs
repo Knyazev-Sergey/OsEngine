@@ -99,7 +99,7 @@ namespace OsEngine.Market.Servers.OKX
                     SecurityProtocolType.SystemDefault;
 
 
-                var response = _httpPublicClient.GetAsync(_baseUrl + "api/v5/public/time").Result;
+                var response = _httpPublicClient.GetAsync(_baseUrl + "/api/v5/public/time").Result;
 
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
@@ -250,7 +250,7 @@ namespace OsEngine.Market.Servers.OKX
 
         private string Password;
 
-        private string _baseUrl = "https://www.okx.com/";
+        private string _baseUrl = "https://www.okx.com";
 
         private string _publicWebSocket = "wss://ws.okx.com:8443/ws/v5/public";
 
@@ -282,11 +282,11 @@ namespace OsEngine.Market.Servers.OKX
 
         private SecurityResponce GetFuturesSecurities()
         {
-            var response = _httpPublicClient.GetAsync("https://www.okx.com" + "/api/v5/public/instruments?instType=SWAP").Result;
+            HttpResponseMessage response = _httpPublicClient.GetAsync(_baseUrl + "/api/v5/public/instruments?instType=SWAP").Result;
 
             string json = response.Content.ReadAsStringAsync().Result;
 
-            if (response.StatusCode != System.Net.HttpStatusCode.OK)
+            if (response.StatusCode != HttpStatusCode.OK)
             {
                 SendLogMessage(json, LogMessageType.Error);
             }
@@ -298,9 +298,10 @@ namespace OsEngine.Market.Servers.OKX
 
         private SecurityResponce GetSpotSecurities()
         {
-            var response = _httpPublicClient.GetAsync("https://www.okx.com" + "/api/v5/public/instruments?instType=SPOT").Result;
-            var json = response.Content.ReadAsStringAsync().Result;
-            if (response.StatusCode != System.Net.HttpStatusCode.OK)
+            HttpResponseMessage response = _httpPublicClient.GetAsync(_baseUrl + "/api/v5/public/instruments?instType=SPOT").Result;
+            string json = response.Content.ReadAsStringAsync().Result;
+
+            if (response.StatusCode != HttpStatusCode.OK)
             {
                 SendLogMessage(json, LogMessageType.Error);
             }
@@ -532,11 +533,11 @@ namespace OsEngine.Market.Servers.OKX
         private string GetBlockBalance()
         {
             _rateGateGetBalance.WaitToProceed();
-            var url = $"{_baseUrl}{"api/v5/account/positions"}";
+            var url = $"{_baseUrl}{"/api/v5/account/positions"}";
             var res = GetPrivateRequest(url);
             var contentStr = res.Content.ReadAsStringAsync().Result;
 
-            if (res.StatusCode != System.Net.HttpStatusCode.OK)
+            if (res.StatusCode != HttpStatusCode.OK)
             {
                 SendLogMessage(contentStr, LogMessageType.Error);
             }
@@ -547,12 +548,12 @@ namespace OsEngine.Market.Servers.OKX
         private string GetBalance()
         {
             _rateGateGetBalance.WaitToProceed();
-            var url = $"{_baseUrl}{"api/v5/account/balance"}";
+            var url = $"{_baseUrl}{"/api/v5/account/balance"}";
 
             var res = GetPrivateRequest(url);
             var contentStr = res.Content.ReadAsStringAsync().Result;
 
-            if (res.StatusCode != System.Net.HttpStatusCode.OK)
+            if (res.StatusCode != HttpStatusCode.OK)
             {
                 SendLogMessage(contentStr, LogMessageType.Error);
             }
@@ -675,7 +676,7 @@ namespace OsEngine.Market.Servers.OKX
 
         #region 5 Data
 
-        public RateGate _rateGateCandles = new RateGate(1, TimeSpan.FromMilliseconds(500));
+        public RateGate _rateGateCandles = new RateGate(1, TimeSpan.FromMilliseconds(200));
 
         public List<Candle> GetLastCandleHistory(Security security, TimeFrameBuilder timeFrameBuilder, int candleCount)
         {
@@ -750,7 +751,6 @@ namespace OsEngine.Market.Servers.OKX
 
             do
             {
-
                 int limit = NumberCandlesToLoad;
                 if (NumberCandlesToLoad > 100)
                 {
@@ -764,8 +764,7 @@ namespace OsEngine.Market.Servers.OKX
                     after = $"&after={candlesResponce.data[candlesResponce.data.Count - 1][0]}";
                 }
 
-
-                string url = _baseUrl + $"api/v5/market/history-candles?instId={nameSec}&bar={bar}&limit={limit}" + after;
+                string url = _baseUrl + $"/api/v5/market/history-candles?instId={nameSec}&bar={bar}&limit={limit}" + after;
 
                 var responce = _httpPublicClient.GetAsync(url).Result;
                 var json = responce.Content.ReadAsStringAsync().Result;
@@ -777,7 +776,6 @@ namespace OsEngine.Market.Servers.OKX
                 }
 
                 NumberCandlesToLoad -= limit;
-
 
             } while (NumberCandlesToLoad > 0);
 
@@ -892,11 +890,6 @@ namespace OsEngine.Market.Servers.OKX
             }
         }
 
-        public void ResearchTradesToOrders(List<Order> orders)
-        {
-
-        }
-
         public List<Candle> GetCandleDataHistory(string nameSec, TimeSpan tf, int NumberCandlesToLoad, long DataEnd)
         {
             CandlesResponce securityResponce = GetResponseDataCandles(nameSec, tf, NumberCandlesToLoad, DataEnd);
@@ -933,7 +926,7 @@ namespace OsEngine.Market.Servers.OKX
                 }
 
 
-                string url = _baseUrl + $"api/v5/market/history-candles?instId={nameSec}&bar={bar}&limit={limit}" + after;
+                string url = _baseUrl + $"/api/v5/market/history-candles?instId={nameSec}&bar={bar}&limit={limit}" + after;
 
                 var responce = _httpPublicClient.GetAsync(url).Result;
                 var json = responce.Content.ReadAsStringAsync().Result;
@@ -945,7 +938,6 @@ namespace OsEngine.Market.Servers.OKX
                 }
 
                 NumberCandlesToLoad -= limit;
-
 
             } while (NumberCandlesToLoad > 0);
 
@@ -968,7 +960,6 @@ namespace OsEngine.Market.Servers.OKX
                 {
                     return $"{tf.Days}D";
                 }
-
             }
             catch (Exception error)
             {
@@ -1120,7 +1111,7 @@ namespace OsEngine.Market.Servers.OKX
                 }
             }
         }
-
+/*
         public string SetLeverage(Security security)
         {
             Dictionary<string, string> requstObject = new Dictionary<string, string>();
@@ -1129,7 +1120,7 @@ namespace OsEngine.Market.Servers.OKX
             requstObject["lever"] = "1";
             requstObject["mgnMode"] = "cross";
 
-            var url = $"{_baseUrl}{"api/v5/account/set-leverage"}";
+            var url = $"{_baseUrl}{"/api/v5/account/set-leverage"}";
             var bodyStr = JsonConvert.SerializeObject(requstObject);
             using (var client = new HttpClient(new HttpInterceptor(PublicKey, SeckretKey, Password, bodyStr)))
             {
@@ -1139,7 +1130,7 @@ namespace OsEngine.Market.Servers.OKX
                 return contentStr;
             }
         }
-
+*/
         private void SetPositionMode()
         {
             var dict = new Dictionary<string, string>();
@@ -1158,7 +1149,7 @@ namespace OsEngine.Market.Servers.OKX
 
         private string PushPositionMode(Dictionary<string, string> requestParams)
         {
-            var url = $"{_baseUrl}{"api/v5/account/set-position-mode"}";
+            var url = $"{_baseUrl}{"/api/v5/account/set-position-mode"}";
             var bodyStr = JsonConvert.SerializeObject(requestParams);
             using (var client = new HttpClient(new HttpInterceptor(PublicKey, SeckretKey, Password, bodyStr)))
             {
@@ -1257,7 +1248,7 @@ namespace OsEngine.Market.Servers.OKX
             try
             {
                 //Авторизация 
-                var client = (WebSocket)sender;
+                WebSocket client = (WebSocket)sender;
                 client.Send(Encryptor.MakeAuthRequest(PublicKey, SeckretKey, Password));
 
                 string TypeInst = "SPOT";
@@ -1271,7 +1262,7 @@ namespace OsEngine.Market.Servers.OKX
                     instType = TypeInst
                 });
 
-                var jsonSpot = JsonConvert.SerializeObject(requestTradeSpot);
+                string jsonSpot = JsonConvert.SerializeObject(requestTradeSpot);
                 client.Send(jsonSpot);
 
                 TypeInst = "SWAP";
@@ -1283,7 +1274,7 @@ namespace OsEngine.Market.Servers.OKX
                     channel = "orders",
                     instType = TypeInst
                 });
-                var jsonSwap = JsonConvert.SerializeObject(requestTradeSwap);
+                string jsonSwap = JsonConvert.SerializeObject(requestTradeSwap);
                 client.Send(jsonSwap);
 
                 SendLogMessage("Orders channel is open", LogMessageType.System);
@@ -1342,7 +1333,7 @@ namespace OsEngine.Market.Servers.OKX
             try
             {
                 //Авторизация 
-                var client = (WebSocket)sender;
+                WebSocket client = (WebSocket)sender;
                 client.Send(Encryptor.MakeAuthRequest(PublicKey, SeckretKey, Password));
 
                 string TypeInst = "SPOT";
@@ -1354,7 +1345,7 @@ namespace OsEngine.Market.Servers.OKX
                     instType = TypeInst
                 });
 
-                var jsonSpot = JsonConvert.SerializeObject(requestTradeSpot);
+                string jsonSpot = JsonConvert.SerializeObject(requestTradeSpot);
                 client.Send(jsonSpot);
 
 
@@ -1366,7 +1357,7 @@ namespace OsEngine.Market.Servers.OKX
                     channel = "positions",
                     instType = TypeInst
                 });
-                var jsonSwap = JsonConvert.SerializeObject(requestTradeSwap);
+                string jsonSwap = JsonConvert.SerializeObject(requestTradeSwap);
                 client.Send(jsonSwap);
 
                 SendLogMessage("Positions channel is open", LogMessageType.System);
@@ -1503,14 +1494,11 @@ namespace OsEngine.Market.Servers.OKX
         public void SubscribleTrades(Security security)
         {
             RequestSubscribe<SubscribeArgs> requestTrade = new RequestSubscribe<SubscribeArgs>();
-            requestTrade.args = new List<SubscribeArgs>();
-            requestTrade.args.Add(new SubscribeArgs()
-            {
-                channel = "trades",
-                instId = security.Name
-            });
+            requestTrade.args = new List<SubscribeArgs>() { new SubscribeArgs() };
+            requestTrade.args[0].channel = "trades";
+            requestTrade.args[0].instId = security.Name;
 
-            var json = JsonConvert.SerializeObject(requestTrade);
+            string json = JsonConvert.SerializeObject(requestTrade);
 
             _wsClientTrades.Send(json);
         }
@@ -1518,15 +1506,11 @@ namespace OsEngine.Market.Servers.OKX
         public void SubscribleDepths(Security security)
         {
             RequestSubscribe<SubscribeArgs> requestTrade = new RequestSubscribe<SubscribeArgs>();
-            requestTrade.args = new List<SubscribeArgs>();
-            requestTrade.args.Add(new SubscribeArgs()
-            {
-                //channel = "books",
-                channel = "books5",
-                instId = security.Name
-            });
+            requestTrade.args = new List<SubscribeArgs>() { new SubscribeArgs() };
+            requestTrade.args[0].channel = "books5";
+            requestTrade.args[0].instId = security.Name;
 
-            var json = JsonConvert.SerializeObject(requestTrade);
+            string json = JsonConvert.SerializeObject(requestTrade);
 
             _wsClientDepths.Send(json);
         }
@@ -1573,7 +1557,7 @@ namespace OsEngine.Market.Servers.OKX
 
                             else if (mes.StartsWith("{\"arg\""))
                             {
-                                var quotes = JsonConvert.DeserializeAnonymousType(mes, new ObjectChanel<OrderResponseData>());
+                                ObjectChanel<OrderResponseData> quotes = JsonConvert.DeserializeAnonymousType(mes, new ObjectChanel<OrderResponseData>());
                                 UpdateOrders(quotes);
                                 continue;
                             }
@@ -1612,7 +1596,7 @@ namespace OsEngine.Market.Servers.OKX
                         {
                             Order order = null;
 
-                            var quotes = JsonConvert.DeserializeAnonymousType(mes, new ErrorMessage<ErrorObjectOrders>());
+                            ErrorMessage<ErrorObjectOrders> quotes = JsonConvert.DeserializeAnonymousType(mes, new ErrorMessage<ErrorObjectOrders>());
 
                             if (quotes.data == null || quotes.data.Count == 0)
                             {
@@ -1682,7 +1666,7 @@ namespace OsEngine.Market.Servers.OKX
 
                             else if (mes.StartsWith("{\"arg\""))
                             {
-                                var quotes = JsonConvert.DeserializeAnonymousType(mes, new TradeResponse());
+                                TradeResponse quotes = JsonConvert.DeserializeAnonymousType(mes, new TradeResponse());
                                 UpdateTrades(quotes);
                                 
                                 continue;
@@ -1727,7 +1711,7 @@ namespace OsEngine.Market.Servers.OKX
 
                             else if (mes.StartsWith("{\"arg\""))
                             {
-                                var quotes = JsonConvert.DeserializeAnonymousType(mes, new DepthResponse());
+                                DepthResponse quotes = JsonConvert.DeserializeAnonymousType(mes, new DepthResponse());
                                 UpdateMarketDepth(quotes);
                                 
                                 continue;
@@ -1763,7 +1747,7 @@ namespace OsEngine.Market.Servers.OKX
 
                 string secName = depthResponse.arg.instId;
 
-                var needDepth = _depths.Find(depth => depth.SecurityNameCode == secName);
+                MarketDepth needDepth = _depths.Find(depth => depth.SecurityNameCode == secName);
 
                 if (needDepth == null)
                 {
@@ -1806,8 +1790,6 @@ namespace OsEngine.Market.Servers.OKX
                 {
                     return;
                 }
-
-                //needDepth = RefreshDepthSupport(needDepth, depthResponse.arg.instId);
 
                 if (MarketDepthEvent != null)
                 {
@@ -1947,17 +1929,7 @@ namespace OsEngine.Market.Servers.OKX
             }
 
             newOrder.NumberMarket = item.ordId.ToString();
-
-            if (item.posSide == "net"
-                || item.posSide == "")
-            {
-                newOrder.Side = item.side.Equals("buy") ? Side.Buy : Side.Sell;
-            }
-            else
-            {
-                newOrder.Side = item.posSide.Equals("long") ? Side.Buy : Side.Sell;
-            }
-
+            newOrder.Side = item.side.Equals("buy") ? Side.Buy : Side.Sell;
             newOrder.State = stateType;
             newOrder.Volume = item.sz.ToDecimal();
             newOrder.PortfolioNumber = "OKX";
@@ -2053,33 +2025,28 @@ namespace OsEngine.Market.Servers.OKX
         }
 
         private void SendOrderSwap(Order order)
-        {
-            var side = String.Empty;
+        {            
+            OrderRequest<OrderRequestArgsSwap> orderRequest = new OrderRequest<OrderRequestArgsSwap>();
+            orderRequest.id = order.NumberUser.ToString();
+            orderRequest.args = new List<OrderRequestArgsSwap>() { new OrderRequestArgsSwap() };           
+            orderRequest.args[0].instId = order.SecurityNameCode;
+            orderRequest.args[0].tdMode = "cross";
+            orderRequest.args[0].ordType = order.TypeOrder.ToString().ToLower();
+            orderRequest.args[0].sz = order.Volume.ToString().Replace(",", ".");
+            orderRequest.args[0].px = order.Price.ToString().Replace(",", ".");
+            orderRequest.args[0].clOrdId = order.NumberUser.ToString();
+            orderRequest.args[0].reduceOnly = order.PositionConditionType == OrderPositionConditionType.Close ? true : false;
+            orderRequest.args[0].tag = "5faf8b0e85c1BCDE";
+            orderRequest.args[0].side = order.Side == Side.Buy ? "buy" : "sell";
+
             if (order.PositionConditionType == OrderPositionConditionType.Close)
             {
-                side = order.Side == Side.Buy ? "short" : "long";
+                orderRequest.args[0].posSide = order.Side == Side.Buy ? "short" : "long";                
             }
             else
             {
-                side = order.Side == Side.Buy ? "long" : "short";
-                //side = order.Side.ToString().ToLower();
+                orderRequest.args[0].posSide = order.Side == Side.Buy ? "long" : "short";
             }
-
-            OrderRequest<OrderRequestArgsSwap> orderRequest = new OrderRequest<OrderRequestArgsSwap>();
-            orderRequest.id = order.NumberUser.ToString();
-            orderRequest.args.Add(new OrderRequestArgsSwap()
-            {
-                side = order.Side.ToString().ToLower(),
-                posSide = side,
-                instId = order.SecurityNameCode,
-                tdMode = "cross",
-                ordType = order.TypeOrder.ToString().ToLower(),
-                sz = Convert.ToInt32(order.Volume).ToString(),
-                px = order.Price.ToString().Replace(",", "."),
-                clOrdId = order.NumberUser.ToString(),
-                reduceOnly = order.PositionConditionType == OrderPositionConditionType.Close ? true : false,
-                tag = "5faf8b0e85c1BCDE"
-            });
 
             string json = JsonConvert.SerializeObject(orderRequest);
 
@@ -2089,12 +2056,10 @@ namespace OsEngine.Market.Servers.OKX
 
         public void CancelOrder(Order order)
         {
-            List<InstIdOrdId> arg = new List<InstIdOrdId>();
-            arg.Add(new InstIdOrdId()
-            {
-                instId = order.SecurityNameCode,
-                ordId = order.NumberMarket
-            });
+            List<InstIdOrdId> arg = new List<InstIdOrdId>() { new InstIdOrdId() };
+
+            arg[0].instId = order.SecurityNameCode;
+            arg[0].ordId = order.NumberMarket;
 
             var q = new
             {
@@ -2148,32 +2113,29 @@ namespace OsEngine.Market.Servers.OKX
 
         public void GetOrderStatus(Order order)
         {
-            // GET / Order details
-            // GET /api/v5/trade/order?ordId=680800019749904384&instId=BTC-USDT
-
             string url = null;
 
             if(string.IsNullOrEmpty(order.NumberMarket))
             {
                 url =
-                    $"{"https://www.okx.com/"}{"api/v5/trade/order"}"
+                    $"{_baseUrl}/api/v5/trade/order"
                     + $"?clOrdId={order.NumberUser}&"
                     + $"instId={order.SecurityNameCode}";
             }
             else
             {
                 url =
-                    $"{"https://www.okx.com/"}{"api/v5/trade/order"}"
+                    $"{_baseUrl}/api/v5/trade/order"
                     + $"?ordId={order.NumberMarket}&"
                     + $"clOrdId={order.NumberUser}&"
                     + $"instId={order.SecurityNameCode}";
             }
 
-            var res = GetPrivateRequest(url);
+            HttpResponseMessage res = GetPrivateRequest(url);
 
-            var contentStr = res.Content.ReadAsStringAsync().Result;
+            string contentStr = res.Content.ReadAsStringAsync().Result;
 
-            if (res.StatusCode != System.Net.HttpStatusCode.OK)
+            if (res.StatusCode != HttpStatusCode.OK)
             {
                 SendLogMessage(contentStr, LogMessageType.Error);
                 return;
@@ -2246,14 +2208,11 @@ namespace OsEngine.Market.Servers.OKX
 
         private List<Order> GetActivOrders()
         {
-            // GET / Order List
-            // GET /api/v5/trade/orders-pending?ordType=post_only,fok,ioc&instType=SPOT
+            string url = $"{_baseUrl}/api/v5/trade/orders-pending";
 
-            var url = $"{"https://www.okx.com/"}{"api/v5/trade/orders-pending"}";
+            HttpResponseMessage res = GetPrivateRequest(url);
 
-            var res = GetPrivateRequest(url);
-
-            var contentStr = res.Content.ReadAsStringAsync().Result;
+            string contentStr = res.Content.ReadAsStringAsync().Result;
 
             if (res.StatusCode != System.Net.HttpStatusCode.OK)
             {
@@ -2300,7 +2259,6 @@ namespace OsEngine.Market.Servers.OKX
 
                 orders.Add(newOrder);
             }
-
             return orders;
         }
 
@@ -2320,18 +2278,18 @@ namespace OsEngine.Market.Servers.OKX
 
             string TypeInstr = order.SecurityNameCode.EndsWith("SWAP") ? "SWAP" : "SPOT";
 
-            var url = $"{"https://www.okx.com/"}{"api/v5/trade/fills-history"}" + $"?ordId={order.NumberMarket}&" + $"instId={order.SecurityNameCode}&" + $"instType={TypeInstr}";
+            string url = $"{_baseUrl}/api/v5/trade/fills-history?ordId={order.NumberMarket}&instId={order.SecurityNameCode}&instType={TypeInstr}";
 
-            var res = GetPrivateRequest(url);
+            HttpResponseMessage res = GetPrivateRequest(url);
 
-            var contentStr = res.Content.ReadAsStringAsync().Result;
+            string contentStr = res.Content.ReadAsStringAsync().Result;
 
-            if (res.StatusCode != System.Net.HttpStatusCode.OK)
+            if (res.StatusCode != HttpStatusCode.OK)
             {
                 SendLogMessage(contentStr, LogMessageType.Error);
             }
 
-            var quotes = JsonConvert.DeserializeAnonymousType(contentStr, new TradeDetailsResponce());
+            TradeDetailsResponce quotes = JsonConvert.DeserializeAnonymousType(contentStr, new TradeDetailsResponce());
 
             if (quotes == null ||
                 quotes.data == null ||
@@ -2347,14 +2305,13 @@ namespace OsEngine.Market.Servers.OKX
             CreateListTrades(myTrades, quotes);
 
             return myTrades;
-
         }
 
         private void CreateListTrades(List<MyTrade> myTrades, TradeDetailsResponce quotes)
         {
             for (int i = 0; i < quotes.data.Count; i++)
             {
-                var item = quotes.data[i];
+                TradeDetailsObject item = quotes.data[i];
 
                 MyTrade myTrade = new MyTrade();
 
@@ -2383,20 +2340,11 @@ namespace OsEngine.Market.Servers.OKX
                 {
                     myTrade.Price = item.fillPx.ToDecimal();
                 }
+
                 myTrade.SecurityNameCode = item.instId;
-
-                if (item.posSide == "net")
-                {
-                    myTrade.Side = item.side.Equals("buy") ? Side.Buy : Side.Sell;
-                }
-                else
-                {
-                    myTrade.Side = item.posSide.Equals("long") ? Side.Buy : Side.Sell;
-                }
-
+                myTrade.Side = item.side.Equals("buy") ? Side.Buy : Side.Sell;
 
                 myTrades.Add(myTrade);
-
             }
         }
 

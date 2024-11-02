@@ -2111,17 +2111,17 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         }
                         else
                         {
-                            SendLogMessage($"Code: {stateResponse.code}\n"
+                            SendLogMessage($"SetPositionMode - Code: {stateResponse.code}\n"
                                 + $"Message: {stateResponse.msg}", LogMessageType.Error);
                         }
                     }
                     else
                     {
-                        SendLogMessage($"Http State Code: {responseMessage.StatusCode}", LogMessageType.Error);
+                        SendLogMessage($"SetPositionMode - Http State Code: {responseMessage.StatusCode}", LogMessageType.Error);
 
                         if (stateResponse != null && stateResponse.code != null)
                         {
-                            SendLogMessage($"Code: {stateResponse.code}\n"
+                            SendLogMessage($"SetPositionMode - Code: {stateResponse.code}\n"
                                 + $"Message: {stateResponse.msg}", LogMessageType.Error);
                         }
                     }
