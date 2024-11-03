@@ -115,7 +115,6 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
 
                 if (response.StatusCode == HttpStatusCode.OK)
                 {
-
                     TimeToSendPingPublic = DateTime.Now;
                     TimeToSendPingPrivate = DateTime.Now;
                     FIFOListWebSocketPublicMessage = new ConcurrentQueue<string>();
@@ -153,7 +152,6 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             {
                 UnsubscribeFromAllWebSockets();
                 _subscribledSecutiries.Clear();
-                //_subscribledSecutiries = null;
                 DeleteWebSocketConnection();
             }
             catch (Exception exeption)
@@ -1426,6 +1424,10 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                     {
                         newOrder.TypeOrder = OrderPriceType.Market;
                     }
+                    else
+                    {
+                        newOrder.TypeOrder = OrderPriceType.Limit;
+                    }
 
                     if (stateType == OrderStateType.Partial)
                     {
@@ -1790,6 +1792,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         OrderStateType stateType = GetOrderState(stateResponse.data.state);
 
                         newOrder.SecurityNameCode = stateResponse.data.symbol;
+                        newOrder.SecurityClassCode = stateResponse.data.marginCoin + "-FUTURES";
                         newOrder.TimeCallBack = TimeManager.GetDateTimeFromTimeStamp(Convert.ToInt64(stateResponse.data.cTime));
                         int.TryParse(stateResponse.data.clientOid, out newOrder.NumberUser);
                         newOrder.NumberMarket = stateResponse.data.orderId.ToString();
@@ -1799,7 +1802,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         newOrder.Price = stateResponse.data.price.ToDecimal();
                         newOrder.ServerType = ServerType.BitGetFutures;
                         newOrder.PortfolioNumber = "BitGetFutures";
-                        newOrder.TypeOrder = OrderPriceType.Limit;
+                        newOrder.TypeOrder = stateResponse.data.orderType == "limit" ? OrderPriceType.Limit : OrderPriceType.Market;
 
                         if (newOrder != null
                             && MyOrderEvent != null)
@@ -1971,6 +1974,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             OrderStateType stateType = GetOrderState(item.status);
 
             newOrder.SecurityNameCode = item.symbol;
+            newOrder.SecurityClassCode = item.marginCoin + "-FUTURES";
             newOrder.TimeCallBack = TimeManager.GetDateTimeFromTimeStamp(Convert.ToInt64(item.cTime));
             int.TryParse(item.clientOid, out newOrder.NumberUser);   
             newOrder.NumberMarket = item.orderId.ToString();
@@ -1980,7 +1984,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             newOrder.Price = item.price.ToDecimal();
             newOrder.ServerType = ServerType.BitGetFutures;
             newOrder.PortfolioNumber = "BitGetFutures";
-            newOrder.TypeOrder = OrderPriceType.Limit;
+            newOrder.TypeOrder = item.orderType == "limit" ? OrderPriceType.Limit : OrderPriceType.Market;
             
             return newOrder;
         }
@@ -2053,6 +2057,8 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             }
         }
 
+        private HttpClient _httpClient = new HttpClient();
+
         private HttpResponseMessage CreatePrivateQueryOrders(string path, string method, string queryString, string body)
         {
             try
@@ -2062,21 +2068,19 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                 string timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
                 string signature = GenerateSignature(timestamp, method, requestPath, queryString, body, SeckretKey);
 
-                HttpClient httpClient = new HttpClient();
-
-                httpClient.DefaultRequestHeaders.Add("ACCESS-KEY", PublicKey);
-                httpClient.DefaultRequestHeaders.Add("ACCESS-SIGN", signature);
-                httpClient.DefaultRequestHeaders.Add("ACCESS-TIMESTAMP", timestamp);
-                httpClient.DefaultRequestHeaders.Add("ACCESS-PASSPHRASE", Passphrase);
-                httpClient.DefaultRequestHeaders.Add("X-CHANNEL-API-CODE", "6yq7w");
+                _httpClient.DefaultRequestHeaders.Add("ACCESS-KEY", PublicKey);
+                _httpClient.DefaultRequestHeaders.Add("ACCESS-SIGN", signature);
+                _httpClient.DefaultRequestHeaders.Add("ACCESS-TIMESTAMP", timestamp);
+                _httpClient.DefaultRequestHeaders.Add("ACCESS-PASSPHRASE", Passphrase);
+                _httpClient.DefaultRequestHeaders.Add("X-CHANNEL-API-CODE", "6yq7w");
 
                 if (method.Equals("POST"))
                 {
-                    return httpClient.PostAsync(url, new StringContent(body, Encoding.UTF8, "application/json")).Result;
+                    return _httpClient.PostAsync(url, new StringContent(body, Encoding.UTF8, "application/json")).Result;
                 }
                 else
                 {
-                    return httpClient.GetAsync(url).Result;
+                    return _httpClient.GetAsync(url).Result;
                 }
             }
             catch (Exception ex)
@@ -2128,17 +2132,17 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         }
                         else
                         {
-                            SendLogMessage($"Code: {stateResponse.code}\n"
+                            SendLogMessage($"SetPositionMode - Code: {stateResponse.code}\n"
                                 + $"Message: {stateResponse.msg}", LogMessageType.Error);
                         }
                     }
                     else
                     {
-                        SendLogMessage($"Http State Code: {responseMessage.StatusCode}", LogMessageType.Error);
+                        SendLogMessage($"SetPositionMode - Http State Code: {responseMessage.StatusCode}", LogMessageType.Error);
 
                         if (stateResponse != null && stateResponse.code != null)
                         {
-                            SendLogMessage($"Code: {stateResponse.code}\n"
+                            SendLogMessage($"SetPositionMode - Code: {stateResponse.code}\n"
                                 + $"Message: {stateResponse.msg}", LogMessageType.Error);
                         }
                     }
