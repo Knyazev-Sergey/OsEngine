@@ -376,7 +376,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
 
             if (limitCandles > span.TotalMinutes / tfTotalMinutes)
             {
-                limitCandles = (int)(span.TotalMinutes / tfTotalMinutes);
+                limitCandles = (int)Math.Round(span.TotalMinutes / tfTotalMinutes, MidpointRounding.AwayFromZero);
             }
 
             List<Candle> allCandles = new List<Candle>();
@@ -391,7 +391,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
 
                 string interval = GetInterval(timeFrameBuilder.TimeFrameTimeSpan);
 
-                List<Candle> candles = RequestCandleHistory(security, interval, from, to, isOsData);
+                List<Candle> candles = RequestCandleHistory(security, interval, from, to, isOsData, limitCandles);
 
                 if (candles == null || candles.Count == 0)
                 {
@@ -426,14 +426,21 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                 startTimeData = endTimeData;
                 endTimeData = startTimeData.AddMinutes(tfTotalMinutes * limitCandles);
 
-                if (startTimeData >= DateTime.UtcNow)
+                if (startTimeData >= endTime)
                 {
                     break;
                 }
 
-                if (endTimeData > DateTime.UtcNow)
+                if (endTimeData > endTime)
                 {
-                    endTimeData = DateTime.UtcNow;
+                    endTimeData = endTime;
+                }
+
+                span = endTimeData - startTimeData;
+
+                if (limitCandles > span.TotalMinutes / tfTotalMinutes)
+                {
+                    limitCandles = (int)Math.Round(span.TotalMinutes / tfTotalMinutes, MidpointRounding.AwayFromZero);
                 }
 
             } while (true);
@@ -483,17 +490,15 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
 
         private readonly RateGate _rgCandleData = new RateGate(1, TimeSpan.FromMilliseconds(100));
 
-        private List<Candle> RequestCandleHistory(Security security, string interval, long startTime, long endTime, bool isOsData)
+        private List<Candle> RequestCandleHistory(Security security, string interval, long startTime, long endTime, bool isOsData, int limitCandles)
         {
             _rgCandleData.WaitToProceed(100);
 
             string stringUrl = "/api/v2/mix/market/candles";
-            int limitCandles = _limitCandlesTrader;
 
             if (isOsData)
             {
                 stringUrl = "/api/v2/mix/market/history-candles";
-                limitCandles = _limitCandlesData;
             }
 
             try
@@ -502,8 +507,6 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                     $"startTime={startTime}&granularity={interval}&limit={limitCandles}&endTime={endTime}";
                 RestRequest requestRest = new RestRequest(requestStr, Method.GET);
                 IRestResponse response = new RestClient(BaseUrl).Execute(requestRest);
-
-                //"https://api.bitget.com//api/v2/mix/market/history-candles?symbol=BTCUSDT&productType=usdt-futures&startTime=1722394800000&granularity=4H&endTime=1725332400000&limit=200"
 
                 if (response.StatusCode == HttpStatusCode.OK)
                 {
@@ -1246,6 +1249,11 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         pos.PortfolioName = "BitGetFutures";
                         pos.SecurityNameCode = positions.data[i].instId;
 
+                        if (positions.data[i].posMode == "hedge_mode")
+                        {
+                            pos.SecurityNameCode = positions.data[i].instId + "_" + positions.data[i].holdSide;
+                        }                        
+
                         if (positions.data[i].holdSide == "long")
                         {
                             pos.ValueCurrent = positions.data[i].available.ToDecimal();
@@ -1263,16 +1271,16 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         }
 
                         portfolio.SetNewPosition(pos);
-
+                                              
                         if (!_allPositions.ContainsKey(positions.arg.instType))
                         {
                             _allPositions.Add(positions.arg.instType, new List<string>());
-
                         }
+
                         if (!_allPositions[positions.arg.instType].Contains(pos.SecurityNameCode))
                         {
                             _allPositions[positions.arg.instType].Add(pos.SecurityNameCode);
-                        }
+                        }                            
                     }
                 }
 
@@ -1288,11 +1296,22 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                             {
                                 for (int indData = 0; indData < positions.data.Count; indData++)
                                 {
-                                    if (_allPositions[positions.arg.instType][indAllPos] == positions.data[indData].instId)
+                                    if (positions.data[indData].posMode == "hedge_mode")
                                     {
-                                        isInData = true;
-                                        break;
+                                        if (_allPositions[positions.arg.instType][indAllPos] == positions.data[indData].instId + "_" + positions.data[indData].holdSide)
+                                        {
+                                            isInData = true;
+                                            break;
+                                        }
                                     }
+                                    else
+                                    {
+                                        if (_allPositions[positions.arg.instType][indAllPos] == positions.data[indData].instId)
+                                        {
+                                            isInData = true;
+                                            break;
+                                        }
+                                    }                                  
                                 }
                             }
 
