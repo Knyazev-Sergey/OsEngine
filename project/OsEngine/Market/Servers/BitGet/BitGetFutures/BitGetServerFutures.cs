@@ -374,7 +374,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
 
             if (limitCandles > span.TotalMinutes / tfTotalMinutes)
             {
-                limitCandles = (int)(span.TotalMinutes / tfTotalMinutes);
+                limitCandles = (int)Math.Round(span.TotalMinutes / tfTotalMinutes, MidpointRounding.AwayFromZero);
             }
 
             List<Candle> allCandles = new List<Candle>();
@@ -389,7 +389,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
 
                 string interval = GetInterval(timeFrameBuilder.TimeFrameTimeSpan);
 
-                List<Candle> candles = RequestCandleHistory(security, interval, from, to, isOsData);
+                List<Candle> candles = RequestCandleHistory(security, interval, from, to, isOsData, limitCandles);
 
                 if (candles == null || candles.Count == 0)
                 {
@@ -424,14 +424,21 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                 startTimeData = endTimeData;
                 endTimeData = startTimeData.AddMinutes(tfTotalMinutes * limitCandles);
 
-                if (startTimeData >= DateTime.UtcNow)
+                if (startTimeData >= endTime)
                 {
                     break;
                 }
 
-                if (endTimeData > DateTime.UtcNow)
+                if (endTimeData > endTime)
                 {
-                    endTimeData = DateTime.UtcNow;
+                    endTimeData = endTime;
+                }
+
+                span = endTimeData - startTimeData;
+
+                if (limitCandles > span.TotalMinutes / tfTotalMinutes)
+                {
+                    limitCandles = (int)Math.Round(span.TotalMinutes / tfTotalMinutes, MidpointRounding.AwayFromZero);
                 }
 
             } while (true);
@@ -481,17 +488,15 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
 
         private readonly RateGate _rgCandleData = new RateGate(1, TimeSpan.FromMilliseconds(100));
 
-        private List<Candle> RequestCandleHistory(Security security, string interval, long startTime, long endTime, bool isOsData)
+        private List<Candle> RequestCandleHistory(Security security, string interval, long startTime, long endTime, bool isOsData, int limitCandles)
         {
             _rgCandleData.WaitToProceed(100);
 
             string stringUrl = "/api/v2/mix/market/candles";
-            int limitCandles = _limitCandlesTrader;
 
             if (isOsData)
             {
                 stringUrl = "/api/v2/mix/market/history-candles";
-                limitCandles = _limitCandlesData;
             }
 
             try
@@ -964,14 +969,14 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                             return;
                         }
                     }
-                }                
+                }
 
                 _subscribledSecutiries.Add(security);
 
                 _webSocketPublic.Send($"{{\"op\": \"subscribe\",\"args\": [{{\"instType\": \"{security.NameClass}\",\"channel\": \"books15\",\"instId\": \"{security.Name}\"}}]}}");
                 _webSocketPublic.Send($"{{\"op\": \"subscribe\",\"args\": [{{ \"instType\": \"{security.NameClass}\",\"channel\": \"trade\",\"instId\": \"{security.Name}\"}}]}}");
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 SendLogMessage(ex.Message, LogMessageType.Error);
             }
@@ -990,7 +995,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             }
             catch (Exception exeption)
             {
-                SendLogMessage(exeption.Message, LogMessageType.Error );
+                SendLogMessage(exeption.Message, LogMessageType.Error);
             }
         }
 
@@ -1007,7 +1012,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                             _webSocketPublic.Send($"{{\"op\": \"unsubscribe\",\"args\": [{{\"instType\": \"{_subscribledSecutiries[i].NameClass}\",\"channel\": \"books15\",\"instId\": \"{_subscribledSecutiries[i].Name}\"}}]}}");
                             _webSocketPublic.Send($"{{\"op\": \"unsubscribe\",\"args\": [{{\"instType\": \"{_subscribledSecutiries[i].NameClass}\",\"channel\": \"trade\",\"instId\": \"{_subscribledSecutiries[i].Name}\"}}]}}");
                         }
-                    }                    
+                    }
                 }
                 catch
                 {
@@ -1049,7 +1054,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             {
                 try
                 {
-                    if(ServerStatus == ServerConnectStatus.Disconnect)
+                    if (ServerStatus == ServerConnectStatus.Disconnect)
                     {
                         Thread.Sleep(1000);
                         continue;
@@ -1226,7 +1231,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             {
                 return;
             }
-            
+
             Portfolio portfolio = new Portfolio();
             portfolio.Number = "BitGetFutures";
             portfolio.ValueBegin = 1;
@@ -1241,6 +1246,11 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         PositionOnBoard pos = new PositionOnBoard();
                         pos.PortfolioName = "BitGetFutures";
                         pos.SecurityNameCode = positions.data[i].instId;
+
+                        if (positions.data[i].posMode == "hedge_mode")
+                        {
+                            pos.SecurityNameCode = positions.data[i].instId + "_" + positions.data[i].holdSide;
+                        }
 
                         if (positions.data[i].holdSide == "long")
                         {
@@ -1263,8 +1273,8 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         if (!_allPositions.ContainsKey(positions.arg.instType))
                         {
                             _allPositions.Add(positions.arg.instType, new List<string>());
-
                         }
+
                         if (!_allPositions[positions.arg.instType].Contains(pos.SecurityNameCode))
                         {
                             _allPositions[positions.arg.instType].Add(pos.SecurityNameCode);
@@ -1284,10 +1294,21 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                             {
                                 for (int indData = 0; indData < positions.data.Count; indData++)
                                 {
-                                    if (_allPositions[positions.arg.instType][indAllPos] == positions.data[indData].instId)
+                                    if (positions.data[indData].posMode == "hedge_mode")
                                     {
-                                        isInData = true;
-                                        break;
+                                        if (_allPositions[positions.arg.instType][indAllPos] == positions.data[indData].instId + "_" + positions.data[indData].holdSide)
+                                        {
+                                            isInData = true;
+                                            break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (_allPositions[positions.arg.instType][indAllPos] == positions.data[indData].instId)
+                                        {
+                                            isInData = true;
+                                            break;
+                                        }
                                     }
                                 }
                             }
@@ -1386,19 +1407,23 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         continue;
                     }
 
+
+
                     Order newOrder = new Order();
                     newOrder.SecurityNameCode = item.instId;
                     newOrder.TimeCallBack = TimeManager.GetDateTimeFromTimeStamp(Convert.ToInt64(item.cTime));
                     int.TryParse(item.clientOId, out newOrder.NumberUser);
                     newOrder.NumberMarket = item.orderId.ToString();
-                    newOrder.Side = item.side.Equals("buy") ? Side.Buy : Side.Sell;
+                    newOrder.Side = GetSide(item.tradeSide, item.side);
                     newOrder.State = stateType;
                     newOrder.Volume = item.size.ToDecimal();
                     newOrder.Price = item.price.ToDecimal();
                     newOrder.ServerType = ServerType.BitGetFutures;
                     newOrder.PortfolioNumber = "BitGetFutures";
                     newOrder.SecurityClassCode = order.arg.instType.ToString();
-                  
+
+
+
                     if (item.orderType.Equals("market"))
                     {
                         newOrder.TypeOrder = OrderPriceType.Market;
@@ -1419,7 +1444,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         myTrade.Volume = item.baseVolume.ToDecimal();
                         myTrade.Price = item.fillPrice.ToDecimal();
                         myTrade.SecurityNameCode = item.instId;
-                        myTrade.Side = item.side.Equals("buy") ? Side.Buy : Side.Sell;
+                        myTrade.Side = GetSide(item.tradeSide, item.side);
 
                         MyTradeEvent(myTrade);
 
@@ -1439,7 +1464,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         {
                             myTrade.Price = item.fillPrice.ToDecimal();
                             myTrade.SecurityNameCode = item.instId;
-                            myTrade.Side = item.side.Equals("buy") ? Side.Buy : Side.Sell;
+                            myTrade.Side = GetSide(item.tradeSide, item.side);
 
                             MyTradeEvent(myTrade);
                         }
@@ -1456,6 +1481,15 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             {
                 SendLogMessage(ex.Message, LogMessageType.Error);
             }
+        }
+
+        private Side GetSide(string tradeSide, string side)
+        {
+            if (tradeSide == "close")
+            {
+                return side == "buy" ? Side.Sell : Side.Buy;
+            }
+            return side == "buy" ? Side.Buy : Side.Sell;
         }
 
         private void UpdateTrade(string message)
@@ -1610,15 +1644,15 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
 
                 if (_hedgeMode)
                 {
-                    if (order.PositionConditionType == OrderPositionConditionType.Open)
-                    {
-                        trSide = "open";
-                        posSide = order.Side == Side.Buy ? "buy" : "sell";
-                    }
-                    else
+                    if (order.PositionConditionType == OrderPositionConditionType.Close)
                     {
                         trSide = "close";
                         posSide = order.Side == Side.Buy ? "sell" : "buy";
+                    }
+                    else
+                    {
+                        trSide = "open";
+                        posSide = order.Side == Side.Buy ? "buy" : "sell";
                     }
                 }
                 else
@@ -1694,7 +1728,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                 jsonContent.Add("symbol", order.SecurityNameCode);
                 jsonContent.Add("productType", order.SecurityClassCode.ToLower());
                 jsonContent.Add("orderId", order.NumberMarket);
-               
+
                 string jsonRequest = JsonConvert.SerializeObject(jsonContent);
 
                 HttpResponseMessage response = CreatePrivateQueryOrders("/api/v2/mix/order/cancel-order", Method.POST.ToString(), null, jsonRequest);
@@ -1789,7 +1823,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                             MyOrderEvent(newOrder);
                         }
 
-                        if(newOrder.State == OrderStateType.Done ||
+                        if (newOrder.State == OrderStateType.Done ||
                             newOrder.State == OrderStateType.Partial)
                         {
                             FindMyTradesToOrder(newOrder);
@@ -1805,7 +1839,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             catch (Exception ex)
             {
                 SendLogMessage(ex.Message, LogMessageType.Error);
-            }           
+            }
         }
 
         private void FindMyTradesToOrder(Order order)
@@ -1955,7 +1989,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             newOrder.SecurityNameCode = item.symbol;
             newOrder.SecurityClassCode = item.marginCoin + "-FUTURES";
             newOrder.TimeCallBack = TimeManager.GetDateTimeFromTimeStamp(Convert.ToInt64(item.cTime));
-            int.TryParse(item.clientOid, out newOrder.NumberUser);   
+            int.TryParse(item.clientOid, out newOrder.NumberUser);
             newOrder.NumberMarket = item.orderId.ToString();
             newOrder.Side = item.side == "buy" ? Side.Buy : Side.Sell;
             newOrder.State = stateType;
@@ -1964,7 +1998,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             newOrder.ServerType = ServerType.BitGetFutures;
             newOrder.PortfolioNumber = "BitGetFutures";
             newOrder.TypeOrder = item.orderType == "limit" ? OrderPriceType.Limit : OrderPriceType.Market;
-            
+
             return newOrder;
         }
 
@@ -1973,13 +2007,13 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             OrderStateType stateType;
 
             switch (orderStateResponse)
-            {                
+            {
                 case ("live"):
                     stateType = OrderStateType.Active;
                     break;
                 case ("partially_filled"):
                     stateType = OrderStateType.Partial;
-                    break;                
+                    break;
                 case ("filled"):
                     stateType = OrderStateType.Done;
                     break;
@@ -2036,12 +2070,12 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             }
         }
 
-        private HttpClient _httpClient = new HttpClient();
-
         private HttpResponseMessage CreatePrivateQueryOrders(string path, string method, string queryString, string body)
         {
             try
             {
+                HttpClient _httpClient = new HttpClient();
+
                 string requestPath = path;
                 string url = $"{BaseUrl}{requestPath}";
                 string timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
@@ -2145,5 +2179,5 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
         public event Action<string, LogMessageType> LogMessageEvent;
 
         #endregion
-    }    
+    }
 }

@@ -853,6 +853,8 @@
     <Compile Include="Market\Servers\OKX\Entity\OrderRequest.cs" />
     <Compile Include="Market\Servers\OKX\Entity\PorfolioResponse.cs" />
     <Compile Include="Market\Servers\OKX\Entity\RequestSubscribe.cs" />
+    <Compile Include="Market\Servers\OKX\Entity\ResponseRestMessage.cs" />
+    <Compile Include="Market\Servers\OKX\Entity\ResponseWsMessageAction.cs" />
     <Compile Include="Market\Servers\OKX\Entity\SecurityResponce.cs" />
     <Compile Include="Market\Servers\OKX\Entity\TradeDetailsResponce.cs" />
     <Compile Include="Market\Servers\OKX\Entity\TradeResponse.cs" />

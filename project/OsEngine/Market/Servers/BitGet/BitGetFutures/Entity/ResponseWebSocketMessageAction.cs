@@ -86,7 +86,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures.Entity
         public string unrealizedPL;
         public string liquidationPrice;
         public string keepMarginRate;
-        public string marketPrice;
+        public string posMode;
         public string cTime;
         public string instType;
     }
