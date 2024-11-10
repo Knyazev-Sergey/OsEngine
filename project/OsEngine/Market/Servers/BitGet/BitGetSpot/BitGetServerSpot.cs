@@ -614,6 +614,9 @@ namespace OsEngine.Market.Servers.BitGet.BitGetSpot
         {
             try
             {
+                _publicSocketOpen = false;
+                _privateSocketOpen = false;
+
                 if (_webSocketPublic != null)
                 {
                     return;

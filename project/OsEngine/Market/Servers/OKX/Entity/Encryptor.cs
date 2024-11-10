@@ -24,23 +24,15 @@ namespace OsEngine.Market.Servers.OKX.Entity
             long timeStamp = Convert.ToInt64((DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds);
             string sign = Encryptor.HmacSHA256($"{timeStamp}GET/users/self/verify", secret);
 
-            List<AuthObject> listObject = new List<AuthObject>();
+            RequestAuth requestAuth = new RequestAuth();
+            requestAuth.args = new List<AuthObject>();
+            requestAuth.args.Add(new AuthObject());
+            requestAuth.args[0].apiKey = apiKey;
+            requestAuth.args[0].passphrase = phrase;
+            requestAuth.args[0].timestamp = timeStamp.ToString();
+            requestAuth.args[0].sign = sign;
 
-            listObject.Add(new AuthObject()
-            {
-                apiKey = apiKey,
-                passphrase = phrase,
-                timestamp = timeStamp.ToString(),
-                sign = sign
-            });
-
-            var info = new
-            {
-                op = "login",
-                args = listObject
-            };
-
-            var json = JsonConvert.SerializeObject(info);
+            string json = JsonConvert.SerializeObject(requestAuth);
 
             return json;
         }
@@ -53,5 +45,10 @@ namespace OsEngine.Market.Servers.OKX.Entity
             public string sign;
         }
 
+        public class RequestAuth
+        {
+            public string op = "login";
+            public List<AuthObject> args;
+        }
     }
 }
