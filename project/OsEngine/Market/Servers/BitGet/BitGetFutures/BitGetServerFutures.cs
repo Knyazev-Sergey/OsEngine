@@ -1272,7 +1272,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         }
 
                         portfolio.SetNewPosition(pos);
-
+                                              
                         if (!_allPositions.ContainsKey(positions.arg.instType))
                         {
                             _allPositions.Add(positions.arg.instType, new List<string>());
@@ -1281,7 +1281,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                         if (!_allPositions[positions.arg.instType].Contains(pos.SecurityNameCode))
                         {
                             _allPositions[positions.arg.instType].Add(pos.SecurityNameCode);
-                        }
+                        }                            
                     }
                 }
 
@@ -1297,21 +1297,10 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                             {
                                 for (int indData = 0; indData < positions.data.Count; indData++)
                                 {
-                                    if (positions.data[indData].posMode == "hedge_mode")
+                                    if (_allPositions[positions.arg.instType][indAllPos] == positions.data[indData].instId)
                                     {
-                                        if (_allPositions[positions.arg.instType][indAllPos] == positions.data[indData].instId + "_" + positions.data[indData].holdSide)
-                                        {
-                                            isInData = true;
-                                            break;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        if (_allPositions[positions.arg.instType][indAllPos] == positions.data[indData].instId)
-                                        {
-                                            isInData = true;
-                                            break;
-                                        }
+                                        isInData = true;
+                                        break;
                                     }
                                 }
                             }

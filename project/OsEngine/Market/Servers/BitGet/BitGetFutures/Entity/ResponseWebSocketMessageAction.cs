@@ -78,7 +78,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures.Entity
         public string available;
         public string locked;
         public string total;
-        public string leverage;
+        public string posMode;
         public string achievedProfits;
         public string averageOpenPrice;
         public string marginMode;
