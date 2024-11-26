@@ -204,10 +204,10 @@ namespace OsEngine.Market.Servers.TraderNet
                     newSecurity.DecimalsVolume = item.lot_size_q.DecimalsCount();
                     newSecurity.Lot = item.lot_size_q.ToDecimal();
                     newSecurity.Name = item.ticker;
-                    newSecurity.NameFull = item.ticker;
-                    newSecurity.NameClass = item.mkt_short_code;
+                    newSecurity.NameFull = item.ticker;                    
                     newSecurity.NameId = item.instr_id;
                     newSecurity.SecurityType = GetSecurityType(Convert.ToInt32(item.instr_type_c));
+                    newSecurity.NameClass = $"{item.mkt_short_code}_{newSecurity.SecurityType}";
                     newSecurity.Decimals = item.min_step.DecimalsCount();
                     newSecurity.PriceStep = item.step_price.ToDecimal();
                     newSecurity.PriceStepCost = newSecurity.PriceStep;
@@ -339,53 +339,12 @@ namespace OsEngine.Market.Servers.TraderNet
                 return null;
             }
 
-            DateTime startTimeData = startTime;
-            DateTime endTimeData = endTime;
+            List<Candle> allCandles = RequestCandleHistory(security, tfTotalMinutes, startTime, endTime);
 
-            List<Candle> allCandles = new List<Candle>();
-
-            do
+            if (allCandles == null)
             {
-                List<Candle> candles = RequestCandleHistory(security, tfTotalMinutes, startTimeData, endTimeData);
-
-                candles.Reverse();
-
-                if (candles == null)
-                {
-                    break;
-                }
-
-                if (startTime < candles[candles.Count - 1].TimeStart)
-                {
-                    startTimeData = startTime;
-                    endTimeData = candles[candles.Count - 1].TimeStart;
-                }
-                
-                if (allCandles.Count > 0)
-                {
-                    while (true)
-                    {
-                        if (candles.Count == 0)
-                        {
-                            break;
-                        }
-
-                        if (candles[0].TimeStart <= allCandles[allCandles.Count - 1].TimeStart)
-                        {
-                            candles.RemoveAt(0);
-                        }
-                        else
-                        {                            
-                            break;
-                        }
-                    }
-                }
-
-                allCandles.AddRange(candles);
-
-            } while (startTimeData > startTime);
-
-            allCandles.Reverse();
+                return null;
+            }
 
             if (allCandles[allCandles.Count - 1].TimeStart <= endTime)
             {
@@ -410,7 +369,7 @@ namespace OsEngine.Market.Servers.TraderNet
                     }
                 }
             }
-
+                       
             return allCandles;
         }
 
@@ -527,7 +486,8 @@ namespace OsEngine.Market.Servers.TraderNet
                     candle.Open = listHloc[i][2].ToDecimal();
                     candle.Close = listHloc[i][3].ToDecimal();
                     candle.Volume = listVl[i].ToDecimal();
-                    candle.TimeStart = TimeManager.GetDateTimeFromTimeStampSeconds(long.Parse(listSeries[i]));
+                    DateTime time = TimeManager.GetDateTimeFromTimeStampSeconds(long.Parse(listSeries[i]));
+                    candle.TimeStart = time.AddHours(3);
 
                     candles.Add(candle);
                 }
