@@ -69,7 +69,7 @@
 
         public bool DataFeedTf30MinuteCanLoad
         {
-            get { return true; }
+            get { return false; }
         }
 
         public bool DataFeedTf1HourCanLoad
@@ -84,12 +84,12 @@
 
         public bool DataFeedTf4HourCanLoad
         {
-            get { return true; }
+            get { return false; }
         }
 
         public bool DataFeedTfDayCanLoad
         {
-            get { return false; }
+            get { return true; }
         }
 
         public bool DataFeedTfTickCanLoad
@@ -119,17 +119,17 @@
                 TimeFrameSec30IsOn = false,
                 TimeFrameMin1IsOn = true,
                 TimeFrameMin2IsOn = false,
-                TimeFrameMin3IsOn = true,
+                TimeFrameMin3IsOn = false,
                 TimeFrameMin5IsOn = true,
                 TimeFrameMin10IsOn = false,
                 TimeFrameMin15IsOn = true,
                 TimeFrameMin20IsOn = false,
-                TimeFrameMin30IsOn = true,
+                TimeFrameMin30IsOn = false,
                 TimeFrameMin45IsOn = false,
                 TimeFrameHour1IsOn = true,
                 TimeFrameHour2IsOn = false,
-                TimeFrameHour4IsOn = true,
-                TimeFrameDayIsOn = false
+                TimeFrameHour4IsOn = false,
+                TimeFrameDayIsOn = true
             };
 
         public bool MarketOrdersIsSupport

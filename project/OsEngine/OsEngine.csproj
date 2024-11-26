@@ -936,7 +936,6 @@
     <Compile Include="Market\Servers\TraderNet\Entity\RequestCandle.cs" />
     <Compile Include="Market\Servers\TraderNet\TraderNetServerPermission.cs" />
     <Compile Include="Market\Servers\TraderNet\TraderNetServer.cs" />
-    <Compile Include="Market\Servers\TraderNet\Entity\RequestWebsocketAuth.cs" />
     <Compile Include="Market\Servers\TraderNet\Entity\ResponseRestMessage.cs" />
     <Compile Include="Market\Servers\TraderNet\Entity\ResponseWebSocketMessageAction.cs" />
     <Compile Include="Market\Servers\Transaq\ChangeTransaqPassword.xaml.cs">
