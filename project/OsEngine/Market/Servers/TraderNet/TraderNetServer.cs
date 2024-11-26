@@ -340,43 +340,57 @@ namespace OsEngine.Market.Servers.TraderNet
             }
 
             DateTime startTimeData = startTime;
-            DateTime endTimeData = startTimeData.AddMinutes(tfTotalMinutes * 100000);
+            DateTime endTimeData = endTime;
 
-            List<Candle> allCandles = RequestCandleHistory(security, tfTotalMinutes, startTimeData, endTimeData);
+            List<Candle> allCandles = new List<Candle>();
 
-            if (allCandles == null)
+            do
             {
-                return null;
-            }
+                List<Candle> candles = RequestCandleHistory(security, tfTotalMinutes, startTimeData, endTimeData);
+
+                candles.Reverse();
+
+                if (candles == null)
+                {
+                    break;
+                }
+
+                if (startTime < candles[candles.Count - 1].TimeStart)
+                {
+                    startTimeData = startTime;
+                    endTimeData = candles[candles.Count - 1].TimeStart;
+                }
+                
+                if (allCandles.Count > 0)
+                {
+                    while (true)
+                    {
+                        if (candles.Count == 0)
+                        {
+                            break;
+                        }
+
+                        if (candles[0].TimeStart <= allCandles[allCandles.Count - 1].TimeStart)
+                        {
+                            candles.RemoveAt(0);
+                        }
+                        else
+                        {                            
+                            break;
+                        }
+                    }
+                }
+
+                allCandles.AddRange(candles);
+
+            } while (startTimeData > startTime);
+
+            allCandles.Reverse();
 
             if (allCandles[allCandles.Count - 1].TimeStart <= endTime)
             {
                 DateTime startTimeReq = TimeZoneInfo.ConvertTimeFromUtc(allCandles[allCandles.Count - 1].TimeStart, TimeZoneInfo.Local);
                 List<Candle> candles = RequestCandleHistory(security, tfTotalMinutes, startTimeReq, endTime);
-
-                while (true)
-                {
-                    if (candles.Count == 0)
-                    {
-                        break;
-                    }
-
-                    if (candles[0].TimeStart <= allCandles[allCandles.Count - 1].TimeStart)
-                    {
-                        candles.RemoveAt(0);
-                    }
-                    else
-                    {
-                        allCandles.AddRange(candles);
-                        break;
-                    }
-                }
-            }
-
-            if (allCandles[0].TimeStart > startTime)
-            {
-                DateTime endTimeReq = TimeZoneInfo.ConvertTimeFromUtc(allCandles[0].TimeStart, TimeZoneInfo.Local);
-                List<Candle> candles = RequestCandleHistory(security, tfTotalMinutes, startTime, endTimeReq);
 
                 while (true)
                 {
