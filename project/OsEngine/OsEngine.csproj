@@ -953,6 +953,8 @@
     <Compile Include="Market\Servers\XT\XTSpot\Entity\ResponseWebSocketMessageAction.cs" />
     <Compile Include="Market\Servers\XT\XTSpot\XTServerSpot.cs" />
     <Compile Include="Market\Servers\XT\XTSpot\XTSpotServerPermission.cs" />
+    <Compile Include="Market\Servers\YahooFinance\YahooServer.cs" />
+    <Compile Include="Market\Servers\YahooFinance\YahooServerPermission.cs" />
     <Compile Include="Market\Servers\ZB\EntityCreators\ZbMarketDepthCreator.cs" />
     <Compile Include="Market\Servers\ZB\EntityCreators\ZbOrderCreator.cs" />
     <Compile Include="Market\Servers\ZB\EntityCreators\ZbPortfolioCreator.cs" />
