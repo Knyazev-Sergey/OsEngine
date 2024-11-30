@@ -7,6 +7,18 @@ namespace OsEngine.Market.Servers.TraderNet.Entity
         public string SID;
     }
 
+    public class ResponseUserStockLists
+    {
+        public List<UserStockLists> userStockLists;
+    }
+
+    public class UserStockLists
+    {
+        public string id;
+        public string name;
+        public List<string> tickers;
+    }
+       
     public class ResponceMessageSecurities
     {
         public string total;
