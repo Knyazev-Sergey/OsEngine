@@ -13,7 +13,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using WebSocket4Net;
-using System.IO;
 using System.Collections;
 
 namespace OsEngine.Market.Servers.TraderNet
@@ -22,13 +21,11 @@ namespace OsEngine.Market.Servers.TraderNet
     {
         public TraderNetServer()
         {
-
             TraderNetServerRealization realization = new TraderNetServerRealization();
             ServerRealization = realization;
 
             CreateParameterString(OsLocalization.Market.ServerParamPublicKey, "");
             CreateParameterPassword(OsLocalization.Market.ServerParamSecretKey, "");
-            CreateParameterString("File with securities", "");
         }
     }
 
@@ -50,11 +47,6 @@ namespace OsEngine.Market.Servers.TraderNet
         {
             _publicKey = ((ServerParameterString)ServerParameters[0]).Value;
             _secretKey = ((ServerParameterPassword)ServerParameters[1]).Value;
-
-            if (((ServerParameterString)ServerParameters[2]).Value != "")
-            {
-                _fileSecurities = ((ServerParameterString)ServerParameters[2]).Value;
-            }
 
             if (string.IsNullOrEmpty(_publicKey) ||
                 string.IsNullOrEmpty(_secretKey))
@@ -80,7 +72,6 @@ namespace OsEngine.Market.Servers.TraderNet
                 {
                     FIFOListWebSocketMessage = new ConcurrentQueue<string>();
                     CreateWebSocketConnection();
-                    //_lastConnectionStartTime = DateTime.Now;
                 }
                 else
                 {
@@ -139,8 +130,6 @@ namespace OsEngine.Market.Servers.TraderNet
 
         public DateTime ServerTime { get; set; }
 
-        //private DateTime _lastConnectionStartTime = DateTime.MinValue;
-
         public event Action ConnectEvent;
 
         public event Action DisconnectEvent;
@@ -170,32 +159,139 @@ namespace OsEngine.Market.Servers.TraderNet
         #region 3 Securities
 
         public void GetSecurities()
+        {           
+            GetSecuritiesFromExchange();
+        }
+
+        private void GetSecuritiesFromExchange()
         {
             try
-            {            
-                ResponceMessageSecurities symbols = new ResponceMessageSecurities();
+            {
+                List<string> listSecurities = GetSecList(_sid);
+
+                string strListSec = "";
+                int count = 0;
+
+                while (listSecurities.Count != 0)
+                {
+                    strListSec += listSecurities[0];
+                    listSecurities.RemoveAt(0);
+                    count++;
+
+                    if (count == 50 || listSecurities.Count == 0)
+                    {
+                        GetQuerySecurities(strListSec);
+                        strListSec = "";
+                        count = 0;
+                    }
+                    else
+                    {
+                        strListSec += ", ";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }       
+        }
+
+        private List<string> GetSecList(string sid)
+        {
+            try
+            {
+                Dictionary<string, dynamic> data = new Dictionary<string, dynamic>();
+
+                data.Add("cmd", "getUserStockLists");
+                data.Add("SID", sid);
+
+                Dictionary<string, object> qData = new Dictionary<string, object>();
+
+                qData.Add("q", data);
+
+                HttpResponseMessage responseMessage = CreateQuery($"/api/", "POST", null, qData);
+                string JsonResponse = responseMessage.Content.ReadAsStringAsync().Result;
+
+                if (!JsonResponse.Contains("osengine"))
+                {
+                    return null;
+                }
+
+                ResponseUserStockLists response = JsonConvert.DeserializeObject<ResponseUserStockLists>(JsonResponse);
+
+                List<string> listSecurities = new List<string>();
+
+                for (int i = 0; i < response.userStockLists.Count; i++)
+                {
+                    if (!response.userStockLists[i].name.Equals("osengine"))
+                    {
+                        continue;
+                    }
+
+                    listSecurities.AddRange(response.userStockLists[i].tickers);
+                }
+
+                return listSecurities;
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+                return null;
+            }
+        }
+
+        private RateGate _rateGateSecurity = new RateGate(6, TimeSpan.FromMilliseconds(60000));
+
+        private void GetQuerySecurities(string strListSec)
+        {
+            try
+            {
+                _rateGateSendOrder.WaitToProceed(100);
+
+                RequestSecurity reqData = new RequestSecurity();
+                reqData.q = new RequestSecurity.Q();
+                reqData.q.cmd = "getAllSecurities";
+                reqData.q.@params = new RequestSecurity.Params();
+                reqData.q.@params.take = 50;
+                reqData.q.@params.filter = new RequestSecurity.Filter();
+                reqData.q.@params.filter.filters = new List<RequestSecurity.FilterItem>();                
+                reqData.q.@params.filter.filters.Add(new RequestSecurity.FilterItem());
+                reqData.q.@params.filter.filters[0].field = "ticker";
+                reqData.q.@params.filter.filters[0].@operator = "in";
+                reqData.q.@params.filter.filters[0].value = strListSec;
+
+                HttpResponseMessage responseMessage = CreateQuery("/api/", "POST", null, reqData);
+                string JsonResponse = responseMessage.Content.ReadAsStringAsync().Result;
+
+                DeserializeDataSecurity(JsonResponse);
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void DeserializeDataSecurity(string jsonResponse)
+        {
+            try
+            {
+                ResponceMessageSecurities result = JsonConvert.DeserializeObject<ResponceMessageSecurities>(jsonResponse);
 
                 List<Security> securities = new List<Security>();
 
-                //securities = GetSecuritiesFromExchange();
-
-                symbols = GetSecuritiesFromFile();
-
-                if (symbols == null)
+                if (result == null)
                 {
                     return;
                 }
 
-                if (symbols.securities.Count == 0)
+                if (result.securities.Count == 0)
                 {
                     return;
                 }
 
-                
-
-                for (int i = 0; i < symbols.securities.Count; i++)
+                for (int i = 0; i < result.securities.Count; i++)
                 {
-                    ListSecurities item = symbols.securities[i];
+                    ListSecurities item = result.securities[i];
 
                     Security newSecurity = new Security();
 
@@ -203,7 +299,7 @@ namespace OsEngine.Market.Servers.TraderNet
                     newSecurity.DecimalsVolume = item.lot_size_q.DecimalsCount();
                     newSecurity.Lot = item.lot_size_q.ToDecimal();
                     newSecurity.Name = item.ticker;
-                    newSecurity.NameFull = item.ticker;                    
+                    newSecurity.NameFull = item.ticker;
                     newSecurity.NameId = item.instr_id;
                     newSecurity.SecurityType = GetSecurityType(Convert.ToInt32(item.instr_type_c));
                     newSecurity.NameClass = $"{item.mkt_short_code}_{newSecurity.SecurityType}";
@@ -216,94 +312,10 @@ namespace OsEngine.Market.Servers.TraderNet
                 }
                 SecurityEvent(securities);
             }
-
-            catch (Exception exception)
+            catch (Exception ex)
             {
-                SendLogMessage(exception.ToString(), LogMessageType.Error);
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
             }
-        }
-
-        /*private Security GetSecuritiesFromExchange()
-        {
-            List<string> listSecurities = GetSecList(_sid);
-
-            string strListSec = "";
-
-            while (listSecurities.Count > 50)
-            {
-                if (strListSec == "" || listSecurities.Count == 1)
-                {
-                    strListSec += listSecurities[0];
-                    listSecurities.
-                }
-
-            }
-            string JsonResponse = GetQuerySecuritis(0);
-            ExResponce result = JsonConvert.DeserializeObject<ExResponce>(JsonResponse);
-
-        }*/
-
-        private List<string> GetSecList(string sid)
-        {
-            Dictionary<string, dynamic> data = new Dictionary<string, dynamic>();
-
-            data.Add("cmd", "getUserStockLists");
-            data.Add("SID", sid);
-
-            Dictionary<string, object> qData = new Dictionary<string, object>();
-
-            qData.Add("q", data);
-
-            HttpResponseMessage responseMessage = CreateQuery($"/api/", "POST", null, qData);
-            string JsonResponse = responseMessage.Content.ReadAsStringAsync().Result;
-
-            if (!JsonResponse.Contains("osengine"))
-            {
-                return null;
-            }
-
-            ResponseUserStockLists response = JsonConvert.DeserializeObject<ResponseUserStockLists>(JsonResponse);
-
-            List<string> listSecurities = new List<string>();
-
-            for (int i = 0; i < response.userStockLists.Count; i++)
-            {
-                if (!response.userStockLists[i].name.Equals("osengine"))
-                {
-                    continue;
-                }
-
-                listSecurities.AddRange(response.userStockLists[i].tickers);
-            }
-
-            return listSecurities;
-        }
-
-        private string GetQuerySecuritis(int skip, string strListSec)
-        {
-            RequestSecurity reqData = new RequestSecurity();
-            reqData.q = new RequestSecurity.Q();
-            reqData.q.cmd = "getAllSecurities";
-            reqData.q.@params = new RequestSecurity.Params();
-            reqData.q.@params.take = 50;
-            reqData.q.@params.skip = skip;
-            reqData.q.@params.filter = new RequestSecurity.Filter();
-            reqData.q.@params.filter.filters = new List<RequestSecurity.FilterItem>();
-            //reqData.q.@params.filter.filters.Add(new RequestSecurity.FilterItem());
-            /*reqData.q.@params.filter.filters[0].field = "mkt_short_code";
-            reqData.q.@params.filter.filters[0].@operator = "eq";
-            reqData.q.@params.filter.filters[0].value = "FIX";*/
-            reqData.q.@params.filter.filters.Add(new RequestSecurity.FilterItem());
-            reqData.q.@params.filter.filters[0].field = "ticker";
-            reqData.q.@params.filter.filters[0].@operator = "in";
-            reqData.q.@params.filter.filters[0].value = strListSec;
-
-            HttpResponseMessage responseMessage = CreateQuery("/api/", "POST", null, reqData);
-            string JsonResponse = responseMessage.Content.ReadAsStringAsync().Result;
-
-            //Thread.Sleep(10000);
-
-            return JsonResponse;
         }
 
         private SecurityType GetSecurityType(int code)
@@ -336,47 +348,6 @@ namespace OsEngine.Market.Servers.TraderNet
             }
             return _securityType;
         }
-
-        private ResponceMessageSecurities GetSecuritiesFromFile()
-        {
-            if (!File.Exists($"Engine\\{_fileSecurities}"))
-            {
-                SendLogMessage($"File {_fileSecurities} does not exist", LogMessageType.Error);
-                return null;
-            }
-
-            ResponceMessageSecurities symbols = new ResponceMessageSecurities();
-
-            using (StreamReader reader = new StreamReader($"Engine\\{_fileSecurities}"))
-            {
-                string line;
-
-                symbols.securities = new List<ListSecurities>();
-
-                while ((line = reader.ReadLine()) != null)
-                {
-                    if (!string.IsNullOrEmpty(line))
-                    {
-                        string[] split = line.Split(';');
-
-                        symbols.securities.Add(new ListSecurities());
-                        symbols.securities[symbols.securities.Count - 1].ticker = split[0];
-                        symbols.securities[symbols.securities.Count - 1].instr_id = split[1];
-                        symbols.securities[symbols.securities.Count - 1].instr_type_c = split[2];
-                        symbols.securities[symbols.securities.Count - 1].code_sec = split[3];
-                        symbols.securities[symbols.securities.Count - 1].mkt_short_code = split[4];
-                        symbols.securities[symbols.securities.Count - 1].step_price = split[5];
-                        symbols.securities[symbols.securities.Count - 1].min_step = split[6];
-                        symbols.securities[symbols.securities.Count - 1].lot_size_q = split[7];
-                    }
-                }
-            }
-            return symbols;
-        }
-
-        
-
-        
 
         public event Action<List<Security>> SecurityEvent;
 
@@ -1243,7 +1214,7 @@ namespace OsEngine.Market.Servers.TraderNet
 
                 Dictionary<string, dynamic> paramsDict = new Dictionary<string, dynamic>();
 
-                paramsDict.Add("instr_name", "MVID");
+                paramsDict.Add("instr_name", order.SecurityNameCode);
                 paramsDict.Add("action_id", order.Side == Side.Buy ? "1" : "3");
                 paramsDict.Add("order_type_id", order.TypeOrder == OrderPriceType.Market ? "1" : "2");
                 paramsDict.Add("qty", order.Volume.ToString());
@@ -1365,7 +1336,6 @@ namespace OsEngine.Market.Servers.TraderNet
                     if (newOrder.State == OrderStateType.Done ||
                         newOrder.State == OrderStateType.Partial)
                     {
-                        //FindMyTradesToOrder(newOrder);
                         for (int j = 0; j < item.trade.Count; j++)
                         {
                             MyTrade myTrade = new MyTrade();
@@ -1773,20 +1743,6 @@ namespace OsEngine.Market.Servers.TraderNet
             }
 
             return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
-        }
-
-        private string GetSID()
-        {
-            Dictionary<string, dynamic> data = new Dictionary<string, dynamic>();
-            data.Add("apiKey", _publicKey);
-            data.Add("cmd", "getSidInfo");
-
-            HttpResponseMessage responseMessage = CreateAuthQuery($"/api/v2/cmd/getSidInfo", "POST", null, data);
-            string JsonResponse = responseMessage.Content.ReadAsStringAsync().Result;
-
-            GetSID result = JsonConvert.DeserializeObject<GetSID>(JsonResponse);
-            
-            return result.SID;
         }
 
         #endregion
