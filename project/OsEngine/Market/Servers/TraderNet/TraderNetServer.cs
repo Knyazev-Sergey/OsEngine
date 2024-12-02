@@ -261,9 +261,9 @@ namespace OsEngine.Market.Servers.TraderNet
                 reqData.q.@params.filter.filters[0].value = strListSec;
 
                 HttpResponseMessage responseMessage = CreateQuery("/api/", "POST", null, reqData);
-                string JsonResponse = responseMessage.Content.ReadAsStringAsync().Result;
+                string jsonResponse = responseMessage.Content.ReadAsStringAsync().Result;
 
-                DeserializeDataSecurity(JsonResponse);
+                DeserializeDataSecurity(jsonResponse);
             }
             catch (Exception ex)
             {
@@ -397,17 +397,35 @@ namespace OsEngine.Market.Servers.TraderNet
                 return null;
             }
 
-            List<Candle> allCandles = RequestCandleHistory(security, tfTotalMinutes, startTime, endTime);
+            List<Candle> allCandles = new List<Candle>();
 
-            if (allCandles == null)
+            DateTime startTimeReq = startTime;
+            DateTime endTimeReq = startTimeReq.AddMinutes(tfTotalMinutes * 100000);
+
+            if(endTimeReq > endTime)
             {
-                return null;
+                endTimeReq = endTime;
             }
-
-            if (allCandles[allCandles.Count - 1].TimeStart <= endTime)
+            
+            do
             {
-                DateTime startTimeReq = TimeZoneInfo.ConvertTimeFromUtc(allCandles[allCandles.Count - 1].TimeStart, TimeZoneInfo.Local);
-                List<Candle> candles = RequestCandleHistory(security, tfTotalMinutes, startTimeReq, endTime);
+                List<Candle> candles = RequestCandleHistory(security, tfTotalMinutes, startTimeReq, endTimeReq);
+                
+                if (candles == null)
+                {
+                    return null;
+                }
+
+                if (allCandles.Count == 0)
+                {
+                    allCandles.AddRange(candles);                    
+                }
+
+                if (candles.Count == 1 &&
+                    allCandles[allCandles.Count - 1].TimeStart == candles[0].TimeStart)
+                {
+                    break;
+                }
 
                 while (true)
                 {
@@ -415,7 +433,7 @@ namespace OsEngine.Market.Servers.TraderNet
                     {
                         break;
                     }
-
+                         
                     if (candles[0].TimeStart <= allCandles[allCandles.Count - 1].TimeStart)
                     {
                         candles.RemoveAt(0);
@@ -426,7 +444,23 @@ namespace OsEngine.Market.Servers.TraderNet
                         break;
                     }
                 }
-            }
+
+                if (allCandles[allCandles.Count - 1].TimeStart <= endTime)
+                {
+                    startTimeReq = TimeZoneInfo.ConvertTimeFromUtc(allCandles[allCandles.Count - 1].TimeStart, TimeZoneInfo.Local);
+                    endTimeReq = startTimeReq.AddMinutes(tfTotalMinutes * 100000);
+
+                    if (endTimeReq > endTime)
+                    {
+                        endTimeReq = endTime;
+                    }
+                }
+                else
+                {
+                    break;
+                }
+
+            } while (true);
                        
             return allCandles;
         }
@@ -491,7 +525,6 @@ namespace OsEngine.Market.Servers.TraderNet
         {
             try
             {
-
                 ResponseCandle result = JsonConvert.DeserializeObject<ResponseCandle>(JsonResponse);
 
                 if (result.hloc == null)
@@ -1404,53 +1437,7 @@ namespace OsEngine.Market.Servers.TraderNet
 
             return newOrder;
         }
-
-        private void FindMyTradesToOrder(Order order)
-        {
-            try
-            {
-                Dictionary<string, object> param = new Dictionary<string, object>();
-
-                param.Add("beginDate", DateTime.Now.AddDays(-2).ToString("yyyy-MM-dd"));
-                param.Add("endDate", DateTime.Now.ToString("yyyy-MM-dd"));
-                param.Add("nt_ticker", order.SecurityNameCode);
-
-                Dictionary<string, dynamic> data = new Dictionary<string, dynamic>();
-
-                data.Add("cmd", "getTradesHistory");
-                data.Add("SID", _sid);
-                data.Add("params", param);                
-
-                HttpResponseMessage responseMessage = CreateQuery($"/api/", "POST", null, data);
-                string JsonResponse = responseMessage.Content.ReadAsStringAsync().Result;
-
-                ResponceFillOrders responseOrder = JsonConvert.DeserializeObject<ResponceFillOrders>(JsonResponse);
-
-                if (JsonResponse.Contains("errMsg"))
-                {
-                    SendLogMessage($"FindMyTradesToOrder: {JsonResponse}", LogMessageType.Error);
-                    return;
-                }
-
-                for (int i = 0; i < responseOrder.trade.Count; i++)
-                {
-                    MyTrade myTrade = new MyTrade();
-                    DateTime.TryParse(responseOrder.trade[i].date, out myTrade.Time);
-                    myTrade.NumberOrderParent = responseOrder.trade[i].trade_nb.ToString();
-                    myTrade.NumberTrade = responseOrder.trade[i].id;
-                    myTrade.Volume = responseOrder.trade[i].q.ToDecimal();
-                    myTrade.Price = responseOrder.trade[i].p.ToDecimal();
-                    myTrade.Side = responseOrder.trade[i].type == "1" ? Side.Buy : Side.Sell;
-
-                    MyTradeEvent(myTrade);
-                }                    
-            }
-            catch (Exception e)
-            {
-                SendLogMessage(e.Message, LogMessageType.Error);
-            }
-        }
-
+              
         public void ChangeOrderPrice(Order order, decimal newPrice)
         {
         }

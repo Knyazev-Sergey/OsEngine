@@ -173,7 +173,13 @@
             {
                 string[] values = new string[]
                 {
-                   
+                   "USD",
+                   "RUR",
+                   "EUR",
+                   "KZT",
+                   "HKD",
+                   "GBP",
+                   "CHF"
                 };
 
                 return values;
