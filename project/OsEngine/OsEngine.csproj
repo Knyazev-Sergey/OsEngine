@@ -1154,6 +1154,7 @@
     <Compile Include="Robots\BotsFromStartLessons\Lesson10Bot1.cs" />
     <Compile Include="Robots\BotsFromStartLessons\Lesson10Bot2.cs" />
     <Compile Include="Robots\CounterTrend\ClusterCountertrend.cs" />
+    <Compile Include="Robots\MarketRobots\CollectorLiquidity.cs" />
     <Compile Include="Robots\PositionsMicromanagement\AlligatorTrendAverage.cs" />
     <Compile Include="Robots\PositionsMicromanagement\CandlesTurnaroundPattern.cs" />
     <Compile Include="Robots\PositionsMicromanagement\CustomIcebergSample.cs" />
