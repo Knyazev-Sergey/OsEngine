@@ -4,7 +4,6 @@ using OsEngine.OsTrader.Panels.Tab;
 using OsEngine.OsTrader.Panels.Attributes;
 using System.Threading;
 using System;
-using System.Windows.Documents;
 
 namespace OsEngine.Robots.MarketRobots
 {
@@ -14,11 +13,11 @@ namespace OsEngine.Robots.MarketRobots
         private BotTabSimple _tab;
         private StrategyParameterString _regime;
         private StrategyParameterInt _minBalance;
+        private StrategyParameterString _isChoise;
         private StrategyParameterTimeOfDay _timeStartTrade;
         private StrategyParameterTimeOfDay _timeEndTrade;
         private StrategyParameterInt _timeUpdateAccount;
-        private decimal _bestBidLqdt;
-        private decimal _bestAskLqdt;
+        private StrategyParameterTimeOfDay _tradeAtTime;        
         
         public CollectorLiquidity(string name, StartProgram startProgram) : base(name, startProgram)
         {
@@ -27,9 +26,11 @@ namespace OsEngine.Robots.MarketRobots
 
             _regime = CreateParameter("Regime", "Off", new string[] { "Off", "On" });
             _minBalance = CreateParameter("Minimum balance", 100, 0, 10000, 1);
+            _isChoise = CreateParameter("Choise time trade", "Interval", new string[] { "Interval", "At time" });
+            _tradeAtTime = CreateParameterTimeOfDay("Trade at time", 18, 0, 0, 0);
             _timeStartTrade = CreateParameterTimeOfDay("Start trade time", 0, 0, 0, 0);
             _timeEndTrade = CreateParameterTimeOfDay("End trade time", 24, 0, 0, 0);
-            _timeUpdateAccount = CreateParameter("Time update account", 10, 1, 100, 1);
+            _timeUpdateAccount = CreateParameter("Interval update account", 10, 1, 100, 1);            
 
             _tab.BestBidAskChangeEvent += _tab_BestBidAskChangeEvent;
 
@@ -39,8 +40,6 @@ namespace OsEngine.Robots.MarketRobots
 
         private void StartThread()
         {
-            bool isUpdate = false;
-
             while (true)
             {
                 if (_regime.ValueString == "Off")
@@ -55,46 +54,111 @@ namespace OsEngine.Robots.MarketRobots
                     continue;
                 }
 
-                if (_timeStartTrade.Value > _tab.TimeServerCurrent ||
-                    _timeEndTrade.Value < _tab.TimeServerCurrent)
+                if (_bestAskLqdt == 0 ||
+                    _bestBidLqdt == 0)
                 {
-                    Thread.Sleep(10000);
+                    Thread.Sleep(1000);
                     continue;
                 }
 
-                /*if (!isUpdate)
+                if (IsCheck())
                 {
-                    continue;
-                }*/
+                    CheckAccount();                    
+                }
 
-                CheckAccount();
-                SendNewLogMessage($"Bid: {_bestBidLqdt}, Ask: {_bestAskLqdt}", Logging.LogMessageType.Error);
-
-                Thread.Sleep(3000);
+                Thread.Sleep(5000);
             }
+        }
+
+        private bool _isCheckAtTime = true;
+
+        private DateTime _timeInterval = DateTime.Now;
+
+        private bool IsCheck()
+        {
+            if (_isChoise.ValueString == "At time")
+            {
+                if (!_isCheckAtTime &&
+                DateTime.Now.Hour == new TimeSpan(6, 0, 0).Hours) // обновление флага на срабатывание по определенному времени
+                {
+                    _isCheckAtTime = true;
+                }
+
+                if (isTime() &&
+                    _isCheckAtTime) // проверка на конкретное время 
+                {
+                    _isCheckAtTime = false;
+                    return true;
+                }
+            }
+            else
+            {
+                if (_timeStartTrade.Value < DateTime.Now &&
+                    _timeEndTrade.Value > DateTime.Now)
+                {
+                    if (_timeInterval.AddMinutes(_timeUpdateAccount.ValueInt) <= DateTime.Now)
+                    {
+                        _timeInterval = DateTime.Now;
+                        return true;
+                    }                    
+                }
+                else
+                {
+                    return false;
+                }
+
+                _isCheckAtTime = true; // чтобы можно было активировать режим "At time" без перезагрузки 
+            }
+
+            return false;
+        }
+
+        private bool isTime()
+        {
+            DateTime timeNow = DateTime.Now;
+
+            if (_tradeAtTime.Value.Hour == timeNow.Hour &&
+                _tradeAtTime.Value.Minute == timeNow.Minute)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private void CheckAccount()
         {
             try
             {
-                decimal value = GetPortfolioValue();
+                decimal balance = GetPortfolioValue();
 
-                SendNewLogMessage(value.ToString(), Logging.LogMessageType.Error);
-
-                if (value > _minBalance.ValueInt &&
-                    value - _minBalance.ValueInt > 1) // проверяем чтобы баланс был выше минимального значения и допускаем погрешность в 1 рубль
+                if (balance <= 0)
                 {
-                    decimal volume = Math.Floor((value - _minBalance.ValueInt) / _bestAskLqdt);
-                    SendNewLogMessage($"Buy: {volume}", Logging.LogMessageType.Error);
-                    //BuyLqdt(volume);
+                    return;
                 }
-                else if (value < _minBalance.ValueInt &&
-                    value - _minBalance.ValueInt < 1)
+
+                if (balance > _minBalance.ValueInt) // проверяем чтобы баланс был выше минимального значения и допускаем погрешность в 1 рубль
                 {
-                    decimal volume = Math.Floor(Math.Abs(value - _minBalance.ValueInt) / _bestBidLqdt);
-                    SendNewLogMessage($"Sell: {volume}", Logging.LogMessageType.Error);
-                    //SellLqdt(volume);
+                    decimal volume = Math.Floor((balance - _minBalance.ValueInt) / _bestAskLqdt);
+
+                    if (volume <= 0)
+                    {
+                        return;
+                    }
+
+                    BuyLqdt(volume);
+                }
+                else if (_tab.PositionOpenLong.Count > 0 && 
+                         balance < _minBalance.ValueInt)
+                {
+                    decimal volume = Math.Ceiling(Math.Abs(balance - _minBalance.ValueInt) / _bestBidLqdt);
+
+                    if (volume <= 0)
+                    {
+                        return;
+                    }
+
+                    SellLqdt(volume);
                 }
             }
             catch (Exception ex)
@@ -107,11 +171,14 @@ namespace OsEngine.Robots.MarketRobots
         {
             var positions = _tab.Portfolio.GetPositionOnBoard();
 
-            for (int i = 0; i < positions.Count; i++)
+            if (positions.Count > 0)
             {
-                if (positions[i].SecurityNameCode == "RUB")
+                for (int i = 0; i < positions.Count; i++)
                 {
-                    return positions[i].ValueCurrent;
+                    if (positions[i].SecurityNameCode == "RUB")
+                    {
+                        return positions[i].ValueCurrent;
+                    }
                 }
             }
 
@@ -123,20 +190,12 @@ namespace OsEngine.Robots.MarketRobots
             try
             {
                 if (_tab.PositionOpenLong.Count > 0)
-                {
+                {                    
                     _tab.BuyAtMarketToPosition(_tab.PositionOpenLong[0], volume);
                 }
-
-                else if (_tab.PositionOpenShort.Count > 0)
+                else
                 {
-                    decimal volumeClose = _tab.PositionOpenShort[0].OpenVolume;
-                    _tab.CloseAtMarket(_tab.PositionOpenShort[0], volumeClose);
-
-                    if (volume > volumeClose)
-                    {
-                        decimal volumeOpen = volume - volumeClose;
-                        _tab.BuyAtMarket(volumeOpen);
-                    }
+                    _tab.BuyAtMarket(volume);
                 }
             }
             catch (Exception ex)
@@ -149,28 +208,22 @@ namespace OsEngine.Robots.MarketRobots
         {
             try
             {
-                if (_tab.PositionOpenShort.Count > 0)
+                if (volume > _tab.PositionOpenLong[0].OpenVolume)
                 {
-                    _tab.SellAtMarketToPosition(_tab.PositionOpenShort[0], volume);
+                    volume = _tab.PositionOpenLong[0].OpenVolume;
                 }
 
-                else if (_tab.PositionOpenLong.Count > 0)
-                {
-                    decimal volumeClose = _tab.PositionOpenLong[0].OpenVolume;
-                    _tab.CloseAtMarket(_tab.PositionOpenLong[0], volumeClose);
-
-                    if (volume > volumeClose)
-                    {
-                        decimal volumeOpen = volume - volumeClose;
-                        _tab.SellAtMarket(volumeOpen);
-                    }
-                }
+                _tab.CloseAtMarket(_tab.PositionOpenLong[0], volume);
             }
             catch (Exception ex)
             {
                 SendNewLogMessage($"SellLqdt: {ex.Message}", Logging.LogMessageType.Error);
             }
         }
+
+        private decimal _bestBidLqdt;
+
+        private decimal _bestAskLqdt;
 
         private void _tab_BestBidAskChangeEvent(decimal bid, decimal ask)
         {
