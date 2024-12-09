@@ -80,48 +80,44 @@ namespace OsEngine.Robots.FoundBots.Indicators
                 return;
             }
 
+
             // Line equation    
             b = (sumxy * _period.ValueInt - sumx * sumy) / c;
             a = (sumy - sumx * b) / _period.ValueInt;
 
-            try
+
+            // Linear regression line in buffer
+            // Linear regression line in buffer
+            for (int i = index - _period.ValueInt + 1; i < index + 1; i++)
             {
-                // Linear regression line in buffer
-                // Linear regression line in buffer
-                for (int i = index - _period.ValueInt + 1; i < index + 1; i++)
-                {
-                    _seriesCentralLine.Values[i] = a + b * -(index - _period.ValueInt + 1 - i);
-                }
+                _seriesCentralLine.Values[i] = a + b * -(index - _period.ValueInt + 1 - i);
+            }
 
-                decimal standartError = 0;
-                for (int i = index - _period.ValueInt + 1; i < index + 1; i++)
-                // Нужно узнать расстояние от всех точек до линии регрессии за длину периода
-                //Найденное расстояние сложить и поделить на длину периода
-                {
-                    //Находим точку(точку закрытия свечи)
-                    decimal point = candles[i].GetPoint(_candlePoint.ValueString);
+            decimal standartError = 0;
+            for (int i = index - _period.ValueInt + 1; i < index + 1; i++)
+            // Нужно узнать расстояние от всех точек до линии регрессии за длину периода
+            //Найденное расстояние сложить и поделить на длину периода
+            {
+                //Находим точку(точку закрытия свечи)
+                decimal point = candles[i].GetPoint(_candlePoint.ValueString);
 
-                    //Находим точку на линии
-                    decimal pointLine = _seriesCentralLine.Values[i];
+                //Находим точку на линии
+                decimal pointLine = _seriesCentralLine.Values[i];
 
-                    //Находим дистанцию между точками
-                    decimal distance = Math.Abs(point - pointLine);
+                //Находим дистанцию между точками
+                decimal distance = Math.Abs(point - pointLine);
 
-                    standartError = standartError + distance;
-                }
+                standartError = standartError + distance;
+            }
 
-                standartError = standartError / _period.ValueInt;
+            standartError = standartError / _period.ValueInt;
 
                 _seriesUpperband.Values[index] = _seriesCentralLine.Values[index] +
                                                  (standartError * _upDeviation.ValueDecimal);
 
                 _seriesLowerband.Values[index] = _seriesCentralLine.Values[index] -
                                                  (standartError * _downDeviation.ValueDecimal);
-            }
-            catch
-            {
-                return;
-            }
+
         }
     }
 }

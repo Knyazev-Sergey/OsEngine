@@ -169,17 +169,25 @@ namespace OsEngine.Robots.MarketRobots
 
         private decimal GetPortfolioValue()
         {
-            var positions = _tab.Portfolio.GetPositionOnBoard();
-
-            if (positions.Count > 0)
+            if (_tab.Connector.MyServer.ServerType == Market.ServerType.Alor)
             {
-                for (int i = 0; i < positions.Count; i++)
+                var positions = _tab.Portfolio.GetPositionOnBoard();
+
+                if (positions.Count > 0)
                 {
-                    if (positions[i].SecurityNameCode == "RUB")
+                    for (int i = 0; i < positions.Count; i++)
                     {
-                        return positions[i].ValueCurrent;
+                        if (positions[i].SecurityNameCode == "RUB")
+                        {
+                            return positions[i].ValueCurrent;
+                        }
                     }
                 }
+            }
+            
+            if (_tab.Connector.MyServer.ServerType == Market.ServerType.Transaq)
+            {
+                return _tab.Portfolio.ValueCurrent - _tab.Portfolio.ValueBlocked;
             }
 
             return 0;

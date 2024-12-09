@@ -451,6 +451,8 @@
     <Compile Include="Logging\ServerTelegramUi.xaml.cs">
       <DependentUpon>ServerTelegramUi.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Market\CustomConnectors\Coinglass\CoinglassConnector.cs" />
+    <Compile Include="Market\CustomConnectors\Coinglass\Entity\Entity.cs" />
     <Compile Include="Market\Servers\BitMex\BitMexEntity\BitMexCandle.cs" />
     <Compile Include="Market\Servers\BitMex\BitMexServerPermission.cs" />
     <Compile Include="Market\Servers\ComparePositionsModule.cs" />
@@ -1154,7 +1156,10 @@
     <Compile Include="Robots\BotsFromStartLessons\Lesson10Bot1.cs" />
     <Compile Include="Robots\BotsFromStartLessons\Lesson10Bot2.cs" />
     <Compile Include="Robots\CounterTrend\ClusterCountertrend.cs" />
+    <Compile Include="Robots\MarketRobots\BreakLinearRegressionChannelRevers.cs" />
+    <Compile Include="Robots\MarketRobots\BreakZZChannel.cs" />
     <Compile Include="Robots\MarketRobots\CollectorLiquidity.cs" />
+    <Compile Include="Robots\MarketRobots\ReverseAdaptivePriceChannelPlus.cs" />
     <Compile Include="Robots\PositionsMicromanagement\AlligatorTrendAverage.cs" />
     <Compile Include="Robots\PositionsMicromanagement\CandlesTurnaroundPattern.cs" />
     <Compile Include="Robots\PositionsMicromanagement\CustomIcebergSample.cs" />
@@ -1216,7 +1221,7 @@
     <Compile Include="Robots\TechSamples\FakeOutExample.cs" />
     <Compile Include="Robots\AutoTestBots\TestBotTradesInCandlesTest.cs" />
     <Compile Include="Robots\TechSamples\TradeLineExample.cs" />
-    <Compile Include="Robots\Trend\BreakLRChannel.cs" />
+    <Compile Include="Robots\Trend\BreakLRChannel1.cs" />
     <Compile Include="Robots\Trend\EnvelopTrend.cs" />
     <Compile Include="Robots\Trend\MomentumMacd.cs" />
     <Compile Include="Robots\MarketMaker\PairTraderSpreadSma.cs" />
