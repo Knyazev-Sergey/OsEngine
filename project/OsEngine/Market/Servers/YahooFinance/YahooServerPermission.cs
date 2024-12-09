@@ -1,11 +1,11 @@
 ﻿
-namespace OsEngine.Market.Servers.Yahoo
+namespace OsEngine.Market.Servers.YahooFinance
 {
     class YahooServerPermission : IServerPermission
     {
         public ServerType ServerType
         {
-            get { return ServerType.Yahoo; }
+            get { return ServerType.YahooFinance; }
         }
 
         public bool DataFeedTf1SecondCanLoad
@@ -39,11 +39,11 @@ namespace OsEngine.Market.Servers.Yahoo
 
         public bool DataFeedTf1MinuteCanLoad
         {
-            get { return false; }
+            get { return true; }
         }
         public bool DataFeedTf2MinuteCanLoad
         {
-            get { return false; }
+            get { return true; }
         }
         public bool DataFeedTf5MinuteCanLoad
         {
@@ -67,15 +67,15 @@ namespace OsEngine.Market.Servers.Yahoo
         }
         public bool DataFeedTf2HourCanLoad
         {
-            get { return true; }
+            get { return false; }
         }
         public bool DataFeedTf4HourCanLoad
         {
-            get { return true; }
+            get { return false; }
         }
         public bool DataFeedTfDayCanLoad
         {
-            get { return false; }
+            get { return true; }
         }
         public bool DataFeedTfTickCanLoad
         {

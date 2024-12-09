@@ -63,7 +63,7 @@ using OsEngine.Market.Servers.BitMart;
 using OsEngine.Market.Servers.BitMartFutures;
 using OsEngine.Market.Servers.MoexFixFastCurrency;
 using OsEngine.Market.Servers.MoexFixFastTwimeFutures;
-using OsEngine.Market.Servers.Yahoo;
+using OsEngine.Market.Servers.YahooFinance;
 
 
 namespace OsEngine.Market
@@ -314,7 +314,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.Woo);
                 serverTypes.Add(ServerType.BitGetSpot);
                 serverTypes.Add(ServerType.BitGetFutures);
-                serverTypes.Add(ServerType.Yahoo);
+                serverTypes.Add(ServerType.YahooFinance);
 
                 return serverTypes;
             }
@@ -600,7 +600,7 @@ namespace OsEngine.Market
                 {
                     newServer = new BitMartFuturesServer();
                 }
-                else if (type == ServerType.Yahoo)
+                else if (type == ServerType.YahooFinance)
                 {
                     newServer = new YahooServer();
                 }
@@ -1212,7 +1212,7 @@ namespace OsEngine.Market
                 {
                     serverPermission = new BitMexServerPermission();
                 }
-                else if (type == ServerType.Yahoo)
+                else if (type == ServerType.YahooFinance)
                 {
                     serverPermission = new YahooServerPermission();
                 }
@@ -1663,6 +1663,6 @@ namespace OsEngine.Market
         /// <summary>
         /// Yahoo Finance
         /// </summary>
-        Yahoo,
+        YahooFinance,
     }
 }
