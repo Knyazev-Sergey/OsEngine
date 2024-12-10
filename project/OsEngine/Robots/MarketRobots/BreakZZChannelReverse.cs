@@ -6,35 +6,41 @@ using OsEngine.OsTrader.Panels.Tab;
 using System.Collections.Generic;
 using System;
 
-[Bot("BreakZZChannel")]
-public class BreakZZChannel : BotPanel
+[Bot("BreakZZChannelReverse")]
+public class BreakZZChannelReverse : BotPanel
 {
-    BotTabSimple _tab;
-    StrategyParameterString Regime;
-    public StrategyParameterDecimal VolumeOnPosition;
-    public StrategyParameterString VolumeRegime;
-    StrategyParameterDecimal Slippage;
+    private BotTabSimple _tab;
+    private StrategyParameterString Regime;
+    private StrategyParameterBool ReverseLogic;
+    private StrategyParameterDecimal VolumeOnPosition;
+    private StrategyParameterString VolumeRegime;
+    private StrategyParameterDecimal Slippage;
+    private StrategyParameterDecimal TrailingStop;
 
     private StrategyParameterTimeOfDay TimeStart;
     private StrategyParameterTimeOfDay TimeEnd;
 
-    public Aindicator _smaFilter;
+    private Aindicator _smaFilter;
     private StrategyParameterInt SmaLengthFilter;
-    public StrategyParameterBool SmaPositionFilterIsOn;
-    public StrategyParameterBool SmaSlopeFilterIsOn;
+    private StrategyParameterBool SmaPositionFilterIsOn;
+    private StrategyParameterBool SmaSlopeFilterIsOn;
 
-    Aindicator _zz;
-    StrategyParameterInt _lengthZZ;
+    private bool _noSlippage = false;
 
-    public BreakZZChannel(string name, StartProgram startProgram) : base(name, startProgram)
+    private Aindicator _zz;
+    private StrategyParameterInt _lengthZZ;
+
+    public BreakZZChannelReverse(string name, StartProgram startProgram) : base(name, startProgram)
     {
         TabCreate(BotTabType.Simple);
         _tab = TabsSimple[0];
 
         Regime = CreateParameter("Regime", "Off", new[] { "Off", "On", "OnlyLong", "OnlyShort", "OnlyClosePosition" }, "Base");
+        ReverseLogic = CreateParameter("Reverse logic", true, "Base");
         VolumeRegime = CreateParameter("Volume type", "Number of contracts", new[] { "Number of contracts", "Contract currency", "% of the total portfolio" }, "Base");
         VolumeOnPosition = CreateParameter("Volume", 10, 1.0m, 50, 4, "Base");
         Slippage = CreateParameter("Slippage %", 0m, 0, 20, 1, "Base");
+        TrailingStop = CreateParameter("Trailing stop %", 0m, 0, 20, 0.1m, "Base");
 
         TimeStart = CreateParameterTimeOfDay("Start Trade Time", 0, 0, 0, 0, "Base");
         TimeEnd = CreateParameterTimeOfDay("End Trade Time", 24, 0, 0, 0, "Base");
@@ -57,6 +63,12 @@ public class BreakZZChannel : BotPanel
         _zz.ParametersDigit[0].Value = _lengthZZ.ValueInt;
         _zz.Save();
 
+        if (_tab.StartProgram == StartProgram.IsTester ||
+            _tab.StartProgram == StartProgram.IsOsOptimizer)
+        {
+            _noSlippage = true;
+        }
+        
         StopOrActivateIndicators();
         ParametrsChangeByUser += LRegBot_ParametrsChangeByUser;
         _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;
@@ -114,7 +126,7 @@ public class BreakZZChannel : BotPanel
 
     public override string GetNameStrategyType()
     {
-        return "BreakZZChannel";
+        return "BreakZZChannelReverse";
     }
 
     public override void ShowIndividualSettingsDialog()
@@ -157,65 +169,111 @@ public class BreakZZChannel : BotPanel
         decimal bb_down = _zz.DataSeries[5].Last;
 
         decimal lastMaFilter = _smaFilter.DataSeries[0].Last;
+
         if (bb_down <= 0) return;
         if (bb_up <= 0) return;
-
+                
         decimal _slippage = 0;
+
+        _tab.BuyAtStopCancel();
+        _tab.SellAtStopCancel();
 
         if (positions.Count == 0)
         {// enter logic
 
-            _slippage = Slippage.ValueDecimal * bb_up / 100;
+            if (bb_up <= bb_down)
+            {
+                return;
+            }
 
             if (!BuySignalIsFiltered(candles))
-            {
-                if (lastMaFilter > bb_up)
+            {                
+                if (ReverseLogic.ValueBool)
                 {
-                    return;
-                }
+                    if (lastMaFilter < bb_down)
+                    {
+                        return;
+                    }
 
-                _tab.BuyAtStop(GetVolume(), bb_up + _slippage, bb_up, StopActivateType.HigherOrEqual, 1);
+                    _slippage = Slippage.ValueDecimal * bb_down / 100;
+                    _tab.BuyAtStop(GetVolume(), bb_down + _slippage, bb_down, StopActivateType.LowerOrEqual, 1);
+                }
+                else
+                {
+                    if (lastMaFilter > bb_up)
+                    {
+                        return;
+                    }
+
+                    _slippage = Slippage.ValueDecimal * bb_up / 100;
+                    _tab.BuyAtStop(GetVolume(), bb_up + _slippage, bb_up, StopActivateType.HigherOrEqual, 1);
+                }                
             }
-            _slippage = Slippage.ValueDecimal * bb_down / 100;
 
             if (!SellSignalIsFiltered(candles))
             {
-                if (lastMaFilter < bb_down)
+                if (ReverseLogic.ValueBool)
                 {
-                    return;
-                }
+                    if (lastMaFilter > bb_up)
+                    {
+                        return;
+                    }
 
-                _tab.SellAtStop(GetVolume(), bb_down - _slippage, bb_down, StopActivateType.LowerOrEqyal, 1);
+                    _slippage = Slippage.ValueDecimal * bb_up / 100;
+                    _tab.SellAtStop(GetVolume(), bb_up - _slippage, bb_up, StopActivateType.HigherOrEqual, 1);
+                }
+                else
+                {
+                    if (lastMaFilter < bb_down)
+                    {
+                        return;
+                    }
+
+                    _slippage = Slippage.ValueDecimal * bb_down / 100;
+                    _tab.SellAtStop(GetVolume(), bb_down - _slippage, bb_down, StopActivateType.LowerOrEqual, 1);
+                }                
             }
         }
         else
         {//exit logic
             for (int i = 0; i < positions.Count; i++)
             {
-                _tab.BuyAtStopCancel();
-                _tab.SellAtStopCancel();
-
                 if (positions[i].State != PositionStateType.Open)
                 {
                     continue;
                 }
                 decimal stop_level = 0;
+                decimal trailingStopPercent = 0;
 
                 if (positions[i].Direction == Side.Buy)
                 {// logic to close long position
 
-                    stop_level = bb_down < lastMaFilter ? bb_down : lastMaFilter;
-                    _slippage = Slippage.ValueDecimal * stop_level / 100;
+                    trailingStopPercent = bb_down * TrailingStop.ValueDecimal / 100;
+                    stop_level = bb_down < lastMaFilter ? bb_down - trailingStopPercent : lastMaFilter - trailingStopPercent;
+                    _slippage = _noSlippage ? 0 : Slippage.ValueDecimal * stop_level / 100;
 
-                    _tab.CloseAtTrailingStop(positions[i], stop_level, stop_level - _slippage);
+                    _tab.CloseAtTrailingStop(positions[i], stop_level, stop_level - _slippage);  
+                    
+                    if (ReverseLogic.ValueBool)
+                    {
+                        _slippage = _noSlippage ? 0 : Slippage.ValueDecimal * bb_up / 100;
+                        _tab.CloseAtProfit(positions[i], bb_up, bb_up - _slippage, "Take Profit");
+                    }
                 }
                 else if (positions[i].Direction == Side.Sell)
                 {//logic to close short position
 
-                    stop_level = bb_up > lastMaFilter && bb_up > 0 ? bb_up : lastMaFilter;
-                    _slippage = Slippage.ValueDecimal * stop_level / 100;
+                    trailingStopPercent = bb_up * TrailingStop.ValueDecimal / 100;
+                    stop_level = bb_up > lastMaFilter && bb_up > 0 ? bb_up + trailingStopPercent : lastMaFilter + trailingStopPercent;
+                    _slippage = _noSlippage ? 0 : Slippage.ValueDecimal * stop_level / 100;
 
                     _tab.CloseAtTrailingStop(positions[i], stop_level, stop_level + _slippage);
+
+                    if (ReverseLogic.ValueBool)
+                    {
+                        _slippage = _noSlippage ? 0 : Slippage.ValueDecimal * bb_down / 100;
+                        _tab.CloseAtProfit(positions[i], bb_down, bb_down + _slippage, "Take Profit");
+                    }
                 }
             }
         }
@@ -249,15 +307,16 @@ public class BreakZZChannel : BotPanel
             return true;
             //if the robot's operating mode does not correspond to the direction of the position
         }
-
+        
         if (SmaPositionFilterIsOn.ValueBool)
         {
-            if (_smaFilter.DataSeries[0].Last > lastPrice)
+            if (lastSma > lastPrice)
             {
                 return true;
             }
             // if the price is lower than the last Sma - return true to the top
-        }
+        }        
+        
         if (SmaSlopeFilterIsOn.ValueBool)
         {
             decimal prevSma = _smaFilter.DataSeries[0].Values[_smaFilter.DataSeries[0].Values.Count - 2];
@@ -267,8 +326,8 @@ public class BreakZZChannel : BotPanel
                 return true;
             }
             // if the last Sma is lower than the previous Sma - return true to the top
-        }
-
+        }        
+        
         return false;
     }
 
@@ -284,6 +343,7 @@ public class BreakZZChannel : BotPanel
             return true;
             //if the robot's operating mode does not correspond to the direction of the position
         }
+        
         if (SmaPositionFilterIsOn.ValueBool)
         {
             if (lastSma < lastPrice)
@@ -291,7 +351,8 @@ public class BreakZZChannel : BotPanel
                 return true;
             }
             // if the price is higher than the last Sma - return true to the top
-        }
+        }       
+        
         if (SmaSlopeFilterIsOn.ValueBool)
         {
             decimal prevSma = _smaFilter.DataSeries[0].Values[_smaFilter.DataSeries[0].Values.Count - 2];
@@ -301,7 +362,7 @@ public class BreakZZChannel : BotPanel
                 return true;
             }
             // if the last Sma is higher than the previous Sma - return true to the top
-        }
+        }                
 
         return false;
     }
@@ -322,7 +383,7 @@ public class BreakZZChannel : BotPanel
         }
         else //if (VolumeRegime.ValueString == "% of the total portfolio")
         {
-            volume = _tab.Portfolio.ValueCurrent * (VolumeOnPosition.ValueDecimal / 100) / _tab.PriceBestAsk / _tab.Securiti.Lot;
+            volume = _tab.Portfolio.ValueCurrent * (VolumeOnPosition.ValueDecimal / 100) / _tab.PriceBestAsk / _tab.Security.Lot;
         }
 
         // If the robot is running in the tester
@@ -332,7 +393,7 @@ public class BreakZZChannel : BotPanel
         }
         else
         {
-            volume = Math.Round(volume, _tab.Securiti.DecimalsVolume);
+            volume = Math.Round(volume, _tab.Security.DecimalsVolume);
         }
 
         return volume;

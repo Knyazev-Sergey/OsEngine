@@ -170,22 +170,22 @@ namespace OsEngine.Robots.Trend
                 {
                     if (ReverseLogic.ValueBool)
                     {
-                        _tab.CloseAtTrailingStop(openPositions[i], _lastUpLine, _tab.PriceBestBid - GetSlippage(_tab.PriceBestBid), "TrailingStop");
+                        _tab.CloseAtTrailingStop(openPositions[i], _lastUpLine, _lastUpLine - GetSlippage(_lastUpLine), "TrailingStop");
                     }
                     else
                     {
-                        _tab.CloseAtTrailingStop(openPositions[i], _lastDownLine, _tab.PriceBestBid - GetSlippage(_tab.PriceBestBid), "TrailingStop");
+                        _tab.CloseAtTrailingStop(openPositions[i], _lastDownLine, _lastDownLine - GetSlippage(_lastDownLine), "TrailingStop");
                     }
                 }
                 else
                 {
                     if (ReverseLogic.ValueBool)
                     {
-                        _tab.CloseAtTrailingStop(openPositions[i], _lastDownLine, _tab.PriceBestAsk + GetSlippage(_tab.PriceBestAsk), "TrailingStop");
+                        _tab.CloseAtTrailingStop(openPositions[i], _lastDownLine, _lastDownLine + GetSlippage(_lastDownLine), "TrailingStop");
                     }
                     else
                     {
-                        _tab.CloseAtTrailingStop(openPositions[i], _lastUpLine, _tab.PriceBestAsk + GetSlippage(_tab.PriceBestAsk), "TrailingStop");
+                        _tab.CloseAtTrailingStop(openPositions[i], _lastUpLine, _lastUpLine + GetSlippage(_lastUpLine), "TrailingStop");
                     }
                 }
             }  

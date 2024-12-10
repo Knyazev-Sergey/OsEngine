@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net.NetworkInformation;
+using System.Windows.Media.Effects;
 using OsEngine.Entity;
 using OsEngine.Indicators;
 using OsEngine.OsTrader.Panels;
@@ -7,16 +9,17 @@ using OsEngine.OsTrader.Panels.Attributes;
 using OsEngine.OsTrader.Panels.Tab;
 
 [Bot("BreakLinearRegressionChannelRevers")]
-public class BreakLinearRegressionChannelRevers : BotPanel
+public class BreakLRChannelReverse : BotPanel
 {
     private BotTabSimple _tab;
 
-    public StrategyParameterString Regime;
-    public StrategyParameterBool Reverse;
-    public StrategyParameterDecimal VolumeOnPosition;
-    public StrategyParameterString VolumeRegime;
-    public StrategyParameterInt VolumeDecimals;
-    public StrategyParameterDecimal Slippage;
+    private StrategyParameterString Regime;
+    private StrategyParameterBool ReverseLogic;
+    private StrategyParameterDecimal VolumeOnPosition;
+    private StrategyParameterString VolumeRegime;
+    private StrategyParameterInt VolumeDecimals;
+    private StrategyParameterDecimal Slippage;
+    private StrategyParameterDecimal TrailingStop;
 
     private StrategyParameterTimeOfDay TimeStart;
     private StrategyParameterTimeOfDay TimeEnd;    
@@ -25,24 +28,25 @@ public class BreakLinearRegressionChannelRevers : BotPanel
     private StrategyParameterDecimal UpDeviation;
     private StrategyParameterInt PeriodLR;
 
-    public Aindicator _smaFilter;
+    private Aindicator _smaFilter;
     private StrategyParameterInt SmaLengthFilter;
-    public StrategyParameterBool SmaPositionFilterIsOn;
-    public StrategyParameterBool SmaSlopeFilterIsOn;
 
-    public BreakLinearRegressionChannelRevers(string name, StartProgram startProgram)
+    private bool _noSlippage = false;
+
+    public BreakLRChannelReverse(string name, StartProgram startProgram)
         : base(name, startProgram)
     {
         TabCreate(BotTabType.Simple);
         _tab = TabsSimple[0];
        
         Regime = CreateParameter("Regime", "Off", new[] { "Off", "On", "OnlyLong", "OnlyShort", "OnlyClosePosition" }, "Base");
-        Reverse = CreateParameter("Reverse logic", false, "Base");
+        ReverseLogic = CreateParameter("Reverse logic", false, "Base");
         VolumeRegime = CreateParameter("Volume type", "Number of contracts", new[] { "Number of contracts", "Contract currency", "% of the total portfolio" }, "Base");
         VolumeDecimals = CreateParameter("Number of Digits after the decimal point in the volume", 2, 1, 50, 4, "Base");
         VolumeOnPosition = CreateParameter("Volume", 10, 1.0m, 50, 4, "Base");
 
         Slippage = CreateParameter("Slippage %", 0m, 0, 20, 1, "Base");
+        TrailingStop = CreateParameter("Trailing stop %", 0m, 0, 20, 0.1m, "Base");
 
         TimeStart = CreateParameterTimeOfDay("Start Trade Time", 0, 0, 0, 0, "Base");
         TimeEnd = CreateParameterTimeOfDay("End Trade Time", 24, 0, 0, 0, "Base");
@@ -51,15 +55,13 @@ public class BreakLinearRegressionChannelRevers : BotPanel
         UpDeviation = CreateParameter("Deviation LR", 1, 0.1m, 3, 0.1m, "Robot parameters");
 
         SmaLengthFilter = CreateParameter("Sma Length Filter", 100, 10, 500, 1, "Filters");
-        SmaPositionFilterIsOn = CreateParameter("Is SMA Filter On", false, "Filters");
-
-        SmaSlopeFilterIsOn = CreateParameter("Is Sma Slope Filter On", false, "Filters");
+        
         _smaFilter = IndicatorsFactory.CreateIndicatorByName(nameClass: "Sma", name: name + "Sma_Filter", canDelete: false);
         _smaFilter = (Aindicator)_tab.CreateCandleIndicator(_smaFilter, nameArea: "Prime");
         _smaFilter.DataSeries[0].Color = System.Drawing.Color.Azure;
         _smaFilter.ParametersDigit[0].Value = SmaLengthFilter.ValueInt;
+        _smaFilter.IsOn = true;
         _smaFilter.Save();
-
 
         _LinearRegression = IndicatorsFactory.CreateIndicatorByName("LinearRegressionChannelFast_Indicator", name + "LinearRegressionChannel", false);
         _LinearRegression = (Aindicator)_tab.CreateCandleIndicator(_LinearRegression, "Prime");
@@ -68,17 +70,19 @@ public class BreakLinearRegressionChannelRevers : BotPanel
         _LinearRegression.ParametersDigit[2].Value = UpDeviation.ValueDecimal;
         _LinearRegression.Save();
 
-        StopOrActivateIndicators();
+        if (_tab.StartProgram == StartProgram.IsTester ||
+            _tab.StartProgram == StartProgram.IsOsOptimizer)
+        {
+            _noSlippage = true;
+        }
+
         _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;
         ParametrsChangeByUser += LinearRegressionTraderParam_ParametrsChangeByUser;
         LinearRegressionTraderParam_ParametrsChangeByUser();
-
     }
 
     private void LinearRegressionTraderParam_ParametrsChangeByUser()
     {
-        StopOrActivateIndicators();
-
         if (_LinearRegression.ParametersDigit[0].Value != PeriodLR.ValueInt ||
         _LinearRegression.ParametersDigit[1].Value != UpDeviation.ValueDecimal ||
         _LinearRegression.ParametersDigit[2].Value != UpDeviation.ValueDecimal)
@@ -100,37 +104,6 @@ public class BreakLinearRegressionChannelRevers : BotPanel
             _smaFilter.ParametersDigit[0].Value = SmaLengthFilter.ValueInt;
             _smaFilter.Reload();
             _smaFilter.Save();
-        }
-
-        if (_smaFilter.DataSeries != null && _smaFilter.DataSeries.Count > 0)
-        {
-            if (!SmaPositionFilterIsOn.ValueBool)
-            {
-                _smaFilter.DataSeries[0].IsPaint = false;
-            }
-            else
-            {
-                _smaFilter.DataSeries[0].IsPaint = true;
-            }
-        }
-
-    }
-
-    private void StopOrActivateIndicators()
-    {
-        if (SmaPositionFilterIsOn.ValueBool == false
-                  && SmaSlopeFilterIsOn.ValueBool == false
-                  && _smaFilter.IsOn == true)
-        {
-            _smaFilter.IsOn = false;
-            _smaFilter.Reload();
-        }
-        else if ((SmaPositionFilterIsOn.ValueBool == true
-            || SmaSlopeFilterIsOn.ValueBool == true)
-            && _smaFilter.IsOn == false)
-        {
-            _smaFilter.IsOn = true;
-            _smaFilter.Reload();
         }
     }
 
@@ -176,12 +149,10 @@ public class BreakLinearRegressionChannelRevers : BotPanel
         {
             TryClosePosition(positions[0], candles);
         }
-
     }
 
     private bool BuySignalIsFiltered(List<Candle> candles)
     {
-
         decimal lastPrice = candles[candles.Count - 1].Close;
         decimal lastSma = _smaFilter.DataSeries[0].Last;
         // фильтр для покупок
@@ -193,24 +164,19 @@ public class BreakLinearRegressionChannelRevers : BotPanel
             //если режим работы робота не соответсвует направлению позиции
         }
 
-        if (SmaPositionFilterIsOn.ValueBool)
+        if (_smaFilter.DataSeries[0].Last > lastPrice)
         {
-            if (_smaFilter.DataSeries[0].Last > lastPrice)
-            {
-                return true;
-            }
-            // если цена ниже последней сма - возвращаем на верх true
+            return true;
         }
-        if (SmaSlopeFilterIsOn.ValueBool)
-        {
-            decimal prevSma = _smaFilter.DataSeries[0].Values[_smaFilter.DataSeries[0].Values.Count - 2];
+        // если цена ниже последней сма - возвращаем на верх true
 
-            if (lastSma < prevSma)
-            {
-                return true;
-            }
-            // если последняя сма ниже предыдущей сма - возвращаем на верх true
+        decimal prevSma = _smaFilter.DataSeries[0].Values[_smaFilter.DataSeries[0].Values.Count - 2];
+
+        if (lastSma < prevSma)
+        {
+            return true;
         }
+        // если последняя сма ниже предыдущей сма - возвращаем на верх true
 
         return false;
     }
@@ -227,32 +193,28 @@ public class BreakLinearRegressionChannelRevers : BotPanel
             return true;
             //если режим работы робота не соответсвует направлению позиции
         }
-        if (SmaPositionFilterIsOn.ValueBool)
-        {
-            if (lastSma < lastPrice)
-            {
-                return true;
-            }
-            // если цена выше последней сма - возвращаем на верх true
-        }
-        if (SmaSlopeFilterIsOn.ValueBool)
-        {
-            decimal prevSma = _smaFilter.DataSeries[0].Values[_smaFilter.DataSeries[0].Values.Count - 2];
 
-            if (lastSma > prevSma)
-            {
-                return true;
-            }
-            // если последняя сма выше предыдущей сма - возвращаем на верх true
+        if (lastSma < lastPrice)
+        {
+            return true;
         }
+        // если цена выше последней сма - возвращаем на верх true
 
+        decimal prevSma = _smaFilter.DataSeries[0].Values[_smaFilter.DataSeries[0].Values.Count - 2];
+
+        if (lastSma > prevSma)
+        {
+            return true;
+        }
+        // если последняя сма выше предыдущей сма - возвращаем на верх true
+        
         return false;
     }
 
     private void TryOpenPosition(List<Candle> candles)
     {
-        decimal upChannel = _LinearRegression.DataSeries[0].Values[_LinearRegression.DataSeries[0].Values.Count - 1];
-        decimal downChannel = _LinearRegression.DataSeries[2].Values[_LinearRegression.DataSeries[2].Values.Count - 1];
+        decimal upChannel = _LinearRegression.DataSeries[0].Last;
+        decimal downChannel = _LinearRegression.DataSeries[2].Last;
 
         if (upChannel == 0 ||
             downChannel == 0)
@@ -260,47 +222,77 @@ public class BreakLinearRegressionChannelRevers : BotPanel
             return;
         }
 
-        bool signalBuy = candles[candles.Count - 1].Close > upChannel;
-        bool signalShort = candles[candles.Count - 1].Close < downChannel;
+        bool signalUpLine = candles[candles.Count - 1].Close > upChannel;
+        bool signalDownLine = candles[candles.Count - 1].Close < downChannel;
 
-        if (signalBuy) // При получении сигнала на вход в длинную позицию
+        if (signalUpLine) // При пересечении верхней линии канала
         {
-            if(!BuySignalIsFiltered(candles))//если метод возвращает false можно входить в сделку
-                _tab.BuyAtMarket(GetVolume()); // Купить по рынку на открытии следующей свечки
+            if (ReverseLogic.ValueBool)
+            {
+                if (!SellSignalIsFiltered(candles))//если метод возвращает false можно входить в сделку
+                    _tab.SellAtLimit(GetVolume(), upChannel - GetSlippage(upChannel));
+            }
+            else
+            {
+                if (!BuySignalIsFiltered(candles))//если метод возвращает false можно входить в сделку
+                    _tab.BuyAtLimit(GetVolume(), upChannel + GetSlippage(upChannel));
+            }            
         }
-        else if (signalShort) // При получении сигнала на вход в короткую позицию
+        else if (signalDownLine) // При пересечении нижней линии канала
         {
-            if(!SellSignalIsFiltered(candles))//если метод возвращает false можно входить в сделку
-                _tab.SellAtMarket(GetVolume()); // Продать по рынку на открытии следующей свечки
+            if (ReverseLogic.ValueBool)
+            {
+                if (!BuySignalIsFiltered(candles))//если метод возвращает false можно входить в сделку
+                    _tab.BuyAtLimit(GetVolume(), upChannel + GetSlippage(upChannel));
+            }
+            else
+            {
+                if (!SellSignalIsFiltered(candles))//если метод возвращает false можно входить в сделку
+                    _tab.SellAtLimit(GetVolume(), upChannel - GetSlippage(upChannel));
+            }            
         }
     }
 
     private void TryClosePosition(Position position, List<Candle> candles)
     {
-        decimal upChannel = _LinearRegression.DataSeries[0].Values[_LinearRegression.DataSeries[0].Values.Count - 1];
-        decimal downChannel = _LinearRegression.DataSeries[2].Values[_LinearRegression.DataSeries[2].Values.Count - 1];
+        decimal upChannel = _LinearRegression.DataSeries[0].Last;
+        decimal downChannel = _LinearRegression.DataSeries[2].Last;
+        decimal sma = _smaFilter.DataSeries[0].Last;
 
         if (upChannel == 0 ||
             downChannel == 0)
         {
             return;
         }
-
-        decimal extPrice = 0;
-
+        
         if (position.Direction == Side.Buy)
         {
-            extPrice = downChannel;
-            decimal _slippage = Slippage.ValueDecimal * extPrice / 100;
-            _tab.CloseAtStop(position, extPrice, extPrice - _slippage);
+            if (ReverseLogic.ValueBool)
+            {
+                decimal slippage = _noSlippage ? 0 : GetSlippage(sma);
+                _tab.CloseAtProfit(position, upChannel, upChannel - GetSlippage(upChannel));
+                _tab.CloseAtTrailingStop(position, sma, sma - slippage);
+            }
+            else
+            {
+                decimal slippage = _noSlippage ? 0 : GetSlippage(downChannel);
+                _tab.CloseAtTrailingStop(position, downChannel, downChannel - slippage);
+            }            
         }
         else if (position.Direction == Side.Sell)
-        {
-            extPrice = upChannel;
-            decimal _slippage = Slippage.ValueDecimal * extPrice / 100;
-            _tab.CloseAtStop(position, extPrice, extPrice + _slippage);
-        }    
-       
+        {            
+            if (ReverseLogic.ValueBool)
+            {
+                decimal slippage = _noSlippage ? 0 : GetSlippage(sma);
+                _tab.CloseAtProfit(position, downChannel, downChannel + GetSlippage(downChannel));
+                _tab.CloseAtTrailingStop(position, sma, sma + slippage);
+            }
+            else
+            {
+                decimal slippage = _noSlippage ? 0 : GetSlippage(downChannel);
+                _tab.CloseAtTrailingStop(position, upChannel, upChannel + slippage);
+            }            
+        }           
     }
 
     private void CancelStopsAndProfits()
@@ -337,5 +329,10 @@ public class BreakLinearRegressionChannelRevers : BotPanel
         {
             return Math.Round(_tab.Portfolio.ValueCurrent * (volume / 100) / _tab.PriceBestAsk / _tab.Security.Lot, VolumeDecimals.ValueInt);
         }
+    }
+
+    private decimal GetSlippage(decimal price)
+    {
+        return price * Slippage.ValueDecimal / 100;
     }
 }
