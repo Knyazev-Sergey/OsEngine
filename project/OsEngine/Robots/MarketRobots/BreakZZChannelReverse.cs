@@ -15,7 +15,6 @@ public class BreakZZChannelReverse : BotPanel
     private StrategyParameterDecimal VolumeOnPosition;
     private StrategyParameterString VolumeRegime;
     private StrategyParameterDecimal Slippage;
-    private StrategyParameterDecimal TrailingStop;
 
     private StrategyParameterTimeOfDay TimeStart;
     private StrategyParameterTimeOfDay TimeEnd;
@@ -24,8 +23,6 @@ public class BreakZZChannelReverse : BotPanel
     private StrategyParameterInt SmaLengthFilter;
     private StrategyParameterBool SmaPositionFilterIsOn;
     private StrategyParameterBool SmaSlopeFilterIsOn;
-
-    private bool _noSlippage = false;
 
     private Aindicator _zz;
     private StrategyParameterInt _lengthZZ;
@@ -37,10 +34,9 @@ public class BreakZZChannelReverse : BotPanel
 
         Regime = CreateParameter("Regime", "Off", new[] { "Off", "On", "OnlyLong", "OnlyShort", "OnlyClosePosition" }, "Base");
         ReverseLogic = CreateParameter("Reverse logic", true, "Base");
-        VolumeRegime = CreateParameter("Volume type", "Number of contracts", new[] { "Number of contracts", "Contract currency", "% of the total portfolio" }, "Base");
+        VolumeRegime = CreateParameter("Volume type", "Number of contracts", new[] { "Number of contracts", "Contract currency" }, "Base");
         VolumeOnPosition = CreateParameter("Volume", 10, 1.0m, 50, 4, "Base");
         Slippage = CreateParameter("Slippage %", 0m, 0, 20, 1, "Base");
-        TrailingStop = CreateParameter("Trailing stop %", 0m, 0, 20, 0.1m, "Base");
 
         TimeStart = CreateParameterTimeOfDay("Start Trade Time", 0, 0, 0, 0, "Base");
         TimeEnd = CreateParameterTimeOfDay("End Trade Time", 24, 0, 0, 0, "Base");
@@ -62,13 +58,7 @@ public class BreakZZChannelReverse : BotPanel
         _zz = (Aindicator)_tab.CreateCandleIndicator(_zz, nameArea: "Prime");
         _zz.ParametersDigit[0].Value = _lengthZZ.ValueInt;
         _zz.Save();
-
-        if (_tab.StartProgram == StartProgram.IsTester ||
-            _tab.StartProgram == StartProgram.IsOsOptimizer)
-        {
-            _noSlippage = true;
-        }
-        
+               
         StopOrActivateIndicators();
         ParametrsChangeByUser += LRegBot_ParametrsChangeByUser;
         _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;
@@ -242,37 +232,33 @@ public class BreakZZChannelReverse : BotPanel
                 {
                     continue;
                 }
-                decimal stop_level = 0;
-                decimal trailingStopPercent = 0;
-
+                
                 if (positions[i].Direction == Side.Buy)
                 {// logic to close long position
-
-                    trailingStopPercent = bb_down * TrailingStop.ValueDecimal / 100;
-                    stop_level = bb_down < lastMaFilter ? bb_down - trailingStopPercent : lastMaFilter - trailingStopPercent;
-                    _slippage = _noSlippage ? 0 : Slippage.ValueDecimal * stop_level / 100;
-
-                    _tab.CloseAtTrailingStop(positions[i], stop_level, stop_level - _slippage);  
-                    
+   
                     if (ReverseLogic.ValueBool)
                     {
-                        _slippage = _noSlippage ? 0 : Slippage.ValueDecimal * bb_up / 100;
-                        _tab.CloseAtProfit(positions[i], bb_up, bb_up - _slippage, "Take Profit");
+                        _slippage = Slippage.ValueDecimal * bb_up / 100;
+                        _tab.CloseAtProfit(positions[i], bb_up, bb_up - _slippage);
+                    }
+                    else
+                    {
+                        _slippage = Slippage.ValueDecimal * bb_down / 100;
+                        _tab.CloseAtStop(positions[i], bb_down, bb_down - _slippage);
                     }
                 }
                 else if (positions[i].Direction == Side.Sell)
                 {//logic to close short position
 
-                    trailingStopPercent = bb_up * TrailingStop.ValueDecimal / 100;
-                    stop_level = bb_up > lastMaFilter && bb_up > 0 ? bb_up + trailingStopPercent : lastMaFilter + trailingStopPercent;
-                    _slippage = _noSlippage ? 0 : Slippage.ValueDecimal * stop_level / 100;
-
-                    _tab.CloseAtTrailingStop(positions[i], stop_level, stop_level + _slippage);
-
                     if (ReverseLogic.ValueBool)
                     {
-                        _slippage = _noSlippage ? 0 : Slippage.ValueDecimal * bb_down / 100;
-                        _tab.CloseAtProfit(positions[i], bb_down, bb_down + _slippage, "Take Profit");
+                        _slippage = Slippage.ValueDecimal * bb_down / 100;
+                        _tab.CloseAtProfit(positions[i], bb_down, bb_down + _slippage);
+                    }
+                    else
+                    {
+                        _slippage = Slippage.ValueDecimal * bb_up / 100;
+                        _tab.CloseAtStop(positions[i], bb_up, bb_up + _slippage);
                     }
                 }
             }
@@ -381,11 +367,7 @@ public class BreakZZChannelReverse : BotPanel
         {
             volume = VolumeOnPosition.ValueDecimal;
         }
-        else //if (VolumeRegime.ValueString == "% of the total portfolio")
-        {
-            volume = _tab.Portfolio.ValueCurrent * (VolumeOnPosition.ValueDecimal / 100) / _tab.PriceBestAsk / _tab.Security.Lot;
-        }
-
+        
         // If the robot is running in the tester
         if (StartProgram == StartProgram.IsTester)
         {

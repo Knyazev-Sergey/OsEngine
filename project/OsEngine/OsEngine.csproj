@@ -1159,7 +1159,7 @@
     <Compile Include="Robots\MarketRobots\BreakLRChannelReverse.cs" />
     <Compile Include="Robots\MarketRobots\BreakZZChannelReverse.cs" />
     <Compile Include="Robots\MarketRobots\CollectorLiquidity.cs" />
-    <Compile Include="Robots\MarketRobots\ReverseAdaptivePriceChannelPlus.cs" />
+    <Compile Include="Robots\MarketRobots\ReverseAdaptivePriceChannelPlus_2.cs" />
     <Compile Include="Robots\PositionsMicromanagement\AlligatorTrendAverage.cs" />
     <Compile Include="Robots\PositionsMicromanagement\CandlesTurnaroundPattern.cs" />
     <Compile Include="Robots\PositionsMicromanagement\CustomIcebergSample.cs" />

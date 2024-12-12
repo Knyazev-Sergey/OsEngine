@@ -14,12 +14,13 @@ using OsEngine.OsTrader.Panels.Tab;
 
 namespace OsEngine.Robots.MyBots
 {
-    [Bot("ReverseAdaptivePriceChannelPlus")]
-    public class ReverseAdaptivePriceChannelPlus : BotPanel
+    [Bot("ReverseAdaptivePriceChannelPlus_2")]
+    public class ReverseAdaptivePriceChannelPlus_2 : BotPanel
     {
         private readonly BotTabSimple _tab;
 
         public StrategyParameterString Regime;
+        private StrategyParameterBool ReverseLogic;
         public StrategyParameterDecimal VolumeOnPosition;
         public StrategyParameterString VolumeRegime;
         public StrategyParameterDecimal Slippage;
@@ -48,12 +49,13 @@ namespace OsEngine.Robots.MyBots
         private readonly RequestContent _requestContent = new RequestContent();
         //-------------------------------------------------------
 
-        public ReverseAdaptivePriceChannelPlus(string name, StartProgram startProgram) : base(name, startProgram)
+        public ReverseAdaptivePriceChannelPlus_2(string name, StartProgram startProgram) : base(name, startProgram)
         {
             TabCreate(BotTabType.Simple);
             _tab = TabsSimple[0];
 
             Regime = CreateParameter("Regime", "Off", new[] { "Off", "On", "OnlyLong", "OnlyShort", "OnlyClosePosition" }, "Base");
+            ReverseLogic = CreateParameter("Reverse logic", false, "Base");
             VolumeRegime = CreateParameter("Volume type", "Number of contracts", new[] { "Number of contracts", "Contract currency", "% of the total portfolio" }, "Base");
             VolumeOnPosition = CreateParameter("Volume", 10, 1.0m, 50, 4, "Base");
 
@@ -175,7 +177,7 @@ namespace OsEngine.Robots.MyBots
 
         public override string GetNameStrategyType()
         {
-            return "ReverseAdaptivePriceChannelPlus";
+            return "ReverseAdaptivePriceChannelPlus_2";
         }
 
         public override void ShowIndividualSettingsDialog()
@@ -267,18 +269,38 @@ namespace OsEngine.Robots.MyBots
             {
                 if (BuySignalIsFiltered(candles) == false)
                 {
-                    decimal slippage = Slippage.ValueDecimal * upChannel / 100;
                     _tab.BuyAtStopCancel();
-                    _tab.BuyAtStop(GetVolume(), upChannel + _tab.Securiti.PriceStep + slippage, upChannel + _tab.Securiti.PriceStep,
-                        StopActivateType.HigherOrEqual);
+
+                    if (ReverseLogic.ValueBool)
+                    {
+                        decimal slippage = Slippage.ValueDecimal * downChannel / 100;
+                        _tab.BuyAtStop(GetVolume(), downChannel + _tab.Security.PriceStep + slippage, downChannel + _tab.Security.PriceStep,
+                            StopActivateType.LowerOrEqual);
+                    }
+                    else
+                    {
+                        decimal slippage = Slippage.ValueDecimal * upChannel / 100;                        
+                        _tab.BuyAtStop(GetVolume(), upChannel + _tab.Security.PriceStep + slippage, upChannel + _tab.Security.PriceStep,
+                            StopActivateType.HigherOrEqual);
+                    }                    
                 }
 
                 if (SellSignalIsFiltered(candles) == false)
                 {
-                    decimal slippage = Slippage.ValueDecimal * downChannel / 100;
                     _tab.SellAtStopCancel();
-                    _tab.SellAtStop(GetVolume(), downChannel - _tab.Securiti.PriceStep - slippage, downChannel - _tab.Securiti.PriceStep,
-                        StopActivateType.LowerOrEqyal);
+
+                    if (ReverseLogic.ValueBool)
+                    {
+                        decimal slippage = Slippage.ValueDecimal * upChannel / 100;
+                        _tab.SellAtStop(GetVolume(), upChannel - _tab.Security.PriceStep - slippage, upChannel - _tab.Security.PriceStep,
+                            StopActivateType.HigherOrEqual);
+                    }
+                    else
+                    {
+                        decimal slippage = Slippage.ValueDecimal * downChannel / 100;                        
+                        _tab.SellAtStop(GetVolume(), downChannel - _tab.Security.PriceStep - slippage, downChannel - _tab.Security.PriceStep,
+                            StopActivateType.LowerOrEqual);
+                    }                    
                 }
             }
             else
@@ -288,11 +310,6 @@ namespace OsEngine.Robots.MyBots
 
                 Position pos = positions[0];
 
-                if (positions.Count > 1)
-                {
-
-                }
-
                 if (pos.CloseActiv)
                 {
                     return;
@@ -300,14 +317,26 @@ namespace OsEngine.Robots.MyBots
 
                 if (pos.Direction == Side.Buy)
                 {
-                    decimal priceLine = downChannel - _tab.Securiti.PriceStep;
-                    decimal priceOrder = downChannel - _tab.Securiti.PriceStep;
-                    decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
-
                     if (SellSignalIsFiltered(candles) == false)
                     {
                         _tab.SellAtStopCancel();
-                        _tab.SellAtStop(GetVolume(), priceOrder - slippage, priceLine, StopActivateType.LowerOrEqyal);
+
+                        if (ReverseLogic.ValueBool)
+                        {
+                            decimal priceLine = upChannel - _tab.Security.PriceStep;
+                            decimal priceOrder = upChannel - _tab.Security.PriceStep;
+                            decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
+
+                            _tab.SellAtStop(GetVolume(), priceOrder - slippage, priceLine, StopActivateType.HigherOrEqual);
+                        }
+                        else
+                        {
+                            decimal priceLine = downChannel - _tab.Security.PriceStep;
+                            decimal priceOrder = downChannel - _tab.Security.PriceStep;
+                            decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
+
+                            _tab.SellAtStop(GetVolume(), priceOrder - slippage, priceLine, StopActivateType.LowerOrEqual);
+                        }
                     }
 
                     //если коэф. longshort > LongShortRatioSell и фильтр включен
@@ -319,18 +348,46 @@ namespace OsEngine.Robots.MyBots
                             _tab.CloseAtMarket(pos, pos.OpenVolume); //закрываем позицию по рынку
                     }
 
-                    _tab.CloseAtStop(pos, priceLine, priceOrder - slippage);
+                    if (ReverseLogic.ValueBool)
+                    {
+                        decimal priceLine = upChannel - _tab.Security.PriceStep;
+                        decimal priceOrder = upChannel - _tab.Security.PriceStep;
+                        decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
+
+                        _tab.CloseAtProfit(pos, priceLine, priceOrder - slippage);
+                    }
+                    else
+                    {
+                        decimal priceLine = downChannel - _tab.Security.PriceStep;
+                        decimal priceOrder = downChannel - _tab.Security.PriceStep;
+                        decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
+
+                        _tab.CloseAtStop(pos, priceLine, priceOrder - slippage);
+                    }
+                    
                 }
                 else if (pos.Direction == Side.Sell)
                 {
-                    decimal priceLine = upChannel + _tab.Securiti.PriceStep;
-                    decimal priceOrder = upChannel + _tab.Securiti.PriceStep;
-                    decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
+                    _tab.BuyAtStopCancel();
 
                     if (BuySignalIsFiltered(candles) == false)
                     {
-                        _tab.BuyAtStopCancel();
-                        _tab.BuyAtStop(GetVolume(), priceOrder + slippage, priceLine, StopActivateType.HigherOrEqual);
+                        if (ReverseLogic.ValueBool)
+                        {
+                            decimal priceLine = downChannel + _tab.Security.PriceStep;
+                            decimal priceOrder = downChannel + _tab.Security.PriceStep;
+                            decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
+
+                            _tab.BuyAtStop(GetVolume(), priceOrder + slippage, priceLine, StopActivateType.HigherOrEqual);
+                        }
+                        else
+                        {
+                            decimal priceLine = upChannel + _tab.Security.PriceStep;
+                            decimal priceOrder = upChannel + _tab.Security.PriceStep;
+                            decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
+
+                            _tab.BuyAtStop(GetVolume(), priceOrder + slippage, priceLine, StopActivateType.HigherOrEqual);
+                        }
                     }
 
                     if (LongShortRatioFilterIsOn.ValueBool)
@@ -341,7 +398,21 @@ namespace OsEngine.Robots.MyBots
                             _tab.CloseAtMarket(pos, pos.OpenVolume);
                     }
 
-                    _tab.CloseAtStop(pos, priceLine, priceOrder + slippage);
+                    if (ReverseLogic.ValueBool)
+                    {
+                        decimal priceLine = downChannel + _tab.Security.PriceStep;
+                        decimal priceOrder = downChannel + _tab.Security.PriceStep;
+                        decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
+
+                        _tab.CloseAtProfit(pos, priceLine, priceOrder + slippage);
+                    }
+                    else
+                    {
+                        decimal priceLine = upChannel + _tab.Security.PriceStep;
+                        decimal priceOrder = upChannel + _tab.Security.PriceStep;
+                        decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
+                        _tab.CloseAtStop(pos, priceLine, priceOrder + slippage);
+                    }                    
                 }
             }
         }

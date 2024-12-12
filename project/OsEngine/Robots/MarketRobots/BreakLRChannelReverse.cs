@@ -19,7 +19,6 @@ public class BreakLRChannelReverse : BotPanel
     private StrategyParameterString VolumeRegime;
     private StrategyParameterInt VolumeDecimals;
     private StrategyParameterDecimal Slippage;
-    private StrategyParameterDecimal TrailingStop;
 
     private StrategyParameterTimeOfDay TimeStart;
     private StrategyParameterTimeOfDay TimeEnd;    
@@ -31,8 +30,6 @@ public class BreakLRChannelReverse : BotPanel
     private Aindicator _smaFilter;
     private StrategyParameterInt SmaLengthFilter;
 
-    private bool _noSlippage = false;
-
     public BreakLRChannelReverse(string name, StartProgram startProgram)
         : base(name, startProgram)
     {
@@ -41,12 +38,11 @@ public class BreakLRChannelReverse : BotPanel
        
         Regime = CreateParameter("Regime", "Off", new[] { "Off", "On", "OnlyLong", "OnlyShort", "OnlyClosePosition" }, "Base");
         ReverseLogic = CreateParameter("Reverse logic", false, "Base");
-        VolumeRegime = CreateParameter("Volume type", "Number of contracts", new[] { "Number of contracts", "Contract currency", "% of the total portfolio" }, "Base");
+        VolumeRegime = CreateParameter("Volume type", "Number of contracts", new[] { "Number of contracts", "Contract currency"}, "Base");
         VolumeDecimals = CreateParameter("Number of Digits after the decimal point in the volume", 2, 1, 50, 4, "Base");
         VolumeOnPosition = CreateParameter("Volume", 10, 1.0m, 50, 4, "Base");
 
         Slippage = CreateParameter("Slippage %", 0m, 0, 20, 1, "Base");
-        TrailingStop = CreateParameter("Trailing stop %", 0m, 0, 20, 0.1m, "Base");
 
         TimeStart = CreateParameterTimeOfDay("Start Trade Time", 0, 0, 0, 0, "Base");
         TimeEnd = CreateParameterTimeOfDay("End Trade Time", 24, 0, 0, 0, "Base");
@@ -69,12 +65,6 @@ public class BreakLRChannelReverse : BotPanel
         _LinearRegression.ParametersDigit[1].Value = UpDeviation.ValueDecimal;
         _LinearRegression.ParametersDigit[2].Value = UpDeviation.ValueDecimal;
         _LinearRegression.Save();
-
-        if (_tab.StartProgram == StartProgram.IsTester ||
-            _tab.StartProgram == StartProgram.IsOsOptimizer)
-        {
-            _noSlippage = true;
-        }
 
         _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;
         ParametrsChangeByUser += LinearRegressionTraderParam_ParametrsChangeByUser;
@@ -147,7 +137,7 @@ public class BreakLRChannelReverse : BotPanel
         }
         else
         {
-            TryClosePosition(positions[0], candles);
+            TryClosePosition(positions[0]);
         }
     }
 
@@ -253,11 +243,10 @@ public class BreakLRChannelReverse : BotPanel
         }
     }
 
-    private void TryClosePosition(Position position, List<Candle> candles)
+    private void TryClosePosition(Position position)
     {
         decimal upChannel = _LinearRegression.DataSeries[0].Last;
         decimal downChannel = _LinearRegression.DataSeries[2].Last;
-        decimal sma = _smaFilter.DataSeries[0].Last;
 
         if (upChannel == 0 ||
             downChannel == 0)
@@ -269,28 +258,22 @@ public class BreakLRChannelReverse : BotPanel
         {
             if (ReverseLogic.ValueBool)
             {
-                decimal slippage = _noSlippage ? 0 : GetSlippage(sma);
                 _tab.CloseAtProfit(position, upChannel, upChannel - GetSlippage(upChannel));
-                _tab.CloseAtTrailingStop(position, sma, sma - slippage);
             }
             else
             {
-                decimal slippage = _noSlippage ? 0 : GetSlippage(downChannel);
-                _tab.CloseAtTrailingStop(position, downChannel, downChannel - slippage);
+                _tab.CloseAtStop(position, downChannel, downChannel - GetSlippage(downChannel));
             }            
         }
         else if (position.Direction == Side.Sell)
         {            
             if (ReverseLogic.ValueBool)
             {
-                decimal slippage = _noSlippage ? 0 : GetSlippage(sma);
                 _tab.CloseAtProfit(position, downChannel, downChannel + GetSlippage(downChannel));
-                _tab.CloseAtTrailingStop(position, sma, sma + slippage);
             }
             else
             {
-                decimal slippage = _noSlippage ? 0 : GetSlippage(downChannel);
-                _tab.CloseAtTrailingStop(position, upChannel, upChannel + slippage);
+                _tab.CloseAtStop(position, upChannel, upChannel + GetSlippage(upChannel));
             }            
         }           
     }
@@ -321,14 +304,10 @@ public class BreakLRChannelReverse : BotPanel
             volume = Math.Round(VolumeOnPosition.ValueDecimal / contractPrice, VolumeDecimals.ValueInt);
             return volume;
         }
-        else if (VolumeRegime.ValueString == "Number of contracts")
+        else //if (VolumeRegime.ValueString == "Number of contracts")
         {
             return volume;
-        }
-        else //if (VolumeRegime.ValueString == "% of the total portfolio")
-        {
-            return Math.Round(_tab.Portfolio.ValueCurrent * (volume / 100) / _tab.PriceBestAsk / _tab.Security.Lot, VolumeDecimals.ValueInt);
-        }
+        }        
     }
 
     private decimal GetSlippage(decimal price)
