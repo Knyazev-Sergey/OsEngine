@@ -274,13 +274,13 @@ namespace OsEngine.Robots.MyBots
                     if (ReverseLogic.ValueBool)
                     {
                         decimal slippage = Slippage.ValueDecimal * downChannel / 100;
-                        _tab.BuyAtStop(GetVolume(), downChannel + _tab.Security.PriceStep + slippage, downChannel + _tab.Security.PriceStep,
+                        _tab.BuyAtStop(GetVolume(), downChannel + _tab.Securiti.PriceStep + slippage, downChannel + _tab.Securiti.PriceStep,
                             StopActivateType.LowerOrEqual);
                     }
                     else
                     {
                         decimal slippage = Slippage.ValueDecimal * upChannel / 100;                        
-                        _tab.BuyAtStop(GetVolume(), upChannel + _tab.Security.PriceStep + slippage, upChannel + _tab.Security.PriceStep,
+                        _tab.BuyAtStop(GetVolume(), upChannel + _tab.Securiti.PriceStep + slippage, upChannel + _tab.Securiti.PriceStep,
                             StopActivateType.HigherOrEqual);
                     }                    
                 }
@@ -292,13 +292,13 @@ namespace OsEngine.Robots.MyBots
                     if (ReverseLogic.ValueBool)
                     {
                         decimal slippage = Slippage.ValueDecimal * upChannel / 100;
-                        _tab.SellAtStop(GetVolume(), upChannel - _tab.Security.PriceStep - slippage, upChannel - _tab.Security.PriceStep,
+                        _tab.SellAtStop(GetVolume(), upChannel - _tab.Securiti.PriceStep - slippage, upChannel - _tab.Securiti.PriceStep,
                             StopActivateType.HigherOrEqual);
                     }
                     else
                     {
                         decimal slippage = Slippage.ValueDecimal * downChannel / 100;                        
-                        _tab.SellAtStop(GetVolume(), downChannel - _tab.Security.PriceStep - slippage, downChannel - _tab.Security.PriceStep,
+                        _tab.SellAtStop(GetVolume(), downChannel - _tab.Securiti.PriceStep - slippage, downChannel - _tab.Securiti.PriceStep,
                             StopActivateType.LowerOrEqual);
                     }                    
                 }
@@ -323,16 +323,16 @@ namespace OsEngine.Robots.MyBots
 
                         if (ReverseLogic.ValueBool)
                         {
-                            decimal priceLine = upChannel - _tab.Security.PriceStep;
-                            decimal priceOrder = upChannel - _tab.Security.PriceStep;
+                            decimal priceLine = upChannel - _tab.Securiti.PriceStep;
+                            decimal priceOrder = upChannel - _tab.Securiti.PriceStep;
                             decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
 
                             _tab.SellAtStop(GetVolume(), priceOrder - slippage, priceLine, StopActivateType.HigherOrEqual);
                         }
                         else
                         {
-                            decimal priceLine = downChannel - _tab.Security.PriceStep;
-                            decimal priceOrder = downChannel - _tab.Security.PriceStep;
+                            decimal priceLine = downChannel - _tab.Securiti.PriceStep;
+                            decimal priceOrder = downChannel - _tab.Securiti.PriceStep;
                             decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
 
                             _tab.SellAtStop(GetVolume(), priceOrder - slippage, priceLine, StopActivateType.LowerOrEqual);
@@ -350,16 +350,16 @@ namespace OsEngine.Robots.MyBots
 
                     if (ReverseLogic.ValueBool)
                     {
-                        decimal priceLine = upChannel - _tab.Security.PriceStep;
-                        decimal priceOrder = upChannel - _tab.Security.PriceStep;
+                        decimal priceLine = upChannel - _tab.Securiti.PriceStep;
+                        decimal priceOrder = upChannel - _tab.Securiti.PriceStep;
                         decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
 
                         _tab.CloseAtProfit(pos, priceLine, priceOrder - slippage);
                     }
                     else
                     {
-                        decimal priceLine = downChannel - _tab.Security.PriceStep;
-                        decimal priceOrder = downChannel - _tab.Security.PriceStep;
+                        decimal priceLine = downChannel - _tab.Securiti.PriceStep;
+                        decimal priceOrder = downChannel - _tab.Securiti.PriceStep;
                         decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
 
                         _tab.CloseAtStop(pos, priceLine, priceOrder - slippage);
@@ -374,16 +374,16 @@ namespace OsEngine.Robots.MyBots
                     {
                         if (ReverseLogic.ValueBool)
                         {
-                            decimal priceLine = downChannel + _tab.Security.PriceStep;
-                            decimal priceOrder = downChannel + _tab.Security.PriceStep;
+                            decimal priceLine = downChannel + _tab.Securiti.PriceStep;
+                            decimal priceOrder = downChannel + _tab.Securiti.PriceStep;
                             decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
 
                             _tab.BuyAtStop(GetVolume(), priceOrder + slippage, priceLine, StopActivateType.HigherOrEqual);
                         }
                         else
                         {
-                            decimal priceLine = upChannel + _tab.Security.PriceStep;
-                            decimal priceOrder = upChannel + _tab.Security.PriceStep;
+                            decimal priceLine = upChannel + _tab.Securiti.PriceStep;
+                            decimal priceOrder = upChannel + _tab.Securiti.PriceStep;
                             decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
 
                             _tab.BuyAtStop(GetVolume(), priceOrder + slippage, priceLine, StopActivateType.HigherOrEqual);
@@ -400,16 +400,16 @@ namespace OsEngine.Robots.MyBots
 
                     if (ReverseLogic.ValueBool)
                     {
-                        decimal priceLine = downChannel + _tab.Security.PriceStep;
-                        decimal priceOrder = downChannel + _tab.Security.PriceStep;
+                        decimal priceLine = downChannel + _tab.Securiti.PriceStep;
+                        decimal priceOrder = downChannel + _tab.Securiti.PriceStep;
                         decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
 
                         _tab.CloseAtProfit(pos, priceLine, priceOrder + slippage);
                     }
                     else
                     {
-                        decimal priceLine = upChannel + _tab.Security.PriceStep;
-                        decimal priceOrder = upChannel + _tab.Security.PriceStep;
+                        decimal priceLine = upChannel + _tab.Securiti.PriceStep;
+                        decimal priceOrder = upChannel + _tab.Securiti.PriceStep;
                         decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
                         _tab.CloseAtStop(pos, priceLine, priceOrder + slippage);
                     }                    

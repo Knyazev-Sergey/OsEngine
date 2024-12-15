@@ -5,7 +5,6 @@ using System.Drawing;
 using OsEngine.Entity;
 using OsEngine.Indicators;
 
-
 public class ZigZagChannel_indicator : Aindicator
 {
     private IndicatorParameterInt _period;

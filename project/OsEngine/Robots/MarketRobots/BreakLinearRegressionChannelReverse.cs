@@ -8,8 +8,8 @@ using OsEngine.OsTrader.Panels;
 using OsEngine.OsTrader.Panels.Attributes;
 using OsEngine.OsTrader.Panels.Tab;
 
-[Bot("BreakLinearRegressionChannelRevers")]
-public class BreakLRChannelReverse : BotPanel
+[Bot("BreakLinearRegressionChannelReverse")]
+public class BreakLinearRegressionChannelReverse : BotPanel
 {
     private BotTabSimple _tab;
 
@@ -30,7 +30,7 @@ public class BreakLRChannelReverse : BotPanel
     private Aindicator _smaFilter;
     private StrategyParameterInt SmaLengthFilter;
 
-    public BreakLRChannelReverse(string name, StartProgram startProgram)
+    public BreakLinearRegressionChannelReverse(string name, StartProgram startProgram)
         : base(name, startProgram)
     {
         TabCreate(BotTabType.Simple);
@@ -99,7 +99,7 @@ public class BreakLRChannelReverse : BotPanel
 
     public override string GetNameStrategyType()
     {
-        return "BreakLinearRegressionChannelRevers";
+        return "BreakLinearRegressionChannelReverse";
     }
 
     public override void ShowIndividualSettingsDialog()

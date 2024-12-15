@@ -375,7 +375,7 @@ public class BreakZZChannelReverse : BotPanel
         }
         else
         {
-            volume = Math.Round(volume, _tab.Security.DecimalsVolume);
+            volume = Math.Round(volume, _tab.Securiti.DecimalsVolume);
         }
 
         return volume;
