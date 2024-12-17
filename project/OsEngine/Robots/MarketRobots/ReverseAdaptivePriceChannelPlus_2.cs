@@ -304,10 +304,7 @@ namespace OsEngine.Robots.MyBots
                 }
             }
             else
-            {
-                _tab.SellAtStopCancel();
-                _tab.BuyAtStopCancel();
-
+            {                
                 Position pos = positions[0];
 
                 if (pos.CloseActiv)
@@ -317,10 +314,10 @@ namespace OsEngine.Robots.MyBots
 
                 if (pos.Direction == Side.Buy)
                 {
-                    if (SellSignalIsFiltered(candles) == false)
-                    {
-                        _tab.SellAtStopCancel();
+                    _tab.SellAtStopCancel();
 
+                    /*if (SellSignalIsFiltered(candles) == false)
+                    {
                         if (ReverseLogic.ValueBool)
                         {
                             decimal priceLine = upChannel - _tab.Securiti.PriceStep;
@@ -337,7 +334,7 @@ namespace OsEngine.Robots.MyBots
 
                             _tab.SellAtStop(GetVolume(), priceOrder - slippage, priceLine, StopActivateType.LowerOrEqual);
                         }
-                    }
+                    }*/
 
                     //если коэф. longshort > LongShortRatioSell и фильтр включен
                     if (LongShortRatioFilterIsOn.ValueBool)
@@ -363,14 +360,13 @@ namespace OsEngine.Robots.MyBots
                         decimal slippage = Slippage.ValueDecimal * priceOrder / 100;
 
                         _tab.CloseAtStop(pos, priceLine, priceOrder - slippage);
-                    }
-                    
+                    }                    
                 }
                 else if (pos.Direction == Side.Sell)
                 {
                     _tab.BuyAtStopCancel();
 
-                    if (BuySignalIsFiltered(candles) == false)
+                    /*if (BuySignalIsFiltered(candles) == false)
                     {
                         if (ReverseLogic.ValueBool)
                         {
@@ -388,7 +384,7 @@ namespace OsEngine.Robots.MyBots
 
                             _tab.BuyAtStop(GetVolume(), priceOrder + slippage, priceLine, StopActivateType.HigherOrEqual);
                         }
-                    }
+                    }*/
 
                     if (LongShortRatioFilterIsOn.ValueBool)
                     {
