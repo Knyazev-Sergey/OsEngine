@@ -17,6 +17,7 @@ using OsEngine.Language;
 using System.IO;
 using System.Windows.Forms;
 using OsEngine.OsData;
+using Grpc.Core.Logging;
 
 namespace OsEngine.Market.Servers.YahooFinance
 {
@@ -78,14 +79,7 @@ namespace OsEngine.Market.Servers.YahooFinance
             }         */   
 
             try
-            {
-                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls |
-                    SecurityProtocolType.Tls11 |
-                    SecurityProtocolType.Tls12 |
-                    SecurityProtocolType.Tls13 |
-                    SecurityProtocolType.Ssl3 |
-                    SecurityProtocolType.SystemDefault;
-
+            {                
                 if (ServerStatus == ServerConnectStatus.Disconnect)
                 {
                     ServerStatus = ServerConnectStatus.Connect;
@@ -147,22 +141,8 @@ namespace OsEngine.Market.Servers.YahooFinance
         #region 2 Properties
 
         public List<IServerParameter> ServerParameters { get; set; }
-
-        private string PublicKey;
-
-        private string SeckretKey;
-
-        private string Password;
-
-        private string _baseUrl = "https://query2.finance.yahoo.com/v8/finance/chart/";
-
-        private string _webSocketUrlPublic = "wss://ws.okx.com:8443/ws/v5/public";
-
-        private string _webSocketUrlPrivate = "wss://ws.okx.com:8443/ws/v5/private";
-       
-        private bool _hedgeMode;
-
-        private string _marginMode;
+               
+        private string _baseUrl = "https://query2.finance.yahoo.com/v8/finance/chart/";              
 
         #endregion
 
@@ -245,74 +225,92 @@ namespace OsEngine.Market.Servers.YahooFinance
             return null;
         }
 
+        public List<Candle> GetLastCandleHistory(Security security, TimeFrameBuilder timeFrameBuilder, int candleCount)
+        {
+            return null;
+        }
+
         public List<Candle> GetCandleDataToSecurity(Security security, TimeFrameBuilder timeFrameBuilder,
             DateTime startTime, DateTime endTime, DateTime actualTime)
         {
-
-            if (!CheckTime(startTime, endTime, actualTime))
+            try
             {
-                return null;
-            }
+                if (!CheckTime(startTime, endTime, actualTime))
+                {
+                    return null;
+                }
 
-            int tfTotalMinutes = (int)timeFrameBuilder.TimeFrameTimeSpan.TotalMinutes;
+                int tfTotalMinutes = (int)timeFrameBuilder.TimeFrameTimeSpan.TotalMinutes;
 
-            if (!CheckTf(tfTotalMinutes))
-            {
-                return null;
-            }
-
-            List<Candle> allCandles = new List<Candle>();
-
-            DateTime startTimeData = startTime;
-            DateTime endTimeData = endTime;
-
-            do
-            {
-                long from = TimeManager.GetTimeStampSecondsToDateTime(startTimeData);
-                long to = TimeManager.GetTimeStampSecondsToDateTime(endTimeData);
+                if (!CheckTf(tfTotalMinutes))
+                {
+                    return null;
+                }
 
                 string interval = GetInterval(timeFrameBuilder.TimeFrameTimeSpan);
 
-                List<Candle> candles = RequestCandleHistory(security.Name, interval, from, to);
+                DateTime startTimeLimit = GetStartTime(startTime, interval);
+                DateTime endTimeLimit = DateTime.Now;
 
-                if (candles == null || candles.Count == 0)
+                if (endTime < startTimeLimit)
                 {
-                    break;
+                    return null;
                 }
 
-                Candle last = candles[candles.Count - 1];
+                long from = 0;
+                long to = 0;
 
-                if (last.TimeStart >= endTime)
-
+                if (startTime < startTimeLimit &&
+                    endTime > startTimeLimit)
                 {
-                    for (int i = 0; i < candles.Count; i++)
-                    {
-                        if (candles[i].TimeStart <= endTime)
-                        {
-                            allCandles.Add(candles[i]);
-                        }
-                    }
-                    break;
+                    from = TimeManager.GetTimeStampSecondsToDateTime(startTimeLimit);
+                    to = TimeManager.GetTimeStampSecondsToDateTime(endTime);
+                }
+                else if (startTime > startTimeLimit)
+                {
+                    from = TimeManager.GetTimeStampSecondsToDateTime(startTime);
+                    to = TimeManager.GetTimeStampSecondsToDateTime(endTime);
                 }
 
-                allCandles.AddRange(candles);
+                List<Candle> allCandles = RequestCandleHistory(security.Name, interval, from, to);
 
-                //startTimeData = endTimeData.AddMinutes(tfTotalMinutes);
-                //endTimeData = startTimeData.AddMinutes(tfTotalMinutes * _limitCandles);
-
-                if (startTimeData >= DateTime.UtcNow)
+                if (allCandles == null || allCandles.Count == 0)
                 {
-                    break;
+                    return null;
                 }
 
-                if (endTimeData > DateTime.Now)
-                {
-                    endTimeData = DateTime.Now;
-                }
+                return allCandles;
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage("GetCandleDataToSecurity: " + ex.Message, LogMessageType.Error);
+                return null;
+            }
+        }
 
-            } while (true);
+        private DateTime GetStartTime(DateTime startTime, string interval)
+        {
+            DateTime endTime = DateTime.Now;
 
-            return allCandles;
+            switch (interval)
+            {
+                case ("1m"):
+                    return endTime.AddDays(-8);
+                case ("2m"):
+                    return endTime.AddDays(-60);
+                case ("5m"):
+                    return endTime.AddDays(-60);
+                case ("15m"):
+                    return endTime.AddDays(-60);
+                case ("30m"):
+                    return endTime.AddDays(-50);
+                case ("1h"):
+                    return endTime.AddDays(-730);
+                case ("1d"):
+                    return startTime;                
+            }
+
+            return endTime;
         }
 
         private bool CheckTime(DateTime startTime, DateTime endTime, DateTime actualTime)
@@ -368,11 +366,12 @@ namespace OsEngine.Market.Servers.YahooFinance
 
             try
             {
-                string queryParam = $"{security}?&";
+                string queryParam = $"{security}?";
                 queryParam += $"symbol={security}&";
                 queryParam += $"interval={resolution}&";
                 queryParam += $"period1={fromTimeStamp}&";
-                queryParam += $"period2={toTimeStamp}";
+                queryParam += $"period2={toTimeStamp}&";
+                queryParam += $"includePrePost=true";
 
                 string requestUri = _baseUrl + queryParam;
 
@@ -385,7 +384,7 @@ namespace OsEngine.Market.Servers.YahooFinance
                 }
                 else
                 {
-                    SendLogMessage($"Http State Code: {responseMessage.StatusCode} - {json}", LogMessageType.Error);
+                    SendLogMessage($"RequestCandleHistory: {responseMessage.StatusCode} - {json}", LogMessageType.Error);
                 }
             }
             catch (Exception exception)
@@ -439,14 +438,7 @@ namespace OsEngine.Market.Servers.YahooFinance
             return false;
         }*/
 
-        public List<Candle> GetLastCandleHistory(Security security, TimeFrameBuilder timeFrameBuilder, int candleCount)
-        {
-            int tfTotalMinutes = (int)timeFrameBuilder.TimeFrameTimeSpan.TotalMinutes;
-            DateTime endTime = DateTime.Now;
-            DateTime startTime = endTime.AddMinutes(-tfTotalMinutes * candleCount);
-
-            return GetCandleDataToSecurity(security, timeFrameBuilder, startTime, endTime, endTime);
-        }
+        
 
         #endregion
 
