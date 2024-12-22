@@ -1155,8 +1155,8 @@
     <Compile Include="Robots\BotsFromStartLessons\Lesson9Bot3.cs" />
     <Compile Include="Robots\BotsFromStartLessons\Lesson10Bot1.cs" />
     <Compile Include="Robots\BotsFromStartLessons\Lesson10Bot2.cs" />
+    <Compile Include="Robots\Classes\TrailingStop.cs" />
     <Compile Include="Robots\CounterTrend\ClusterCountertrend.cs" />
-    <Compile Include="Robots\MarketRobots\BreakLRChannelReverse.cs" />
     <Compile Include="Robots\MarketRobots\BreakZZChannelReverse.cs" />
     <Compile Include="Robots\MarketRobots\CollectorLiquidity.cs" />
     <Compile Include="Robots\MarketRobots\ReverseAdaptivePriceChannelPlus_2.cs" />
