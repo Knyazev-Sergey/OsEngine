@@ -41,6 +41,7 @@ class ImpulseTwoSma : BotPanel
     private StrategyParameterDecimal ChangeStepStop;
     private StrategyParameterDecimal MinDist;
     private StrategyParameterDecimal QuantityStepsPrices;
+    private StrategyParameterString PointOrPercent;
     //---------------------------------
 
     public ImpulseTwoSma(string name, StartProgram startProgram) : base(name, startProgram)
@@ -69,10 +70,11 @@ class ImpulseTwoSma : BotPanel
         //---------------------------------
         TrailingStopIsOn = CreateParameter("Is Trailing stop On", false, "Trailing Stop");
         TrailingStopTypeOrder = CreateParameter("Type order", OrderPriceType.Market.ToString(), new[] { OrderPriceType.Market.ToString(), OrderPriceType.Limit.ToString() }, "Trailing Stop");
+        PointOrPercent = CreateParameter("Choise Points or Percent", "Points", new[] { "Points", "Percent" }, "Trailing Stop");
         ChangeStepStop = CreateParameter("Stop level change step (points)", 1, 1, 100, 001m, "Trailing Stop");
         MinDist = CreateParameter("Minimum distance to price (points)", 1, 1, 100, 0.01m, "Trailing Stop");
         QuantityStepsPrices = CreateParameter("Quantity steps prices for limit order", 0m, 0, 10000, 1, "Trailing Stop");
-        _trailingStop = new TrailingStop(_tab, TrailingStopTypeOrder.ValueString, ChangeStepStop.ValueDecimal, MinDist.ValueDecimal, QuantityStepsPrices.ValueDecimal);
+        _trailingStop = new TrailingStop(_tab, TrailingStopTypeOrder.ValueString, ChangeStepStop.ValueDecimal, MinDist.ValueDecimal, QuantityStepsPrices.ValueDecimal, PointOrPercent.ValueString);
         //---------------------------------
 
         _smaFilter = IndicatorsFactory.CreateIndicatorByName(nameClass: "Sma", name: name + "Sma_Filter", canDelete: false);
@@ -156,7 +158,7 @@ class ImpulseTwoSma : BotPanel
         if (TrailingStopIsOn.ValueBool)
         {
             _trailingStop = null;
-            _trailingStop = new TrailingStop(_tab, TrailingStopTypeOrder.ValueString, ChangeStepStop.ValueDecimal, MinDist.ValueDecimal, QuantityStepsPrices.ValueDecimal);
+            _trailingStop = new TrailingStop(_tab, TrailingStopTypeOrder.ValueString, ChangeStepStop.ValueDecimal, MinDist.ValueDecimal, QuantityStepsPrices.ValueDecimal , PointOrPercent.ValueString);
         }
         else
         {

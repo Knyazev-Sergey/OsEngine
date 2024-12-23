@@ -12,8 +12,9 @@ namespace OsEngine.Robots.Classes
         private decimal _stepStop;
         private decimal _minDist;
         private decimal _quantityStepsPrices;
+        private string _pointOrPercent;
 
-        public TrailingStop(BotTabSimple tab, string orderType, decimal stepStop, decimal minDist, decimal quantityStepsPrices)
+        public TrailingStop(BotTabSimple tab, string orderType, decimal stepStop, decimal minDist, decimal quantityStepsPrices, string pointOrPercent)
         {
             // инициализируем экземпляр объекта
             _tab = tab;
@@ -21,16 +22,20 @@ namespace OsEngine.Robots.Classes
             _stepStop = stepStop;
             _minDist = minDist;
             _quantityStepsPrices = quantityStepsPrices;
+            _pointOrPercent = pointOrPercent;
         }
 
         public void SetTrailingStop(decimal lastPrice)
         {
             try
-            {  
+            {
                 // перебираем открытые позиции
                 for (int i = 0; i < _tab.PositionsOpenAll.Count; i++) 
-                {
+                {                    
                     Position pos = _tab.PositionsOpenAll[i];
+                                        
+                    decimal minDist = GetMinDist(pos);
+                    decimal stepStop = GetStepStop(pos);
 
                     decimal priceActivation = 0;
                     decimal priceOrder = 0;
@@ -46,21 +51,21 @@ namespace OsEngine.Robots.Classes
                         // если еще нет открытого трейлинг стопа, открываем стоп по цене открытия минус минимальная дистанция
                         if (pos.StopOrderRedLine == 0) 
                         {
-                            priceActivation = pos.EntryPrice - _minDist;  
+                            priceActivation = pos.EntryPrice - minDist;  
                             priceOrder = priceActivation - slippageOrder;
                         }
                         else // если есть активный трейлинг стоп
                         {
-                            // если цена не прошла минимальную дистанцию, то переходим к следующей позиции
-                            if (lastPrice - _minDist < pos.StopOrderRedLine)
+                            // если цена не прошла мминимальную дистанцию, то переходим к следующей позиции
+                            if (lastPrice - minDist < pos.StopOrderRedLine)
                             {
                                 continue;
                             }
                             
                             // если цена не прошла кратную величину шага установления стопа, то переходим к следующей позиции
-                            if (_stepStop != 0)
+                            if (stepStop != 0)
                             {
-                                if (Math.Abs(lastPrice - pos.EntryPrice) / _stepStop < 1)
+                                if (Math.Abs(lastPrice - pos.EntryPrice) / stepStop < 1)
                                 {
                                     continue;
                                 }
@@ -68,21 +73,21 @@ namespace OsEngine.Robots.Classes
 
                             // если цена прошла минимальную дистаницю и прошла дистанцию кратной величины шага стопа
                             // то устанавливаем цену активации стопа
-                            if (_stepStop != 0)
+                            if (stepStop != 0)
                             {
-                                if (lastPrice - _minDist >= pos.StopOrderRedLine &&
-                                Math.Abs(lastPrice - pos.EntryPrice) / _stepStop >= 1)
+                                if (lastPrice - minDist >= pos.StopOrderRedLine &&
+                                Math.Abs(lastPrice - pos.EntryPrice) / stepStop >= 1)
                                 {
-                                    priceActivation = Math.Floor((lastPrice - pos.EntryPrice) / _stepStop) * _stepStop - _minDist + pos.EntryPrice;
+                                    priceActivation = Math.Floor((lastPrice - pos.EntryPrice) / stepStop) * stepStop - minDist + pos.EntryPrice;
                                     priceOrder = priceActivation - slippageOrder;
                                 }
                             }
                             else
                             {
                                 // если шаг стопа равен 0, то цена стопа исходит от минимальной дистанции
-                                if (lastPrice - _minDist >= pos.StopOrderRedLine)
+                                if (lastPrice - minDist >= pos.StopOrderRedLine)
                                 {
-                                    priceActivation = lastPrice - _minDist;
+                                    priceActivation = lastPrice - minDist;
                                     priceOrder = priceActivation - slippageOrder;
                                 }
                             }                            
@@ -95,21 +100,21 @@ namespace OsEngine.Robots.Classes
                         if (pos.StopOrderRedLine == 0)
                         {
                            
-                            priceActivation = pos.EntryPrice + _minDist;
+                            priceActivation = pos.EntryPrice + minDist;
                             priceOrder = priceActivation + slippageOrder;
                         }
                         else // если есть активный трейлинг стоп
                         {
                             // если цена не прошла мминимальную дистанцию, то переходим к следующей позиции
-                            if (lastPrice + _minDist > pos.StopOrderRedLine)
+                            if (lastPrice + minDist > pos.StopOrderRedLine)
                             {
                                 continue;
                             }
 
                             // если цена не прошла кратную величину шага установления стопа, то переходим к следующей позиции
-                            if (_stepStop != 0)
+                            if (stepStop != 0)
                             {
-                                if (Math.Abs(lastPrice - pos.EntryPrice) / _stepStop < 1)
+                                if (Math.Abs(lastPrice - pos.EntryPrice) / stepStop < 1)
                                 {
                                     continue;
                                 }
@@ -117,21 +122,21 @@ namespace OsEngine.Robots.Classes
 
                             // если цена прошла минимальную дистаницю и прошла дистанцию кратной величины шага стопа
                             // то устанавливаем цену активации стопа
-                            if (_stepStop != 0)
+                            if (stepStop != 0)
                             {
-                                if (lastPrice + _minDist <= pos.StopOrderRedLine &&
-                                Math.Abs(lastPrice - pos.EntryPrice) / _stepStop >= 1)
+                                if (lastPrice + minDist <= pos.StopOrderRedLine &&
+                                Math.Abs(lastPrice - pos.EntryPrice) / stepStop >= 1)
                                 {
-                                    priceActivation = Math.Ceiling((lastPrice - pos.EntryPrice) / _stepStop) * _stepStop + _minDist + pos.EntryPrice;
+                                    priceActivation = Math.Ceiling((lastPrice - pos.EntryPrice) / stepStop) * stepStop + minDist + pos.EntryPrice;
                                     priceOrder = priceActivation + slippageOrder;
                                 }
                             }
                             else
                             {
                                 // если шаг стопа равен 0, то цена стопа исходит от минимальной дистанции
-                                if (lastPrice + _minDist >= pos.StopOrderRedLine)
+                                if (lastPrice + minDist >= pos.StopOrderRedLine)
                                 {
-                                    priceActivation = lastPrice + _minDist;
+                                    priceActivation = lastPrice + minDist;
                                     priceOrder = priceActivation + slippageOrder;
                                 }
                             }
@@ -173,6 +178,36 @@ namespace OsEngine.Robots.Classes
             {
                 _tab.SetNewLogMessage("SetTrailingStop: " + ex.Message, LogMessageType.Error);
             }
+        }
+
+        private decimal GetMinDist(Position pos)
+        {
+            decimal minDist = 0;
+            
+            if (_pointOrPercent == "Percent")
+            {
+                minDist = pos.EntryPrice * _minDist / 100;
+            }
+            else
+            {
+                minDist = _minDist;
+            }
+            return minDist;
+        }
+
+        private decimal GetStepStop(Position pos)
+        {
+            decimal stepStop = 0;
+
+            if (_pointOrPercent == "Percent")
+            {
+                stepStop = pos.EntryPrice * _stepStop / 100;
+            }
+            else
+            {
+                stepStop = _stepStop;
+            }
+            return stepStop;
         }
     }
 }

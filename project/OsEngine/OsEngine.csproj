@@ -1159,6 +1159,9 @@
     <Compile Include="Robots\CounterTrend\ClusterCountertrend.cs" />
     <Compile Include="Robots\MarketRobots\BreakZZChannelReverse.cs" />
     <Compile Include="Robots\MarketRobots\CollectorLiquidity.cs" />
+    <Compile Include="Robots\MarketRobots\ImpulseHma.cs" />
+    <Compile Include="Robots\MarketRobots\ImpulseTwoSma.cs" />
+    <Compile Include="Robots\MarketRobots\ParabolicSarClassicTrade.cs" />
     <Compile Include="Robots\MarketRobots\ReverseAdaptivePriceChannelPlus_2.cs" />
     <Compile Include="Robots\PositionsMicromanagement\AlligatorTrendAverage.cs" />
     <Compile Include="Robots\PositionsMicromanagement\CandlesTurnaroundPattern.cs" />

@@ -179,11 +179,14 @@ public class BreakZZChannelReverse : BotPanel
             if (!BuySignalIsFiltered(candles))
             {                
                 if (ReverseLogic.ValueBool)
-                {
-                    if (lastMaFilter < bb_down)
+                {         
+                    if (lastMaFilter != 0)
                     {
-                        return;
-                    }
+                        if (lastMaFilter < bb_down)
+                        {
+                            return;
+                        }
+                    }                    
 
                     _slippage = Slippage.ValueDecimal * bb_down / 100;
                     _tab.BuyAtStop(GetVolume(), bb_down + _slippage, bb_down, StopActivateType.LowerOrEqual, 1);
@@ -204,10 +207,13 @@ public class BreakZZChannelReverse : BotPanel
             {
                 if (ReverseLogic.ValueBool)
                 {
-                    if (lastMaFilter > bb_up)
+                    if (lastMaFilter != 0)
                     {
-                        return;
-                    }
+                        if (lastMaFilter > bb_up)
+                        {
+                            return;
+                        }
+                    }                    
 
                     _slippage = Slippage.ValueDecimal * bb_up / 100;
                     _tab.SellAtStop(GetVolume(), bb_up - _slippage, bb_up, StopActivateType.HigherOrEqual, 1);
