@@ -16,12 +16,6 @@ namespace OsEngine.Market.Servers.YahooFinance
         {
             YahooServerRealization realization = new YahooServerRealization();
             ServerRealization = realization;
-
-            /*CreateParameterString(OsLocalization.Market.ServerParamPublicKey, "");
-            CreateParameterPassword(OsLocalization.Market.ServerParamSecretKey, "");
-            CreateParameterPassword(OsLocalization.Market.ServerParamPassword, "");
-            CreateParameterEnum("Hedge Mode", "On", new List<string> { "On", "Off" });
-            CreateParameterEnum("Margin Mode", "Cross", new List<string> { "Cross", "Isolated"});*/
         }
     }
 
@@ -45,28 +39,6 @@ namespace OsEngine.Market.Servers.YahooFinance
 
         public void Connect()
         {
-            /*PublicKey = ((ServerParameterString)ServerParameters[0]).Value;
-            SeckretKey = ((ServerParameterPassword)ServerParameters[1]).Value;
-            Password = ((ServerParameterPassword)ServerParameters[2]).Value;
-
-            if (((ServerParameterEnum)ServerParameters[3]).Value == "On")
-            {
-                _hedgeMode = true;
-            }
-            else
-            {
-                _hedgeMode = false;
-            }
-
-            if (((ServerParameterEnum)ServerParameters[4]).Value == "Cross")
-            {
-                _marginMode = "cross";
-            }
-            else
-            {
-                _marginMode = "isolated";
-            }         */   
-
             try
             {                
                 if (ServerStatus == ServerConnectStatus.Disconnect)
@@ -78,42 +50,16 @@ namespace OsEngine.Market.Servers.YahooFinance
                         ConnectEvent();
                     }
                 }
-
-                /*HttpResponseMessage response = _httpClient.GetAsync(_baseUrl + "/api/v5/public/time").Result;
-
-                if (response.StatusCode != HttpStatusCode.OK)
-                {
-                    SendLogMessage($"/api/v5/public/time - Server is not available or there is no internet. \n" +
-                         " \n You may have forgotten to turn on the VPN", LogMessageType.Error);
-                    return;
-                }*/
             }
             catch (Exception exception)
             {
-                SendLogMessage($"/api/v5/public/time - Server is not available or there is no internet. \n" +
-                    exception.Message +
-                    " \n You may have forgotten to turn on the VPN", LogMessageType.Error);
+                SendLogMessage($"Error connect: {exception.Message}", LogMessageType.Error);
                 return;
-            }
-                        
+            }                        
         }
 
         public void Dispose()
         {
-            /*try
-            {
-                UnsubscribeFromAllWebSockets();
-                _subscribledSecurities.Clear();
-                DeleteWebSocketConnection();
-            }
-            catch (Exception exeption)
-            {
-                SendLogMessage(exeption.ToString(), LogMessageType.Error);
-            }
-                        
-            FIFOListWebSocketPublicMessage = null;
-            FIFOListWebSocketPrivateMessage = null;*/
-
             if (ServerStatus != ServerConnectStatus.Disconnect)
             {
                 ServerStatus = ServerConnectStatus.Disconnect;
@@ -130,6 +76,8 @@ namespace OsEngine.Market.Servers.YahooFinance
         #region 2 Properties
 
         public List<IServerParameter> ServerParameters { get; set; }
+
+        private RestClient _httpClient = new RestClient("https://query2.finance.yahoo.com/v8/finance/chart/");
 
         #endregion
 
@@ -192,18 +140,8 @@ namespace OsEngine.Market.Servers.YahooFinance
         public event Action<List<Security>> SecurityEvent;
 
         #endregion
-
-        #region 4 Portfolios
-
-        public void GetPortfolios()
-        {
-        }
-
-        public event Action<List<Portfolio>> PortfolioEvent;
-
-        #endregion
-
-        #region 5 Data
+                
+        #region 4 Data
 
         public RateGate _rateGateCandles = new RateGate(1, TimeSpan.FromMilliseconds(200));
 
@@ -437,90 +375,7 @@ namespace OsEngine.Market.Servers.YahooFinance
 
         #endregion
 
-        #region 6 WebSocket creation
-
-
-
-        #endregion
-
-        #region 7 WebSocket events
-
-
-        #endregion
-
-        #region 8 WebSocket check alive
-
-
-        #endregion
-
-        #region 9 Security subscrible
-
-        public void Subscrible(Security security)
-        {
-           
-        }
-
-        #endregion
-
-        #region 10 WebSocket parsing the messages
-
-
-
-        public event Action<Order> MyOrderEvent;
-
-        public event Action<MyTrade> MyTradeEvent;
-
-        public event Action<MarketDepth> MarketDepthEvent;
-
-        public event Action<Trade> NewTradesEvent;
-
-        #endregion
-
-        #region 11 Trade
-
-        public void SendOrder(Order order)
-        {           
-                                    
-        }
-
-
-        public void CancelOrder(Order order)
-        {
-            
-        }
-
-        public void CancelAllOrdersToSecurity(Security security)
-        {
-        }
-
-        public void CancelAllOrders()
-        {
-           
-        }
-
-        public void GetAllActivOrders()
-        {
-            
-        }
-
-        public void GetOrderStatus(Order order)
-        {
-           
-        }
-
-        public void ChangeOrderPrice(Order order, decimal newPrice)
-        {
-        }
-
-        #endregion
-
-        #region 12 Queries
-                
-        private RestClient _httpClient = new RestClient("https://query2.finance.yahoo.com/v8/finance/chart/");
-
-        #endregion
-
-        #region 13 Log
+        #region 5 Log
 
         private void SendLogMessage(string message, LogMessageType type)
         {
@@ -531,6 +386,38 @@ namespace OsEngine.Market.Servers.YahooFinance
         }
 
         public event Action<string, LogMessageType> LogMessageEvent;
+
+        #endregion
+
+        #region 6 No Work
+
+        public void GetPortfolios() { }
+
+        public void Subscrible(Security security) { }
+
+        public void SendOrder(Order order) { }
+
+        public void CancelOrder(Order order){ }
+
+        public void CancelAllOrdersToSecurity(Security security) { }
+
+        public void CancelAllOrders() { }
+
+        public void GetAllActivOrders() { }
+
+        public void GetOrderStatus(Order order) { }
+
+        public void ChangeOrderPrice(Order order, decimal newPrice) { }
+
+        public event Action<Order> MyOrderEvent;
+
+        public event Action<MyTrade> MyTradeEvent;
+
+        public event Action<MarketDepth> MarketDepthEvent;
+
+        public event Action<Trade> NewTradesEvent;
+
+        public event Action<List<Portfolio>> PortfolioEvent;
 
         #endregion
     }
