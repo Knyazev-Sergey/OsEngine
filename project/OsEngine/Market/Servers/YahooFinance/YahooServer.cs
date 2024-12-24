@@ -1,23 +1,12 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Net;
-using System.Text;
-using System.Threading;
 using Newtonsoft.Json;
 using OsEngine.Entity;
 using OsEngine.Logging;
 using OsEngine.Market.Servers.YahooFinance.Entity;
 using OsEngine.Market.Servers.Entity;
-using WebSocket4Net;
-using System.Net.Http;
-using SuperSocket.ClientEngine;
-using OsEngine.Language;
 using System.IO;
-using System.Windows.Forms;
-using OsEngine.OsData;
-using Grpc.Core.Logging;
+using RestSharp;
 
 namespace OsEngine.Market.Servers.YahooFinance
 {
@@ -141,8 +130,6 @@ namespace OsEngine.Market.Servers.YahooFinance
         #region 2 Properties
 
         public List<IServerParameter> ServerParameters { get; set; }
-               
-        private string _baseUrl = "https://query2.finance.yahoo.com/v8/finance/chart/";              
 
         #endregion
 
@@ -303,7 +290,7 @@ namespace OsEngine.Market.Servers.YahooFinance
                 case ("15m"):
                     return endTime.AddDays(-60);
                 case ("30m"):
-                    return endTime.AddDays(-50);
+                    return endTime.AddDays(-60);
                 case ("1h"):
                     return endTime.AddDays(-730);
                 case ("1d"):
@@ -372,19 +359,17 @@ namespace OsEngine.Market.Servers.YahooFinance
                 queryParam += $"period1={fromTimeStamp}&";
                 queryParam += $"period2={toTimeStamp}&";
                 queryParam += $"includePrePost=true";
-
-                string requestUri = _baseUrl + queryParam;
-
-                HttpResponseMessage responseMessage = _httpClient.GetAsync(requestUri).Result;
-                string json = responseMessage.Content.ReadAsStringAsync().Result;
+                
+                RestRequest request = new RestRequest(queryParam, Method.GET);
+                IRestResponse responseMessage = _httpClient.Execute(request);
 
                 if (responseMessage.StatusCode == System.Net.HttpStatusCode.OK)
                 {
-                    //return ConvertCandles(json);
+                    return ConvertCandles(responseMessage.Content);
                 }
                 else
                 {
-                    SendLogMessage($"RequestCandleHistory: {responseMessage.StatusCode} - {json}", LogMessageType.Error);
+                    SendLogMessage($"RequestCandleHistory: {responseMessage.StatusCode} - {responseMessage.Content}", LogMessageType.Error);
                 }
             }
             catch (Exception exception)
@@ -395,18 +380,30 @@ namespace OsEngine.Market.Servers.YahooFinance
             return null;
         }
 
-       /* private List<Candle> ConvertCandles(string json)
+        private List<Candle> ConvertCandles(string json)
         {
-            ResponseMessageCandles response = JsonConvert.DeserializeObject<ResponseMessageCandles>(json);
+            CandlesResponce response = JsonConvert.DeserializeObject<CandlesResponce>(json);
 
             List<Candle> candles = new List<Candle>();
 
-            ResponseMessageCandles.Result item = response.result;
+            List<string> timeStamp = response.chart.result[0].timestamp;
 
-            for (int i = 0; i < item.ticks.Count; i++)
+            Quote quotes = response.chart.result[0].indicators.quote[0];
+
+            if (timeStamp.Count == 0 ||
+                quotes.close.Count == 0)
             {
+                return null;
+            }
 
-                if (CheckCandlesToZeroData(item, i))
+            if (timeStamp.Count != quotes.close.Count)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < timeStamp.Count; i++)
+            {               
+                if (CheckCandlesToZeroData(quotes, i))
                 {
                     continue;
                 }
@@ -414,19 +411,19 @@ namespace OsEngine.Market.Servers.YahooFinance
                 Candle candle = new Candle();
 
                 candle.State = CandleState.Finished;
-                candle.TimeStart = TimeManager.GetDateTimeFromTimeStamp(long.Parse(item.ticks[i]));
-                candle.Volume = item.volume[i].ToDecimal();
-                candle.Close = item.close[i].ToDecimal();
-                candle.High = item.high[i].ToDecimal();
-                candle.Low = item.low[i].ToDecimal();
-                candle.Open = item.open[i].ToDecimal();
+                candle.TimeStart = TimeManager.GetDateTimeFromTimeStampSeconds(long.Parse(timeStamp[i]));
+                candle.Volume = quotes.volume[i].ToDecimal();
+                candle.Close = quotes.close[i].ToDecimal();
+                candle.High = quotes.high[i].ToDecimal();
+                candle.Low = quotes.low[i].ToDecimal();
+                candle.Open = quotes.open[i].ToDecimal();
 
                 candles.Add(candle);
             }
             return candles;
         }
 
-        private bool CheckCandlesToZeroData(ResponseMessageCandles.Result item, int i)
+        private bool CheckCandlesToZeroData(Quote item, int i)
         {
             if (item.close[i].ToDecimal() == 0 ||
                 item.open[i].ToDecimal() == 0 ||
@@ -436,9 +433,7 @@ namespace OsEngine.Market.Servers.YahooFinance
                 return true;
             }
             return false;
-        }*/
-
-        
+        }
 
         #endregion
 
@@ -520,8 +515,8 @@ namespace OsEngine.Market.Servers.YahooFinance
         #endregion
 
         #region 12 Queries
-
-        private HttpClient _httpClient = new HttpClient();
+                
+        private RestClient _httpClient = new RestClient("https://query2.finance.yahoo.com/v8/finance/chart/");
 
         #endregion
 
@@ -534,8 +529,6 @@ namespace OsEngine.Market.Servers.YahooFinance
                 LogMessageEvent(message, type);
             }
         }
-
-        
 
         public event Action<string, LogMessageType> LogMessageEvent;
 
