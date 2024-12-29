@@ -191,7 +191,7 @@ namespace OsEngine.Market.Servers.YahooFinance
                     from = TimeManager.GetTimeStampSecondsToDateTime(startTimeLimit);
                     to = TimeManager.GetTimeStampSecondsToDateTime(endTime);
                 }
-                else if (startTime > startTimeLimit)
+                else if (startTime >= startTimeLimit)
                 {
                     from = TimeManager.GetTimeStampSecondsToDateTime(startTime);
                     to = TimeManager.GetTimeStampSecondsToDateTime(endTime);
@@ -268,14 +268,14 @@ namespace OsEngine.Market.Servers.YahooFinance
 
         private string GetInterval(TimeSpan timeFrame)
         {
-            if (timeFrame.Minutes < 60)
+            if (timeFrame.TotalMinutes < 60)
             {
                 return $"{timeFrame.TotalMinutes}m";
             }
             else if (timeFrame.TotalMinutes >= 60 &&
                 timeFrame.TotalMinutes < 1440)
             {
-                return $"{timeFrame.Hours}h";
+                return $"{timeFrame.TotalHours}h";
             }
             else
             {
