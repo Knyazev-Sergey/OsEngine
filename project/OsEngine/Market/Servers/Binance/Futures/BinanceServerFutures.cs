@@ -22,6 +22,7 @@ using OsEngine.Entity.WebSocketOsEngine;
 using TradeResponse = OsEngine.Market.Servers.Binance.Spot.BinanceSpotEntity.TradeResponse;
 using System.Net;
 using System.Buffers.Text;
+using Google.Api;
 
 
 namespace OsEngine.Market.Servers.Binance.Futures
@@ -237,7 +238,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
         public string _optionsUrl = "https://eapi.binance.com";
 
-        public string wss_options = "wss://nbstream.binance.com/eoptions/";
+        public string wss_options = "wss://nbstream.binance.com/eoptions";
 
         private bool _optionData;
 
@@ -1086,7 +1087,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     break;
             }
 
-            string endPoint = "/" + type_str_selector + "/v1/klines";
+            string endPoint = GetEndPoint(nameSec);            
 
             if (needTf != "2m" && needTf != "10m" && needTf != "20m" && needTf != "45m")
             {
@@ -1141,6 +1142,25 @@ namespace OsEngine.Market.Servers.Binance.Futures
             }
 
             return null;
+        }
+
+        private string  GetEndPoint(string nameSec)
+        {
+            string endPoint = "/" + type_str_selector + "/v1/klines";
+
+            for (int i = 0; i < _securities.Count; i++)
+            {
+                if (nameSec == _securities[i].Name)
+                {
+                    if (_securities[i].SecurityType == SecurityType.Option)
+                    {
+                        endPoint = "/eapi/v1/klines";
+                        break;
+                    }
+                }
+            }
+
+            return endPoint;
         }
 
         private List<Candle> _deserializeCandles(string jsonCandles)
