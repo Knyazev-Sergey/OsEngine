@@ -21,6 +21,7 @@ using Newtonsoft.Json.Linq;
 using OsEngine.Entity.WebSocketOsEngine;
 using TradeResponse = OsEngine.Market.Servers.Binance.Spot.BinanceSpotEntity.TradeResponse;
 using System.Net;
+using System.Buffers.Text;
 
 
 namespace OsEngine.Market.Servers.Binance.Futures
@@ -47,6 +48,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
             ServerParameters[3].ValueChange += BinanceServerFutures_ValueChange;
             CreateParameterBoolean("Demo Account", false);
             CreateParameterBoolean("Extended Data", false);
+            CreateParameterBoolean("Options Data", false);
         }
 
         private void BinanceServerFutures_ValueChange()
@@ -168,6 +170,15 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 _extendedMarketData = false;
             }
 
+            if (((ServerParameterBool)ServerParameters[6]).Value == true)
+            {
+                _optionData = true;
+            }
+            else
+            {
+                _optionData = false;
+            }
+
             ActivateSockets();
             SetPositionMode();
         }
@@ -224,6 +235,12 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
         private bool _extendedMarketData;
 
+        public string _optionsUrl = "https://eapi.binance.com";
+
+        public string wss_options = "wss://nbstream.binance.com/eoptions/";
+
+        private bool _optionData;
+
         public bool HedgeMode
         {
             get { return _hedgeMode; }
@@ -250,7 +267,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     return;
                 }
 
-                var rs = CreateQuery(Method.GET, "/" + type_str_selector + "/v1/positionSide/dual", new Dictionary<string, string>(), true);
+                var rs = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v1/positionSide/dual", new Dictionary<string, string>(), true);
 
                 if (rs != null)
                 {
@@ -259,7 +276,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     {
                         var param = new Dictionary<string, string>();
                         param.Add("dualSidePosition=", HedgeMode.ToString().ToLower());
-                        CreateQuery(Method.POST, "/" + type_str_selector + "/v1/positionSide/dual", param, true);
+                        CreateQuery(Method.POST, _baseUrl, "/" + type_str_selector + "/v1/positionSide/dual", param, true);
                     }
                 }
             }
@@ -276,15 +293,21 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
         public void GetSecurities()
         {
-
             try
             {
                 //Get All Margin Pairs (MARKET_DATA)
                 //GET /sapi/v1/margin/allPairs
 
-                string res = CreateQuery(Method.GET, "/" + type_str_selector + "/v1/exchangeInfo", null, false);
+                string res = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v1/exchangeInfo", null, false);
                 SecurityResponce secResp = JsonConvert.DeserializeAnonymousType(res, new SecurityResponce());
                 UpdatePairs(secResp);
+
+                if (_optionData)
+                {
+                    string responceOptions = CreateQuery(Method.GET, _optionsUrl, "/eapi/v1/exchangeInfo", null, false);
+                    ResponceOptions jsonOptions = JsonConvert.DeserializeAnonymousType(responceOptions, new ResponceOptions());
+                    UpdateSecurityOptions(jsonOptions);
+                }
             }
             catch (Exception ex)
             {
@@ -389,6 +412,74 @@ namespace OsEngine.Market.Servers.Binance.Futures
             //List<Security> securitiesHistorical = CreateHistoricalSecurities(secNonPerp);
 
             //_securities.AddRange(securitiesHistorical);
+
+            if (SecurityEvent != null)
+            {
+                SecurityEvent(_securities);
+            }
+        }
+
+        private void UpdateSecurityOptions(ResponceOptions jsonOptions)
+        {
+            for (int i = 0; i < jsonOptions.optionSymbols.Count; i++)
+            {
+                OptionSymbols item = jsonOptions.optionSymbols[i];
+
+                Security security = new Security();
+
+                security.Name = item.symbol;
+                security.NameFull = security.Name;
+                security.NameClass = SecurityType.Option.ToString();
+                security.NameId = item.quoteAsset;
+                security.SecurityType = SecurityType.Option;
+                security.Exchange = ServerType.BinanceFutures.ToString();
+                security.Strike = item.strikePrice.ToDecimal();
+                security.OptionType = item.side == "CALL" ? OptionType.Call : OptionType.Put;
+                security.Expiration = TimeManager.GetDateTimeFromTimeStamp(long.Parse(item.expiryDate));
+                security.UnderlyingAsset = item.underlying;
+
+                security.Lot = 1;
+                security.PriceStep = item.filters[0].tickSize.ToDecimal();
+                security.PriceStepCost = security.PriceStep;
+
+                security.PriceLimitLow = item.filters[0].minPrice.ToDecimal();
+                security.PriceLimitHigh = item.filters[0].maxPrice.ToDecimal();
+
+                if (security.PriceStep < 1)
+                {
+                    string prStep = security.PriceStep.ToString(CultureInfo.InvariantCulture);
+                    security.Decimals = Convert.ToString(prStep).Split('.')[1].Split('1')[0].Length + 1;
+                }
+                else
+                {
+                    security.Decimals = 0;
+                }
+
+                if (item.filters.Count > 1 &&
+                    item.filters[1] != null)
+                {
+                    if (item.filters[1].minQty != null)
+                    {
+                        decimal minQty = item.filters[1].minQty.ToDecimal();
+                        string qtyInStr = minQty.ToStringWithNoEndZero().Replace(",", ".");
+                        if (qtyInStr.Replace(",", ".").Split('.').Length > 1)
+                        {
+                            security.DecimalsVolume = qtyInStr.Replace(",", ".").Split('.')[1].Length;
+                        }
+                    }
+
+                    if (item.filters[1].stepSize != null)
+                    {
+                        security.VolumeStep = item.filters[1].stepSize.ToDecimal();
+                    }
+                }
+
+                security.MinTradeAmount = item.minQty.ToDecimal();
+                security.MinTradeAmountType = MinTradeAmountType.Contract;
+
+                security.State = SecurityStateType.Activ;
+                _securities.Add(security);
+            }
 
             if (SecurityEvent != null)
             {
@@ -509,11 +600,11 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
                     if (type_str_selector == "dapi")
                     {
-                        res = CreateQuery(Method.GET, "/" + type_str_selector + "/v1/account", null, true);
+                        res = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v1/account", null, true);
                     }
                     else if (type_str_selector == "fapi")
                     {
-                        res = CreateQuery(Method.GET, "/" + type_str_selector + "/v2/account", null, true);
+                        res = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v2/account", null, true);
                     }
 
                     if (res == null)
@@ -663,7 +754,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 Dictionary<string, string> param = new Dictionary<string, string>();
                 param.Add("symbol=", security);
 
-                res = CreateQuery(Method.GET, "/fapi/v1/ticker/price", param, true);
+                res = CreateQuery(Method.GET, _baseUrl, "/fapi/v1/ticker/price", param, true);
 
                 if (res == null)
                 {
@@ -702,6 +793,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
             {
                 var res = CreateQuery(
                     Method.GET,
+                    _baseUrl,
                     "/" + type_str_selector + "/v1/premiumIndex",
                     new Dictionary<string, string>() { { "symbol=", symbol } },
                     true);
@@ -895,7 +987,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 var param = new Dictionary<string, string>();
                 param.Add("symbol=" + nameSec.ToUpper(), "&interval=" + needTf + "&startTime=" + startTime + "&endTime=" + endTime);
 
-                var res = CreateQuery(Method.GET, endPoint, param, false);
+                var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, false);
 
                 var candles = _deserializeCandles(res);
                 return candles;
@@ -907,7 +999,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 {
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=1m" + "&startTime=" + startTime + "&endTime=" + endTime);
-                    var res = CreateQuery(Method.GET, endPoint, param, false);
+                    var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, false);
                     var candles = _deserializeCandles(res);
 
                     var newCandles = BuildCandles(candles, 2, 1);
@@ -917,7 +1009,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 {
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=5m" + "&startTime=" + startTime + "&endTime=" + endTime);
-                    var res = CreateQuery(Method.GET, endPoint, param, false);
+                    var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, false);
                     var candles = _deserializeCandles(res);
                     var newCandles = BuildCandles(candles, 10, 5);
                     return newCandles;
@@ -926,7 +1018,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 {
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=5m" + "&startTime=" + startTime + "&endTime=" + endTime);
-                    var res = CreateQuery(Method.GET, endPoint, param, false);
+                    var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, false);
                     var candles = _deserializeCandles(res);
                     var newCandles = BuildCandles(candles, 20, 5);
                     return newCandles;
@@ -935,7 +1027,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 {
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=15m" + "&startTime=" + startTime + "&endTime=" + endTime);
-                    var res = CreateQuery(Method.GET, endPoint, param, false);
+                    var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, false);
                     var candles = _deserializeCandles(res);
                     var newCandles = BuildCandles(candles, 45, 15);
                     return newCandles;
@@ -1001,7 +1093,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 var param = new Dictionary<string, string>();
                 param.Add("symbol=" + nameSec.ToUpper(), "&interval=" + needTf);
 
-                var res = CreateQuery(Method.GET, endPoint, param, false);
+                var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, false);
 
                 var candles = _deserializeCandles(res);
                 return candles;
@@ -1013,7 +1105,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 {
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=1m");
-                    var res = CreateQuery(Method.GET, endPoint, param, false);
+                    var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, false);
                     var candles = _deserializeCandles(res);
 
                     var newCandles = BuildCandles(candles, 2, 1);
@@ -1023,7 +1115,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 {
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=5m");
-                    var res = CreateQuery(Method.GET, endPoint, param, false);
+                    var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, false);
                     var candles = _deserializeCandles(res);
                     var newCandles = BuildCandles(candles, 10, 5);
                     return newCandles;
@@ -1032,7 +1124,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 {
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=5m");
-                    var res = CreateQuery(Method.GET, endPoint, param, false);
+                    var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, false);
                     var candles = _deserializeCandles(res);
                     var newCandles = BuildCandles(candles, 20, 5);
                     return newCandles;
@@ -1041,7 +1133,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 {
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=15m");
-                    var res = CreateQuery(Method.GET, endPoint, param, false);
+                    var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, false);
                     var candles = _deserializeCandles(res);
                     var newCandles = BuildCandles(candles, 45, 15);
                     return newCandles;
@@ -1284,7 +1376,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
                     string endPoint = "" + type_str_selector + "/v1/aggTrades";
 
-                    var res2 = CreateQuery(Method.GET, endPoint, param, false);
+                    var res2 = CreateQuery(Method.GET, _baseUrl, endPoint, param, false);
 
                     AgregatedHistoryTrade[] tradeHistory = JsonConvert.DeserializeObject<AgregatedHistoryTrade[]>(res2);
 
@@ -1345,7 +1437,11 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
         private string _listenKey = "";
 
+        private string _listenKeyOptions = "";
+
         private WebSocket _socketPrivateData;
+
+        private WebSocket _socketPrivateOptionsData;
 
         private Dictionary<string, WebSocket> _socketsArray = new Dictionary<string, WebSocket>();
 
@@ -1364,7 +1460,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
         private string CreateListenKey()
         {
             string createListenKeyUrl = String.Format("/{0}/v1/listenKey", type_str_selector);
-            var createListenKeyResult = CreateQueryNoLock(Method.POST, createListenKeyUrl, null, false);
+            var createListenKeyResult = CreateQueryNoLock(Method.POST, _baseUrl, createListenKeyUrl, null, false);
             return JsonConvert.DeserializeAnonymousType(createListenKeyResult, new ListenKey()).listenKey;
         }
 
@@ -1391,6 +1487,31 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
                 _socketsArray.Add("userDataStream", _socketPrivateData);
 
+                /*if (_optionData)
+                {
+                    string createListenKeyUrl = "/eapi/v1/listenKey";
+                    var createListenKeyResult = CreateQueryNoLock(Method.POST, _optionsUrl, createListenKeyUrl, null, false);
+                    _listenKeyOptions = JsonConvert.DeserializeAnonymousType(createListenKeyResult, new ListenKey()).listenKey;
+
+                    urlStr = wss_options + "/ws/" + _listenKeyOptions;
+
+                    _socketPrivateOptionsData = new WebSocket(urlStr);
+
+                    if (_myProxy != null)
+                    {
+                        _socketPrivateOptionsData.SetProxy(_myProxy);
+                    }
+
+                    _socketPrivateOptionsData.EmitOnPing = true;
+                    _socketPrivateOptionsData.OnOpen += _socketClient_Opened;
+                    _socketPrivateOptionsData.OnMessage += _socketClient_PrivateMessage;
+                    _socketPrivateOptionsData.OnError += _socketClient_Error;
+                    _socketPrivateOptionsData.OnClose += _socketClient_Closed;
+                    _socketPrivateOptionsData.Connect();
+
+                    _socketsArray.Add("userOptionsDataStream", _socketPrivateOptionsData);
+                }*/
+
             }
             catch (Exception exception)
             {
@@ -1409,6 +1530,15 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     _socketPrivateData.OnError -= _socketClient_Error;
                     _socketPrivateData.OnClose -= _socketClient_Closed;
                 }
+
+                if (_socketPrivateOptionsData != null)
+                {
+                    _socketPrivateOptionsData.OnOpen -= _socketClient_Opened;
+                    _socketPrivateOptionsData.OnMessage -= _socketClient_PrivateMessage;
+                    _socketPrivateOptionsData.OnError -= _socketClient_Error;
+                    _socketPrivateOptionsData.OnClose -= _socketClient_Closed;
+                }
+
             }
             catch
             {
@@ -1416,6 +1546,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
             }
 
             _socketPrivateData = null;
+            _socketPrivateOptionsData = null;
 
             try
             {
@@ -1424,6 +1555,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     foreach (var ws in _socketsArray)
                     {
                         ws.Value.OnMessage -= _socket_PublicMessage;
+                        ws.Value.OnMessage -= _socketClient_PrivateMessage;
                         ws.Value.OnError -= _socketClient_Error;
                         ws.Value.OnClose -= _socketClient_Closed;
 
@@ -1580,7 +1712,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     {
                         _timeStart = DateTime.Now;
 
-                        CreateQueryNoLock(Method.PUT,
+                        CreateQueryNoLock(Method.PUT, _baseUrl,
                             "/" + type_str_selector + "/v1/listenKey", new Dictionary<string, string>()
                                 { { "listenKey=", _listenKey } }, false);
 
@@ -1618,31 +1750,50 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 }
             }
 
-            _subscribedSecurities.Add(security);
+            string wss = wss_point;
+
+            if (security.NameClass == SecurityType.Option.ToString())
+            {
+                if (!_optionData)
+                {
+                    return;
+                }
+
+                wss = wss_options;
+            }
 
             string urlStrDepth = null;
 
             if (((ServerParameterBool)ServerParameters[13]).Value == false)
             {
-                urlStrDepth = wss_point + "/stream?streams="
+                urlStrDepth = wss + "/stream?streams="
                              + security.Name.ToLower() + "@depth5"
                              + "/" + security.Name.ToLower() + "@trade";
 
             }
             else
             {
-                urlStrDepth = wss_point + "/stream?streams="
+                urlStrDepth = wss + "/stream?streams="
                  + security.Name.ToLower() + "@depth20"
                  + "/" + security.Name.ToLower() + "@trade";
             }
 
-            if (_extendedMarketData)
+            if (security.NameClass != SecurityType.Option.ToString())
             {
-                urlStrDepth += "/" + security.Name.ToLower() + "@markPrice" + "/" + security.Name.ToLower() + "@miniTicker";
+                if (_extendedMarketData)
+                {
+                    urlStrDepth += "/" + security.Name.ToLower() + "@markPrice" + "/" + security.Name.ToLower() + "@miniTicker";
 
-                GetFundingRate(security.Name);
-                GetFundingHistory(security.Name.ToLower());
+                    GetFundingRate(security.Name);
+                    GetFundingHistory(security.Name.ToLower());
+                }
             }
+            else
+            {
+               urlStrDepth += "/" + security.Name + "@ticker";
+            }
+
+            _subscribedSecurities.Add(security);
 
             WebSocket wsClientDepth = new WebSocket(urlStrDepth);
 
@@ -1664,7 +1815,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
         {
             try
             {
-                string res = CreateQuery(Method.GET, "/" + type_str_selector + "/v1/fundingInfo", null, true);
+                string res = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v1/fundingInfo", null, true);
 
                 List<FundingInfo> response = JsonConvert.DeserializeAnonymousType(res, new List<FundingInfo>());
 
@@ -1696,7 +1847,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
         {
             try
             {
-                string res = CreateQuery(Method.GET, "/" + type_str_selector + "/v1/fundingRate", new Dictionary<string, string>() { { "symbol=", security } }, false);
+                string res = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v1/fundingRate", new Dictionary<string, string>() { { "symbol=", security } }, false);
 
                 List<FundingHistory> response = JsonConvert.DeserializeAnonymousType(res, new List<FundingHistory>());
 
@@ -1762,7 +1913,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
             {
                 for (int i = 0; i < _subscribedSecurities.Count; i++)
                 {
-                    string res = CreateQuery(Method.GET, "/" + type_str_selector + "/v1/openInterest", new Dictionary<string, string>() { { "symbol=", _subscribedSecurities[i].Name } }, false);
+                    string res = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v1/openInterest", new Dictionary<string, string>() { { "symbol=", _subscribedSecurities[i].Name } }, false);
 
                     OpenInterestInfo response = JsonConvert.DeserializeAnonymousType(res, new OpenInterestInfo());
 
@@ -1853,6 +2004,12 @@ namespace OsEngine.Market.Servers.Binance.Futures
                                 PublicMarketDataResponse<PublicMarketDataVolume24h> markPriceUpdate =
                                     JsonConvert.DeserializeAnonymousType(mes, new PublicMarketDataResponse<PublicMarketDataVolume24h>());
                                 UpdateVolume24h(markPriceUpdate);
+                            }
+                            else if (mes.Contains("\"e\":\"24hrTicker\"")) // options data
+                            {
+                                PublicMarketDataOptions json =
+                                    JsonConvert.DeserializeAnonymousType(mes, new PublicMarketDataOptions());
+                                UpdateOptionsData(json);
                             }
                             else if (mes.Contains("error"))
                             {
@@ -2479,6 +2636,31 @@ namespace OsEngine.Market.Servers.Binance.Futures
             }
         }
 
+        private void UpdateOptionsData(PublicMarketDataOptions response)
+        {
+            try
+            {
+                OptionMarketDataForConnector data = new OptionMarketDataForConnector();
+
+                data.Delta = response.d;
+                data.Gamma = response.g;
+                data.Vega = response.v;
+                data.Theta = response.t;
+                data.MarkIV = response.vo;
+                data.SecurityName = response.s;
+                data.TimeCreate = response.E;
+                data.BidIV = response.b;
+                data.AskIV = response.a;
+                data.MarkPrice = response.mp;
+
+                AdditionalMarketDataEvent?.Invoke(data);
+            }
+            catch (Exception error)
+            {
+                SendLogMessage(error.ToString(), LogMessageType.Error);
+            }
+        }
+
         public event Action<MarketDepth> MarketDepthEvent;
 
         public event Action<Trade> NewTradesEvent;
@@ -2542,7 +2724,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
                 }
 
-                var res = CreateQuery(Method.POST, "/" + type_str_selector + "/v1/order", param, true);
+                var res = CreateQuery(Method.POST, _baseUrl, "/" + type_str_selector + "/v1/order", param, true);
 
                 if (res != null
                     && res.Contains("clientOrderId"))
@@ -2633,7 +2815,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     param.Add("symbol=", order.SecurityNameCode.ToUpper());
                     param.Add("&orderId=", order.NumberMarket);
 
-                    CreateQuery(Method.DELETE, "/" + type_str_selector + "/v1/order", param, true);
+                    CreateQuery(Method.DELETE, _baseUrl, "/" + type_str_selector + "/v1/order", param, true);
 
                 }
                 catch (Exception ex)
@@ -2666,6 +2848,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
             var res = CreateQuery(
                        Method.PUT,
+                       _baseUrl,
                        "/" + type_str_selector + "/v1/order",
                        param,
                        true);
@@ -2724,7 +2907,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
                 param.Add("symbol=", security.Name.ToUpper());
 
-                CreateQuery(Method.DELETE, "/" + type_str_selector + "/v1/allOpenOrders", param, true);
+                CreateQuery(Method.DELETE, _baseUrl, "/" + type_str_selector + "/v1/allOpenOrders", param, true);
             }
             catch (Exception exception)
             {
@@ -2771,6 +2954,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
                 var res = CreateQuery(
                            Method.GET,
+                           _baseUrl,
                            "/" + type_str_selector + "/v1/userTrades",
                            param,
                            true);
@@ -2817,7 +3001,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
         {
             try
             {
-                string res = CreateQuery(Method.GET, "/" + type_str_selector + "/v1/openOrders", null, true);
+                string res = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v1/openOrders", null, true);
 
                 if (res == null ||
                     res == "[]")
@@ -2899,7 +3083,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
             param.Add("&limit=", "500");
             //"symbol={symbol.ToUpper()}&recvWindow={recvWindow}"
 
-            var res = CreateQuery(Method.GET, endPoint, param, true);
+            var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, true);
 
             if (res == null)
             {
@@ -2975,14 +3159,14 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
         RateGate _rateGate = new RateGate(1, TimeSpan.FromMilliseconds(100));
 
-        public string CreateQuery(Method method, string endpoint, Dictionary<string, string> param = null, bool auth = false)
+        public string CreateQuery(Method method, string baseUrl, string endpoint, Dictionary<string, string> param = null, bool auth = false)
         {
             try
             {
                 lock (_queryHttpLocker)
                 {
                     _rateGate.WaitToProceed();
-                    return PerformHttpRequest(method, endpoint, param, auth);
+                    return PerformHttpRequest(method, baseUrl, endpoint, param, auth);
                 }
             }
             catch (Exception ex)
@@ -2996,11 +3180,11 @@ namespace OsEngine.Market.Servers.Binance.Futures
             }
         }
 
-        public string CreateQueryNoLock(Method method, string endpoint, Dictionary<string, string> param = null, bool auth = false)
+        public string CreateQueryNoLock(Method method, string baseUrl, string endpoint, Dictionary<string, string> param = null, bool auth = false)
         {
             try
             {
-                return PerformHttpRequest(method, endpoint, param, auth);
+                return PerformHttpRequest(method, baseUrl, endpoint, param, auth);
             }
             catch (Exception ex)
             {
@@ -3008,7 +3192,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
             }
         }
 
-        private string PerformHttpRequest(Method method, string endpoint, Dictionary<string, string> param = null, bool auth = false)
+        private string PerformHttpRequest(Method method, string baseUrl, string endpoint, Dictionary<string, string> param = null, bool auth = false)
         {
             string fullUrl = "";
 
@@ -3043,8 +3227,6 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
             var request = new RestRequest(endpoint + fullUrl, method);
             request.AddHeader("X-MBX-APIKEY", ApiKey);
-
-            string baseUrl = _baseUrl;
 
             RestClient client = new RestClient(baseUrl);
 
@@ -3087,7 +3269,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
         private string GetNonce()
         {
-            var resTime = CreateQuery(Method.GET, "/" + type_str_selector + "/v1/time", null, false);
+            var resTime = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v1/time", null, false);
 
             if (!string.IsNullOrEmpty(resTime))
             {

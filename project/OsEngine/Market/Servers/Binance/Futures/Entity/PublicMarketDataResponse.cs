@@ -31,6 +31,29 @@ namespace OsEngine.Market.Servers.Binance.Futures.Entity
         public string E; // event time
     }
 
+    public class PublicMarketDataOptions
+    {
+        public string s; // Security
+
+        public string b; // BuyImplied volatility   
+
+        public string a; // SellImplied volatility
+
+        public string E; // event time
+
+        public string d; // delta
+
+        public string t; // theta   
+
+        public string g; // gamma
+
+        public string v; // vega
+
+        public string vo; // IV
+
+        public string mp; // mark price
+    }
+
     public class FundingInfo
     {
         public string symbol;
