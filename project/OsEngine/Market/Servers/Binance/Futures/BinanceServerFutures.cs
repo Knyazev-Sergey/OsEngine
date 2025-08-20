@@ -23,6 +23,7 @@ using TradeResponse = OsEngine.Market.Servers.Binance.Spot.BinanceSpotEntity.Tra
 using System.Net;
 using System.Buffers.Text;
 using Google.Api;
+using System.Drawing;
 
 
 namespace OsEngine.Market.Servers.Binance.Futures
@@ -606,6 +607,11 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     else if (type_str_selector == "fapi")
                     {
                         res = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v2/account", null, true);
+                    }
+
+                    if (_optionData)
+                    {
+                        res = CreateQuery(Method.GET, _optionsUrl, "/eapi/v2/account", null, true);
                     }
 
                     if (res == null)
@@ -1511,6 +1517,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
             try
             {
                 _listenKey = CreateListenKey();
+                _listenKeyOptions = CreateListenKeyOptions();
             }
             catch (Exception exception)
             {
@@ -1524,6 +1531,14 @@ namespace OsEngine.Market.Servers.Binance.Futures
             var createListenKeyResult = CreateQueryNoLock(Method.POST, _baseUrl, createListenKeyUrl, null, false);
             return JsonConvert.DeserializeAnonymousType(createListenKeyResult, new ListenKey()).listenKey;
         }
+
+        private string CreateListenKeyOptions()
+        {
+            string createListenKeyUrl = "/eapi/v1/listenKey";
+            var createListenKeyResult = CreateQueryNoLock(Method.POST, _optionsUrl, createListenKeyUrl, null, false);
+            return JsonConvert.DeserializeAnonymousType(createListenKeyResult, new ListenKey()).listenKey;
+        }
+
 
         private void ActivateSockets()
         {
@@ -1550,9 +1565,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
                 /*if (_optionData)
                 {
-                    string createListenKeyUrl = "/eapi/v1/listenKey";
-                    var createListenKeyResult = CreateQueryNoLock(Method.POST, _optionsUrl, createListenKeyUrl, null, false);
-                    _listenKeyOptions = JsonConvert.DeserializeAnonymousType(createListenKeyResult, new ListenKey()).listenKey;
+                    _listenKeyOptions = CreateListenKeyOptions();
 
                     urlStr = wss_options + "/ws/" + _listenKeyOptions;
 
@@ -1777,6 +1790,12 @@ namespace OsEngine.Market.Servers.Binance.Futures
                             "/" + type_str_selector + "/v1/listenKey", new Dictionary<string, string>()
                                 { { "listenKey=", _listenKey } }, false);
 
+                        if (_optionData)
+                        {
+                            /*CreateQueryNoLock(Method.PUT, _optionsUrl,
+                            "/eapi/v1/listenKey", new Dictionary<string, string>()
+                                { { "listenKey=", _listenKeyOptions} }, false);*/
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -1851,7 +1870,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 if (((ServerParameterBool)ServerParameters[13]).Value == false)
                 {
                     urlStrDepth = wss + "/stream?streams="
-                                 + security.Name + "@depth5"
+                                 + security.Name + "@depth10"
                                  + "/" + security.Name + "@trade";
 
                 }
@@ -1863,6 +1882,38 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 }
 
                 urlStrDepth += "/" + security.Name + "@ticker";
+
+                bool needSubscribeToOI = true;
+                bool needSubscribeToIndex = true;
+
+                string underlying = security.Name.Split('-')[0];
+                string expirationDate = security.Name.Split('-')[1];
+
+                for (int i = 0; i < _subscribedSecurities.Count; i++)
+                {
+                    if (_subscribedSecurities[i].NameClass == SecurityType.Option.ToString())
+                    {
+                        if (_subscribedSecurities[i].Name.Split("-")[0] == underlying)
+                        {
+                            needSubscribeToIndex = false;
+                        }
+
+                        if (_subscribedSecurities[i].Name.Split("-")[1] == expirationDate)
+                        {
+                            needSubscribeToOI = false;
+                        }
+                    }
+                }
+
+                if (needSubscribeToOI)
+                {
+                    urlStrDepth += "/" + underlying + "@openInterest@" + expirationDate;
+                }
+
+                if (needSubscribeToIndex)
+                {
+                    urlStrDepth += "/" + underlying + "USDT@index";
+                }
             }
 
             _subscribedSecurities.Add(security);
@@ -2083,6 +2134,16 @@ namespace OsEngine.Market.Servers.Binance.Futures
                                 PublicMarketDataResponse<PublicMarketDataOptions> json =
                                     JsonConvert.DeserializeAnonymousType(mes, new PublicMarketDataResponse<PublicMarketDataOptions>());
                                 UpdateOptionsData(json);
+                            }
+                            else if (mes.Contains("\"e\":\"openInterest\"")) // options data
+                            {                                
+                                UpdateOptionsOI(mes);
+                            }
+                            else if (mes.Contains("\"e\":\"index\"")) // options data
+                            {
+                                PublicMarketDataResponse<PublicMarketDataOptionsUnderlyingPrice> json =
+                                    JsonConvert.DeserializeAnonymousType(mes, new PublicMarketDataResponse<PublicMarketDataOptionsUnderlyingPrice>());
+                                UpdateOptionsDataUnderlyingPrice(json);
                             }
                             else if (mes.Contains("error"))
                             {
@@ -2724,9 +2785,63 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 data.TimeCreate = response.data.E;
                 data.BidIV = response.data.b;
                 data.AskIV = response.data.a;
-                data.MarkPrice = response.data.mp;
+                data.MarkPrice = response.data.mp;                
 
                 AdditionalMarketDataEvent?.Invoke(data);
+            }
+            catch (Exception error)
+            {
+                SendLogMessage(error.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void UpdateOptionsOI(string mes)
+        {
+            try
+            {
+                PublicMarketDataResponse<List<PublicMarketDataOptionsOI>> json =
+                                        JsonConvert.DeserializeAnonymousType(mes, new PublicMarketDataResponse<List<PublicMarketDataOptionsOI>>());
+
+                for (int i = 0; i < json.data.Count; i++)
+                {
+                    OptionMarketDataForConnector data = new OptionMarketDataForConnector();
+
+                    data.SecurityName = json.data[i].s;
+                    data.OpenInterest = json.data[i].h;
+
+                    AdditionalMarketDataEvent?.Invoke(data);
+                }
+            }
+            catch (Exception error)
+            {
+                SendLogMessage(error.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void UpdateOptionsDataUnderlyingPrice(PublicMarketDataResponse<PublicMarketDataOptionsUnderlyingPrice> json)
+        {
+            try
+            {
+                string underlying = json.data.s.Replace("USDT", "");
+
+                for (int i = 0; i < _subscribedSecurities.Count; i++)
+                {
+                    if (_subscribedSecurities[i].SecurityType == SecurityType.Option)
+                    {
+                        string security = _subscribedSecurities[i].Name.Split("-")[0];
+
+                        if (security == underlying)
+                        {
+                            OptionMarketDataForConnector data = new OptionMarketDataForConnector();
+
+                            data.SecurityName = _subscribedSecurities[i].Name;
+                            data.UnderlyingAsset = json.data.s;
+                            data.UnderlyingPrice = json.data.p;
+
+                            AdditionalMarketDataEvent?.Invoke(data);
+                        }
+                    }
+                }               
             }
             catch (Exception error)
             {

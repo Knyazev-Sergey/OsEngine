@@ -54,6 +54,22 @@ namespace OsEngine.Market.Servers.Binance.Futures.Entity
         public string mp; // mark price
     }
 
+    public class PublicMarketDataOptionsOI
+    {
+        public string s; // Security
+
+        public string o; // Open interest in contracts 
+
+        public string h; // Open interest in USDT      
+    }
+
+    public class PublicMarketDataOptionsUnderlyingPrice
+    {
+        public string s; // underlying symbol
+
+        public string p; // index price
+    }
+
     public class FundingInfo
     {
         public string symbol;
