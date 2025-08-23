@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.IO.Packaging;
 
 namespace OsEngine.Market.Servers.Binance.Futures.Entity
 {
@@ -50,4 +51,88 @@ namespace OsEngine.Market.Servers.Binance.Futures.Entity
         public string volume { get; set; }
         public string openTime { get; set; }
     }
+
+    public class ResponceAccount
+    {
+        public List<Asset> asset { get; set; }
+    }
+
+    public class Asset
+    {
+        public string asset { get; set; }
+        public string marginBalance { get; set; }
+        public string equity { get; set; }
+        public string available { get; set; }
+        public string locked { get; set; }
+        public string unrealizedPNL { get; set; }
+    }
+
+    public class OrderOptionsResponce
+    {
+        public string orderId { get; set; }
+        public string symbol { get; set; }
+        public string price { get; set; }
+        public string quantity { get; set; }
+        public string side { get; set; }
+        public string type { get; set; }
+        public string createDate { get; set; }
+        public string status { get; set; }
+        public string clientOrderId { get; set; }
+    }
+
+    public class MyTradeOptionsResponce
+    {
+        public string id { get; set; }
+        public string symbol { get; set; }
+        public string price { get; set; }
+        public string quantity { get; set; }
+        public string time { get; set; }
+        public string quoteAsset { get; set; }
+        public string tradeId { get; set; }
+        public string orderId { get; set; }
+        public string side { get; set; }
+        public string type { get; set; }
+    }
+
+    public class PositionsResponce
+    {
+        public string entryPrice { get; set; }
+        public string symbol { get; set; }
+        public string side { get; set; }
+        public string quantity { get; set; }
+        public string unrealizedPNL { get; set; }
+    }
+    public class OptionsOrderUpdResponse
+    {
+        public string e; // ":"ORDER_TRADE_UPDATE",     // Event Type
+        public string E; //":1568879465651,            // Event Time
+        public string T; //": 1568879465650,           //  Transaction Time
+
+        public List<OptionsOrderResp> o; // order
+    }
+
+    public class OptionsOrderResp
+    {
+        public string T;              //Order Create Time
+        public string t;              //Order Update Time
+        public string s;              //Symbol
+        public string c;              //clientOrderId
+        public string oid;            //order id
+        public string p;              //order price
+        public string q;              //order quantity (positive for BUY, negative for SELL)
+        public string S;              //status
+        public string e;              //completed trade volume(in contracts)       
+        public string ec;             //completed trade amount(in quote asset)       
+        public string oty;            //order type
+        public List<OptionsTrades> fi;       
+    }
+
+    public class OptionsTrades
+    {
+        public string t;                   //tradeId
+        public string p;                 //trade price
+        public string q;                 //trade quantity
+        public string T;          //trade time       
+    }
+
 }

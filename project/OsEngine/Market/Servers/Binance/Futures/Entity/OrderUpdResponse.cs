@@ -70,7 +70,8 @@ namespace OsEngine.Market.Servers.Binance.Futures.Entity
         public string priceMatch; //": "NONE",              //price match mode
         public string selfTradePreventionMode; //": "NONE", //self trading preventation mode
         public string goodTillDate; //": 0      //order pre-set auot cancel time for TIF GTD order
-
+        public string quantity; // for options
+        public string createTime;// for options
 
     }
 

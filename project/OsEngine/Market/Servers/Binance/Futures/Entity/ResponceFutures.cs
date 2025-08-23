@@ -42,6 +42,8 @@ namespace OsEngine.Market.Servers.Binance.Futures.Entity
         public string time;
         public string updateTime;
         public string isWorking;
+        public string quantity;
+        public string createTime;
 
     }
 

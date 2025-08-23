@@ -21,10 +21,6 @@ using Newtonsoft.Json.Linq;
 using OsEngine.Entity.WebSocketOsEngine;
 using TradeResponse = OsEngine.Market.Servers.Binance.Spot.BinanceSpotEntity.TradeResponse;
 using System.Net;
-using System.Buffers.Text;
-using Google.Api;
-using System.Drawing;
-
 
 namespace OsEngine.Market.Servers.Binance.Futures
 {
@@ -90,6 +86,11 @@ namespace OsEngine.Market.Servers.Binance.Futures
             threadExtendedData.IsBackground = true;
             threadExtendedData.Name = "ThreadBinanceFuturesExtendedData";
             threadExtendedData.Start();
+
+            Thread threadOptionsPrivateData = new Thread(ConverterUserOptionsData);
+            threadOptionsPrivateData.IsBackground = true;
+            threadOptionsPrivateData.Name = "BinanceFutThread_ConverterUserOptionsData";
+            threadOptionsPrivateData.Start();
         }
 
         private WebProxy _myProxy;
@@ -203,6 +204,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
             _securities = new List<Security>();
             _depths.Clear();
             _queuePrivateMessages = new ConcurrentQueue<BinanceUserMessage>();
+            _queuePrivateOptionsMessages = new ConcurrentQueue<BinanceUserMessage>();
             _queuePublicMessages = new ConcurrentQueue<string>();
         }
 
@@ -582,6 +584,11 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     {
                         UpdatePortfolio(resp, false);
                     }
+
+                    if (_optionData)
+                    {                        
+                        UpdatePortfolioOption();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -607,11 +614,6 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     else if (type_str_selector == "fapi")
                     {
                         res = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v2/account", null, true);
-                    }
-
-                    if (_optionData)
-                    {
-                        res = CreateQuery(Method.GET, _optionsUrl, "/eapi/v2/account", null, true);
                     }
 
                     if (res == null)
@@ -786,6 +788,72 @@ namespace OsEngine.Market.Servers.Binance.Futures
             }
 
             return 0;
+        }
+
+        private void UpdatePortfolioOption()
+        {
+            try
+            {
+                string json = CreateQuery(Method.GET, _optionsUrl, "/eapi/v1/account", null, true);
+
+                ResponceAccount resp = JsonConvert.DeserializeAnonymousType(json, new ResponceAccount());
+
+                Portfolio myPortfolio = _portfolios.Find(p => p.Number == "BinanceFutures");
+
+                if (myPortfolio == null)
+                {
+                    Portfolio newPortf = new Portfolio();
+                    newPortf.Number = "BinanceFutures";
+                    newPortf.ValueBegin = 1;
+                    newPortf.ValueCurrent = 1;
+                    _portfolios.Add(newPortf);
+                    myPortfolio = newPortf;
+                }
+
+                for (int i = 0; i < resp.asset.Count; i++)
+                {
+                    PositionOnBoard pos = new PositionOnBoard();
+
+                    pos.SecurityNameCode = resp.asset[i].asset;
+                    pos.ValueBegin = resp.asset[i].marginBalance.ToDecimal();
+                    pos.ValueCurrent = resp.asset[i].marginBalance.ToDecimal();
+                    pos.PortfolioName = "BinanceFutures";
+                    pos.UnrealizedPnl = resp.asset[i].unrealizedPNL.ToDecimal();
+                    pos.ValueBlocked = resp.asset[i].locked.ToDecimal();
+
+                    myPortfolio.SetNewPosition(pos);
+                }
+
+                string jsonPos = CreateQuery(Method.GET, _optionsUrl, "/eapi/v1/position", null, true);
+                  
+                if (jsonPos != null ||
+                    jsonPos != "[]")
+                {
+                    List<PositionsResponce> respPos = JsonConvert.DeserializeAnonymousType(jsonPos, new List<PositionsResponce>());
+
+                    for (int i = 0; i < respPos.Count; i++)
+                    {
+                        PositionOnBoard pos = new PositionOnBoard();
+
+                        pos.SecurityNameCode = respPos[i].symbol;
+                        pos.ValueBegin = respPos[i].quantity.ToDecimal();
+                        pos.ValueCurrent = respPos[i].quantity.ToDecimal();
+                        pos.PortfolioName = "BinanceFutures";
+                        pos.UnrealizedPnl = respPos[i].unrealizedPNL.ToDecimal();
+
+                        myPortfolio.SetNewPosition(pos);
+                    }
+                }
+
+                if (PortfolioEvent != null)
+                {
+                    PortfolioEvent(_portfolios);
+                }
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
         }
 
         public event Action<List<Portfolio>> PortfolioEvent;
@@ -1516,8 +1584,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
         {
             try
             {
-                _listenKey = CreateListenKey();
-                _listenKeyOptions = CreateListenKeyOptions();
+                _listenKey = CreateListenKey();                
             }
             catch (Exception exception)
             {
@@ -1563,7 +1630,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
                 _socketsArray.Add("userDataStream", _socketPrivateData);
 
-                /*if (_optionData)
+                if (_optionData)
                 {
                     _listenKeyOptions = CreateListenKeyOptions();
 
@@ -1578,13 +1645,13 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
                     _socketPrivateOptionsData.EmitOnPing = true;
                     _socketPrivateOptionsData.OnOpen += _socketClient_Opened;
-                    _socketPrivateOptionsData.OnMessage += _socketClient_PrivateMessage;
+                    _socketPrivateOptionsData.OnMessage += _socketClient_PrivateOptionsMessage;
                     _socketPrivateOptionsData.OnError += _socketClient_Error;
                     _socketPrivateOptionsData.OnClose += _socketClient_Closed;
                     _socketPrivateOptionsData.Connect();
 
                     _socketsArray.Add("userOptionsDataStream", _socketPrivateOptionsData);
-                }*/
+                }
 
             }
             catch (Exception exception)
@@ -1608,7 +1675,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 if (_socketPrivateOptionsData != null)
                 {
                     _socketPrivateOptionsData.OnOpen -= _socketClient_Opened;
-                    _socketPrivateOptionsData.OnMessage -= _socketClient_PrivateMessage;
+                    _socketPrivateOptionsData.OnMessage -= _socketClient_PrivateOptionsMessage;
                     _socketPrivateOptionsData.OnError -= _socketClient_Error;
                     _socketPrivateOptionsData.OnClose -= _socketClient_Closed;
                 }
@@ -1667,6 +1734,8 @@ namespace OsEngine.Market.Servers.Binance.Futures
         #region 7 WebSocket events
 
         private ConcurrentQueue<BinanceUserMessage> _queuePrivateMessages = new ConcurrentQueue<BinanceUserMessage>();
+
+        private ConcurrentQueue<BinanceUserMessage> _queuePrivateOptionsMessages = new ConcurrentQueue<BinanceUserMessage>();
 
         private ConcurrentQueue<string> _queuePublicMessages = new ConcurrentQueue<string>();
 
@@ -1747,6 +1816,17 @@ namespace OsEngine.Market.Servers.Binance.Futures
             _queuePrivateMessages.Enqueue(message);
         }
 
+        private void _socketClient_PrivateOptionsMessage(object sender, MessageEventArgs e)
+        {
+            if (ServerStatus == ServerConnectStatus.Disconnect)
+            {
+                return;
+            }
+            BinanceUserMessage message = new BinanceUserMessage();
+            message.MessageStr = e.Data;
+            _queuePrivateOptionsMessages.Enqueue(message);
+        }
+
         private void _socket_PublicMessage(object sender, MessageEventArgs e)
         {
             if (ServerStatus == ServerConnectStatus.Disconnect)
@@ -1792,9 +1872,9 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
                         if (_optionData)
                         {
-                            /*CreateQueryNoLock(Method.PUT, _optionsUrl,
+                            CreateQueryNoLock(Method.PUT, _optionsUrl,
                             "/eapi/v1/listenKey", new Dictionary<string, string>()
-                                { { "listenKey=", _listenKeyOptions} }, false);*/
+                                { { "listenKey=", _listenKeyOptions} }, false);
                         }
                     }
                 }
@@ -2233,6 +2313,61 @@ namespace OsEngine.Market.Servers.Binance.Futures
             }
         }
 
+        public void ConverterUserOptionsData()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (_queuePrivateOptionsMessages.IsEmpty == true)
+                    {
+                        Thread.Sleep(1);
+                    }
+                    else
+                    {
+                        BinanceUserMessage messsage;
+
+                        if (_queuePrivateOptionsMessages.TryDequeue(out messsage))
+                        {
+                            string mes = messsage.MessageStr;
+
+                            if (mes.Contains("code"))
+                            {
+                                // если есть code ошибки, то пытаемся распарсить
+                                ErrorMessage _err = new ErrorMessage();
+
+                                try
+                                {
+                                    _err = JsonConvert.DeserializeAnonymousType(mes, new ErrorMessage());
+                                }
+                                catch (Exception e)
+                                {
+                                    // если не смогли распарсить, то просто покажем что пришло
+                                    _err.code = 9999;
+                                    _err.msg = mes;
+                                }
+                                SendLogMessage("ConverterUserOptionsData ERORR. Code: " + _err.code.ToString() + ", msg: " + _err.msg, LogMessageType.Error);
+                            }
+
+                            else if (mes.Contains("\"e\"" + ":" + "\"ORDER_TRADE_UPDATE\""))
+                            {
+                                UpdateOptionsMyOrderAndMyTrades(mes);
+                            }
+                            else if (IsListenKeyExpiredEvent(mes))
+                            {
+                                _listenKeyOptions = CreateListenKeyOptions();
+                            }                            
+                        }
+                    }
+                }
+                catch (Exception exception)
+                {
+                    SendLogMessage(exception.ToString(), LogMessageType.Error);
+                    Thread.Sleep(5000);
+                }
+            }
+        }
+
         private static bool IsListenKeyExpiredEvent(string userDataMsg)
         {
             const string EVENT_NAME_KEY = "e";
@@ -2583,6 +2718,207 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 SendLogMessage(order.x, LogMessageType.Error);
             }
         }
+        private void UpdateOptionsMyOrderAndMyTrades(string mes)
+        {
+            // если ошибки в ответе ордера
+            OptionsOrderUpdResponse ord = new OptionsOrderUpdResponse();
+            try
+            {
+                ord = JsonConvert.DeserializeAnonymousType(mes, new OptionsOrderUpdResponse());
+            }
+            catch (Exception)
+            {
+                SendLogMessage("error in order update:" + mes, LogMessageType.Error);
+                return;
+            }
+
+            List<OptionsOrderResp> order = ord.o;
+
+            for (int i = 0; i < order.Count; i++)
+            {
+
+                Int32 orderNumUser;
+
+                try
+                {
+                    orderNumUser = Convert.ToInt32(order[i].c.ToString().Replace("x-gnrPHWyE", ""));
+                }
+                catch (Exception)
+                {
+                    orderNumUser = Convert.ToInt32(order[i].c.GetHashCode());
+                }
+
+                if (order[i].S == "NEW")
+                {
+                    Order newOrder = new Order();
+                    newOrder.SecurityNameCode = order[i].s;
+                    newOrder.TimeCallBack = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(order[i].T));
+                    newOrder.NumberUser = orderNumUser;
+
+                    newOrder.NumberMarket = order[i].oid.ToString();
+                    newOrder.Side = order[i].q.ToDecimal() > 0 ? Side.Buy : Side.Sell;
+                    newOrder.State = OrderStateType.Active;
+                    newOrder.Volume = order[i].q.ToDecimal();
+                    newOrder.Price = order[i].p.ToDecimal();
+                    newOrder.ServerType = ServerType.BinanceFutures;
+                    newOrder.PortfolioNumber = "BinanceFutures";
+
+                    if (order[i].oty == "MARKET")
+                    {
+                        newOrder.TypeOrder = OrderPriceType.Market;
+                    }
+                    else
+                    {
+                        newOrder.TypeOrder = OrderPriceType.Limit;
+                    }
+
+                    if (MyOrderEvent != null)
+                    {
+                        MyOrderEvent(newOrder);
+                    }
+                }
+                else if (order[i].S == "CANCELED")
+                {
+                    Order newOrder = new Order();
+                    newOrder.SecurityNameCode = order[i].s;
+                    newOrder.TimeCallBack = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(order[i]));
+                    newOrder.TimeCancel = newOrder.TimeCallBack;
+                    newOrder.NumberUser = orderNumUser;
+                    newOrder.NumberMarket = order[i].oid.ToString();
+                    newOrder.Side = order[i].q.ToDecimal() > 0 ? Side.Buy : Side.Sell;
+                    newOrder.State = OrderStateType.Cancel;
+                    newOrder.Volume = order[i].q.ToDecimal();
+                    newOrder.Price = order[i].p.ToDecimal();
+                    newOrder.ServerType = ServerType.BinanceFutures;
+                    newOrder.PortfolioNumber = "BinanceFutures";
+
+                    if (order[i].oty == "MARKET")
+                    {
+                        newOrder.TypeOrder = OrderPriceType.Market;
+                    }
+                    else
+                    {
+                        newOrder.TypeOrder = OrderPriceType.Limit;
+                    }
+
+                    if (MyOrderEvent != null)
+                    {
+                        MyOrderEvent(newOrder);
+                    }
+                }
+                else if (order[i].S == "REJECTED")
+                {
+                    Order newOrder = new Order();
+                    newOrder.SecurityNameCode = order[i].s;
+                    newOrder.TimeCallBack = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(order[i]));
+                    newOrder.NumberUser = orderNumUser;
+                    newOrder.NumberMarket = order[i].oid.ToString();
+                    newOrder.Side = order[i].q.ToDecimal() > 0 ? Side.Buy : Side.Sell;
+                    newOrder.State = OrderStateType.Fail;
+                    newOrder.Volume = order[i].q.ToDecimal();
+                    newOrder.Price = order[i].p.ToDecimal();
+                    newOrder.ServerType = ServerType.BinanceFutures;
+                    newOrder.PortfolioNumber = "BinanceFutures";
+
+                    if (order[i].oty == "MARKET")
+                    {
+                        newOrder.TypeOrder = OrderPriceType.Market;
+                    }
+                    else
+                    {
+                        newOrder.TypeOrder = OrderPriceType.Limit;
+                    }
+
+                    if (MyOrderEvent != null)
+                    {
+                        MyOrderEvent(newOrder);
+                    }
+                }
+                else if (order[i].S == "TRADE")
+                {
+                    for (int j = 0; j < order[i].fi.Count; j++)
+                    {
+                        OptionsTrades optionsTrades = order[i].fi[j];
+                        MyTrade trade = new MyTrade();
+                        trade.Time = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(optionsTrades.T));
+                        trade.NumberOrderParent = order[i].oid;
+                        trade.NumberTrade = optionsTrades.t;
+                        trade.Volume = optionsTrades.q.ToDecimal();
+                        trade.Price = optionsTrades.p.ToDecimal();
+                        trade.SecurityNameCode = order[i].s;
+                        trade.Side = order[i].q.ToDecimal() > 0 ? Side.Buy : Side.Sell;
+
+                        if (MyTradeEvent != null)
+                        {
+                            MyTradeEvent(trade);
+                        }
+
+                        if (order[i].S == "FILLED")
+                        {
+                            Order newOrder = new Order();
+                            newOrder.SecurityNameCode = order[i].s;
+                            newOrder.TimeCallBack = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(order[i].T));
+                            newOrder.NumberUser = orderNumUser;
+                            newOrder.NumberMarket = order[i].oid.ToString();
+                            newOrder.Side = order[i].q.ToDecimal() > 0 ? Side.Buy : Side.Sell;
+                            newOrder.State = OrderStateType.Done;
+                            newOrder.Volume = order[i].q.ToDecimal();
+                            newOrder.Price = trade.Price;
+                            newOrder.ServerType = ServerType.BinanceFutures;
+                            newOrder.PortfolioNumber = "BinanceFutures";
+
+                            if (order[i].oty == "MARKET")
+                            {
+                                newOrder.TypeOrder = OrderPriceType.Market;
+                            }
+                            else
+                            {
+                                newOrder.TypeOrder = OrderPriceType.Limit;
+                            }
+
+                            if (MyOrderEvent != null)
+                            {
+                                MyOrderEvent(newOrder);
+                            }
+                        }
+                    }
+                }
+                else if (order[i].S == "EXPIRED")
+                {
+                    Order newOrder = new Order();
+                    newOrder.SecurityNameCode = order[i].s;
+                    newOrder.TimeCallBack = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(order[i].T));
+                    newOrder.TimeCancel = newOrder.TimeCallBack;
+                    newOrder.NumberUser = orderNumUser;
+                    newOrder.NumberMarket = order[i].oid.ToString();
+                    newOrder.Side = order[i].q.ToDecimal() > 0 ? Side.Buy : Side.Sell;
+                    newOrder.State = OrderStateType.Cancel;
+                    newOrder.Volume = order[i].q.ToDecimal();
+                    newOrder.Price = order[i].p.ToDecimal();
+                    newOrder.ServerType = ServerType.BinanceFutures;
+                    newOrder.PortfolioNumber = "BinanceFutures";
+
+                    if (order[i].oty == "MARKET")
+                    {
+                        newOrder.TypeOrder = OrderPriceType.Market;
+                    }
+                    else
+                    {
+                        newOrder.TypeOrder = OrderPriceType.Limit;
+                    }
+
+                    if (MyOrderEvent != null)
+                    {
+                        MyOrderEvent(newOrder);
+                    }
+                }
+                else
+                {
+                    SendLogMessage(order[i].S, LogMessageType.Error);
+                }
+            }
+        }
+
 
         private void UpdateTrades(TradeResponse trades)
         {
@@ -2867,11 +3203,16 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
         public void SendOrder(Order order)
         {
-
             try
             {
                 if (ServerStatus == ServerConnectStatus.Disconnect)
                 {
+                    return;
+                }
+
+                if (order.SecurityClassCode == SecurityType.Option.ToString())
+                {
+                    SendOptionsOrder(order);
                     return;
                 }
 
@@ -2919,6 +3260,70 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 {
                     OrderActionResponse orderResponse =
                     JsonConvert.DeserializeAnonymousType(res, new OrderActionResponse());
+
+                    if (orderResponse.status == "NEW"
+                        || orderResponse.status == "PARTIALLY_FILLED"
+                        || orderResponse.status == "FILLED")
+                    {
+                        SendLogMessage(res, LogMessageType.Trade);
+                    }
+                    else
+                    {
+                        order.State = OrderStateType.Fail;
+
+                        if (MyOrderEvent != null)
+                        {
+                            MyOrderEvent(order);
+                        }
+                    }
+                }
+                else
+                {
+                    order.State = OrderStateType.Fail;
+
+                    if (MyOrderEvent != null)
+                    {
+                        MyOrderEvent(order);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void SendOptionsOrder(Order order)
+        {
+            try
+            {               
+                Dictionary<string, string> param = new Dictionary<string, string>();
+
+                param.Add("symbol=", order.SecurityNameCode.ToUpper());
+                param.Add("&side=", order.Side == Side.Buy ? "BUY" : "SELL");                
+                param.Add("&type=", order.TypeOrder == OrderPriceType.Limit ? "LIMIT" : "MARKET");                
+                param.Add("&quantity=",
+                    order.Volume.ToString(CultureInfo.InvariantCulture)
+                        .Replace(CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator, "."));
+
+                if (order.TypeOrder == OrderPriceType.Limit)
+                {
+                    param.Add("&price=",
+                        order.Price.ToString(CultureInfo.InvariantCulture)
+                            .Replace(CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator, "."));
+                }
+
+                param.Add("&clientOrderId=", "x-gnrPHWyE" + order.NumberUser.ToString());
+                param.Add("&newOrderRespType=", "RESULT");
+                //param.Add("&timestamp=", (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds.ToString());
+
+                var res = CreateQuery(Method.POST, _optionsUrl, "/eapi/v1/order", param, true);
+
+                if (res != null
+                    && res.Contains("clientOrderId"))
+                {
+                    OrderOptionsResponce orderResponse =
+                    JsonConvert.DeserializeAnonymousType(res, new OrderOptionsResponce());
 
                     if (orderResponse.status == "NEW"
                         || orderResponse.status == "PARTIALLY_FILLED"
@@ -3003,7 +3408,14 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     param.Add("symbol=", order.SecurityNameCode.ToUpper());
                     param.Add("&orderId=", order.NumberMarket);
 
-                    CreateQuery(Method.DELETE, _baseUrl, "/" + type_str_selector + "/v1/order", param, true);
+                    if (order.SecurityClassCode == SecurityType.Option.ToString())
+                    {
+                        CreateQuery(Method.DELETE, _optionsUrl, "/eapi/v1/order", param, true);
+                    }
+                    else
+                    {
+                        CreateQuery(Method.DELETE, _baseUrl, "/" + type_str_selector + "/v1/order", param, true);
+                    }
 
                 }
                 catch (Exception ex)
@@ -3095,11 +3507,18 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
                 param.Add("symbol=", security.Name.ToUpper());
 
-                CreateQuery(Method.DELETE, _baseUrl, "/" + type_str_selector + "/v1/allOpenOrders", param, true);
+                if (security.NameClass == SecurityType.Option.ToString())
+                {
+                    CreateQuery(Method.DELETE, _optionsUrl, "/eapi/v1/allOpenOrders", param, true);
+                }
+                else
+                {
+                    CreateQuery(Method.DELETE, _baseUrl, "/" + type_str_selector + "/v1/allOpenOrders", param, true);
+                }
             }
             catch (Exception exception)
             {
-                SendLogMessage(exception.Message, LogMessageType.Error);
+                SendLogMessage(exception.ToString(), LogMessageType.Error);
             }
         }
 
@@ -3137,6 +3556,10 @@ namespace OsEngine.Market.Servers.Binance.Futures
         {
             try
             {
+                if (order.SecurityClassCode == SecurityType.Option.ToString())
+                {
+                    return GetMyOptionsTrades(order);
+                }
                 var param = new Dictionary<string, string>();
                 param.Add("symbol=", order.SecurityNameCode.ToUpper());
 
@@ -3185,10 +3608,71 @@ namespace OsEngine.Market.Servers.Binance.Futures
             return null;
         }
 
+        private List<MyTrade> GetMyOptionsTrades(Order order)
+        {
+            try 
+            {
+                var param = new Dictionary<string, string>();
+                param.Add("symbol=", order.SecurityNameCode.ToUpper());
+
+                var res = CreateQuery(
+                           Method.GET,
+                           _optionsUrl,
+                           "/eapi/v1/userTrades",
+                           param,
+                           true);
+
+                if (res == null)
+                {
+                    return null;
+                }
+
+                List<MyTradeOptionsResponce> responceTrades =
+                    JsonConvert.DeserializeAnonymousType(res, new List<MyTradeOptionsResponce>());
+
+                List<MyTrade> trades = new List<MyTrade>();
+
+                for (int j = 0; j < responceTrades.Count; j++)
+                {
+                    if (order.NumberMarket == Convert.ToString(responceTrades[j].orderId))
+                    {
+                        MyTradeOptionsResponce responcetrade = responceTrades[j];
+
+                        MyTrade trade = new MyTrade();
+                        trade.Time = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(responcetrade.time));
+                        trade.NumberOrderParent = responcetrade.orderId.ToString();
+                        trade.NumberTrade = responcetrade.id.ToString();
+                        trade.Volume = responcetrade.quantity.ToDecimal();
+                        trade.Price = responcetrade.price.ToDecimal();
+                        trade.SecurityNameCode = responcetrade.symbol;
+                        trade.Side = responcetrade.side == "BUY" ? Side.Buy : Side.Sell;
+
+                        trades.Add(trade);
+                    }
+                }
+
+                return trades;
+            }
+            catch (Exception)
+            {
+                //ignore
+            }
+            return null;
+        }
+
         private List<Order> GetAllActivOrdersQuery()
         {
             try
             {
+                List<Order> orderOnBoard = new List<Order>();
+
+                List<Order> optionsOrders = GetOptionsOpenOrders();
+
+                if (optionsOrders != null)
+                {
+                    orderOnBoard.AddRange(optionsOrders);
+                }
+
                 string res = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v1/openOrders", null, true);
 
                 if (res == null ||
@@ -3197,9 +3681,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     return null;
                 }
 
-                List<OrderOpenRestRespFut> respOrders = JsonConvert.DeserializeAnonymousType(res, new List<OrderOpenRestRespFut>());
-
-                List<Order> orderOnBoard = new List<Order>();
+                List<OrderOpenRestRespFut> respOrders = JsonConvert.DeserializeAnonymousType(res, new List<OrderOpenRestRespFut>());                
 
                 for (int i = 0; i < respOrders.Count; i++)
                 {
@@ -3255,15 +3737,88 @@ namespace OsEngine.Market.Servers.Binance.Futures
             }
             catch (Exception exception)
             {
-                SendLogMessage(exception.Message, LogMessageType.Error);
+                SendLogMessage(exception.ToString(), LogMessageType.Error);
             }
+            return null;
+        }
+
+        private List<Order> GetOptionsOpenOrders()
+        {
+            try 
+            {
+                List<Order> orderOnBoard = new List<Order>();
+
+                string res = CreateQuery(Method.GET, _optionsUrl, "/eapi/v1/openOrders", null, true);
+
+                if (res == null ||
+                    res == "[]")
+                {
+                    return null;
+                }
+
+                List<OrderOpenRestRespFut> respOrders = JsonConvert.DeserializeAnonymousType(res, new List<OrderOpenRestRespFut>());
+
+                for (int i = 0; i < respOrders.Count; i++)
+                {
+                    OrderOpenRestRespFut orderOnBoardResp = respOrders[i];
+
+                    Order newOrder = new Order();
+
+                    newOrder.PortfolioNumber = "BinanceFutures";
+                    newOrder.NumberMarket = orderOnBoardResp.orderId;
+
+                    if (string.IsNullOrEmpty(orderOnBoardResp.clientOrderId) == false)
+                    {
+                        try
+                        {
+                            newOrder.NumberUser =
+                                Convert.ToInt32(orderOnBoardResp.clientOrderId.Replace("x-gnrPHWyE", ""));
+                        }
+                        catch
+                        {
+                            // ignore
+                        }
+                    }
+
+                    newOrder.Price = orderOnBoardResp.price.ToDecimal();
+                    newOrder.Volume = orderOnBoardResp.quantity.ToDecimal();
+                    newOrder.TypeOrder = OrderPriceType.Limit;
+                    newOrder.State = OrderStateType.Active;
+
+                    if (string.IsNullOrEmpty(orderOnBoardResp.executedQty) == false &&
+                        orderOnBoardResp.executedQty != "0")
+                    {
+                        newOrder.VolumeExecute = orderOnBoardResp.executedQty.ToDecimal();
+                        newOrder.State = OrderStateType.Partial;
+                    }
+                    newOrder.ServerType = ServerType.BinanceFutures;
+                    newOrder.SecurityNameCode = orderOnBoardResp.symbol;
+                    newOrder.TimeCreate = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(orderOnBoardResp.createTime));
+                    newOrder.TimeCallBack = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(orderOnBoardResp.updateTime));
+
+                    if (orderOnBoardResp.side == "BUY")
+                    {
+                        newOrder.Side = Side.Buy;
+                    }
+                    else
+                    {
+                        newOrder.Side = Side.Sell;
+                    }
+
+                    orderOnBoard.Add(newOrder);
+                }
+
+                return orderOnBoard;
+            }
+            catch (Exception exception)
+            {
+                SendLogMessage(exception.ToString(), LogMessageType.Error);
+    }
             return null;
         }
 
         private Order GetActualOrderQuery(Order oldOrder)
         {
-            string endPoint = "/" + type_str_selector + "/v1/allOrders";
-
             var param = new Dictionary<string, string>();
             param.Add("symbol=", oldOrder.SecurityNameCode.ToUpper());
             //param.Add("&recvWindow=" , "100");
@@ -3271,7 +3826,16 @@ namespace OsEngine.Market.Servers.Binance.Futures
             param.Add("&limit=", "500");
             //"symbol={symbol.ToUpper()}&recvWindow={recvWindow}"
 
-            var res = CreateQuery(Method.GET, _baseUrl, endPoint, param, true);
+            string res = null;
+
+            if (oldOrder.SecurityClassCode == SecurityType.Option.ToString())
+            {
+                res = CreateQuery(Method.GET, _optionsUrl, "/eapi/v1/historyOrders", param, true);
+            }
+            else
+            {
+                res = CreateQuery(Method.GET, _baseUrl, "/" + type_str_selector + "/v1/allOrders", param, true);
+            }
 
             if (res == null)
             {
@@ -3313,7 +3877,15 @@ namespace OsEngine.Market.Servers.Binance.Futures
             newOrder.Price = oldOrder.Price;
             newOrder.TypeOrder = oldOrder.TypeOrder;
 
-            newOrder.TimeCreate = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(orderOnBoard.time));
+            if (oldOrder.SecurityClassCode == SecurityType.Option.ToString())
+            {
+                newOrder.TimeCreate = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(orderOnBoard.createTime));
+            }
+            else
+            {
+                newOrder.TimeCreate = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(orderOnBoard.time));
+            }
+                
             newOrder.TimeCallBack = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(orderOnBoard.updateTime));
 
             newOrder.ServerType = ServerType.BinanceFutures;
