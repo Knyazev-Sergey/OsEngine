@@ -2045,7 +2045,7 @@ namespace OsEngine.Robots
                     if (takerTab.PositionsLast.CloseOrders != null && takerTab.PositionsLast.CloseOrders.Count > 0)
                     {
                         if (makerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Done &&
-                            takerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Done)
+                            (takerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Done || takerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Cancel))
                         {
                             if (makerTab.PositionsLast.OpenVolume * makerTab.Security.Lot >= takerTab.PositionsLast.OpenVolume * takerTab.Security.Lot)
                             {
