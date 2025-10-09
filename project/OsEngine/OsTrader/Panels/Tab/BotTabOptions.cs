@@ -33,7 +33,7 @@ namespace OsEngine.OsTrader.Panels.Tab
         private List<UnderlyingAssetDataRow> _uaData;
 
         private Dictionary<string, DataGridViewRow> _uaGridRows;
-        private Dictionary<decimal, DataGridViewRow> _strikeGridRows; // Maps strike to the wide row
+        private Dictionary<double, DataGridViewRow> _strikeGridRows; // Maps strike to the wide row
 
         private Dictionary<string, BotTabSimple> _simpleTabs;
 
@@ -43,12 +43,22 @@ namespace OsEngine.OsTrader.Panels.Tab
         private System.Threading.Timer _updateTimer;
         private readonly object _locker = new object();
         private GlobalPositionViewer _positionViewer;
-        private System.Threading.Timer _dailyReloadTimer;
         private IServer _server;
 
         #endregion
 
         #region Properties
+
+        public List<BotTabSimple> Tabs
+        {
+            get
+            {
+                lock (_locker)
+                {
+                    return _simpleTabs.Values.ToList();
+                }
+            }
+        }
 
         public List<string> UnderlyingAssets { get; private set; }
         public string PortfolioName { get; private set; }
@@ -217,7 +227,7 @@ namespace OsEngine.OsTrader.Panels.Tab
             _uaData = new List<UnderlyingAssetDataRow>();
             _simpleTabs = new Dictionary<string, BotTabSimple>();
             _uaGridRows = new Dictionary<string, DataGridViewRow>();
-            _strikeGridRows = new Dictionary<decimal, DataGridViewRow>();
+            _strikeGridRows = new Dictionary<double, DataGridViewRow>();
 
             CreateGrids();
 
@@ -261,8 +271,8 @@ namespace OsEngine.OsTrader.Panels.Tab
                         continue;
                     }
 
-                    decimal strike = (decimal)row.Cells["Strike"].Value;
-                    var strikeData = _allOptionsData.Where(o => o.Security.Strike == strike).ToList();
+                    double strike = (double)row.Cells["Strike"].Value;
+                    var strikeData = _allOptionsData.Where(o => o != null && o.Security != null && (double)o.Security.Strike == strike).ToList();
                     var callData = strikeData.FirstOrDefault(o => o.Security.OptionType == OptionType.Call);
                     var putData = strikeData.FirstOrDefault(o => o.Security.OptionType == OptionType.Put);
 
@@ -370,7 +380,7 @@ namespace OsEngine.OsTrader.Panels.Tab
                         }
                     }
 
-                    decimal iv = 0;
+                    double iv = 0;
 
                     if (callData != null)
                     {
@@ -439,8 +449,8 @@ namespace OsEngine.OsTrader.Panels.Tab
 
                     if (uaPrice != 0)
                     {
-                        decimal centralStrike = 0;
-                        decimal minDiff = decimal.MaxValue;
+                        double centralStrike = 0;
+                        double minDiff = double.MaxValue;
 
                         var strikes = _strikeGridRows.Keys.OrderBy(s => s).ToList();
 
@@ -492,7 +502,14 @@ namespace OsEngine.OsTrader.Panels.Tab
 
             if (server != null && server.ServerStatus == ServerConnectStatus.Connect)
             {
-                SetUnderlyingAssetsAndStart(UnderlyingAssets, PortfolioName, server);
+                if (server.Securities != null && server.Securities.Count > 0)
+                {
+                    SetUnderlyingAssetsAndStart(UnderlyingAssets, PortfolioName, server);
+                }
+                else
+                {
+                    server.SecuritiesChangeEvent += Server_SecuritiesChangeEvent;
+                }
             }
             else if (server != null)
             {
@@ -565,6 +582,10 @@ namespace OsEngine.OsTrader.Panels.Tab
 
             if (server == null) return;
 
+            if (_server != null)
+            {
+                _server.SecuritiesChangeEvent -= OnSecuritiesChanged;
+            }
             _server = server; // Store the server instance
             _server.SecuritiesChangeEvent += OnSecuritiesChanged; // Subscribe to event
 
@@ -574,39 +595,44 @@ namespace OsEngine.OsTrader.Panels.Tab
             var allSecurities = server.Securities;
             if (allSecurities == null) return;
 
-            // Clear previous data
-            _allOptionsData.Clear();
-            _uaData.Clear();
-            foreach (var tab in _simpleTabs.Values)
+            var oldTabsToDispose = new List<BotTabSimple>();
+
+            lock (_locker)
+            {
+                // Clear previous data
+                _allOptionsData.Clear();
+                _uaData.Clear();
+
+                oldTabsToDispose = _simpleTabs.Values.ToList();
+                _simpleTabs.Clear();
+
+                var optionsToTrade = allSecurities.Where(s =>
+                        s.SecurityType == SecurityType.Option && UnderlyingAssets.Contains(s.UnderlyingAsset))
+                    .OrderBy(o => o.Expiration).ToList();
+                var underlyingAssetSecurities = allSecurities.Where(s => UnderlyingAssets.Contains(s.Name)).ToList();
+
+                foreach (var uaSec in underlyingAssetSecurities)
+                {
+                    var tab = CreateSimpleTab(uaSec, server);
+                    _uaData.Add(new UnderlyingAssetDataRow { Security = uaSec, SimpleTab = tab });
+                }
+
+                foreach (var option in optionsToTrade)
+                {
+                    var tab = CreateSimpleTab(option, server);
+                    _allOptionsData.Add(new OptionDataRow { Security = option, SimpleTab = tab });
+                }
+            }
+
+            foreach (var tab in oldTabsToDispose)
             {
                 tab.Delete();
             }
 
-            _simpleTabs.Clear();
-
-            var optionsToTrade = allSecurities.Where(s =>
-                    s.SecurityType == SecurityType.Option && UnderlyingAssets.Contains(s.UnderlyingAsset))
-                .OrderBy(o => o.Expiration).ToList();
-            var underlyingAssetSecurities = allSecurities.Where(s => UnderlyingAssets.Contains(s.Name)).ToList();
-
-            foreach (var uaSec in underlyingAssetSecurities)
-            {
-                var tab = CreateSimpleTab(uaSec, server);
-                _uaData.Add(new UnderlyingAssetDataRow { Security = uaSec, SimpleTab = tab });
-            }
-
-            foreach (var option in optionsToTrade)
-            {
-                var tab = CreateSimpleTab(option, server);
-                _allOptionsData.Add(new OptionDataRow { Security = option, SimpleTab = tab });
-            }
-
-            PopulateExpirationFilter(optionsToTrade);
             InitializeUaGrid();
             SelectFirstUnderlyingAsset();
             SetJournalsInPosViewer(); // Add this call
 
-            InitializeDailyReloadTimer(); // Call new method to set up the timer
             SaveSettings();
         }
 
@@ -621,88 +647,88 @@ namespace OsEngine.OsTrader.Panels.Tab
             if (_uaGrid.Rows.Count > 0)
             {
                 _uaGrid.Rows[0].Selected = true;
-                RefreshOptionsGrid();
+                // The SelectionChanged event will handle the rest
             }
         }
 
-        private void InitializeDailyReloadTimer()
+        public void ReloadSecuritiesNow()
         {
-            if (_dailyReloadTimer != null)
+            if (_server != null && _server.ServerStatus == ServerConnectStatus.Connect)
             {
-                _dailyReloadTimer.Dispose();
-            }
-
-            var now = DateTime.UtcNow;
-            var nineAmUtc = DateTime.UtcNow.Date.AddHours(9).AddMinutes(5);
-            if (now > nineAmUtc)
-            {
-                nineAmUtc = nineAmUtc.AddDays(1);
-            }
-
-            var initialDelay = nineAmUtc - now;
-            var twentyFourHours = TimeSpan.FromHours(24);
-
-            _dailyReloadTimer = new System.Threading.Timer(
-                DailyReloadCallback,
-                null,
-                initialDelay,
-                twentyFourHours
-            );
-        }
-
-        private void DailyReloadCallback(object state)
-        {
-            try
-            {
-                if (_server != null && _server.ServerStatus == ServerConnectStatus.Connect)
-                {
-                    LogMessageEvent?.Invoke("Executing daily securities reload.", LogMessageType.System);
-                    ((AServer)_server).ReloadSecurities();
-                }
-            }
-            catch (Exception e)
-            {
-                LogMessageEvent?.Invoke($"Error during daily securities reload: {e.Message}", LogMessageType.Error);
+                LogMessageEvent?.Invoke("Executing daily securities reload.", LogMessageType.System);
+                ((AServer)_server).ReloadSecurities();
             }
         }
 
-        private void OnSecuritiesChanged(List<Security> securities)
-        {
-            if (_isDisposed || UnderlyingAssets == null || UnderlyingAssets.Count == 0)
+            private void OnSecuritiesChanged(List<Security> securities)
             {
-                return;
-            }
-
-            lock (_locker)
-            {
-                var newOptions = securities.Where(s =>
-                    s.SecurityType == SecurityType.Option &&
-                    UnderlyingAssets.Contains(s.UnderlyingAsset) &&
-                    _allOptionsData.All(o => o.Security.Name != s.Name) // Ensure it's a new option
-                ).ToList();
-
-                if (newOptions.Count == 0)
+                if (_isDisposed || UnderlyingAssets == null || UnderlyingAssets.Count == 0)
                 {
                     return;
                 }
 
-                LogMessageEvent?.Invoke($"Discovered {newOptions.Count} new options.", LogMessageType.System);
-
-                foreach (var option in newOptions)
+                lock (_locker)
                 {
-                    var tab = CreateSimpleTab(option, _server);
-                    _allOptionsData.Add(new OptionDataRow { Security = option, SimpleTab = tab });
+                    var newSecurityNames = new HashSet<string>(
+                        securities
+                            .Where(s => (s.SecurityType == SecurityType.Option && UnderlyingAssets.Contains(s.UnderlyingAsset)) ||
+                                        (s.SecurityType != SecurityType.Option && UnderlyingAssets.Contains(s.Name)))
+                            .Select(s => s.Name)
+                    );
+
+                    var currentSecurityNames = new HashSet<string>(_simpleTabs.Keys);
+
+                    var securitiesToRemove = currentSecurityNames.Except(newSecurityNames).ToList();
+
+                    if (securitiesToRemove.Any())
+                    {
+                        LogMessageEvent?.Invoke($"Removing {securitiesToRemove.Count} expired/delisted securities.", LogMessageType.System);
+                        foreach (var secName in securitiesToRemove)
+                        {
+                            if (_simpleTabs.TryGetValue(secName, out var tabToRemove))
+                            {
+                                _simpleTabs.Remove(secName);
+                                tabToRemove.Delete();
+                                _allOptionsData.RemoveAll(o => o.Security.Name == secName);
+                                _uaData.RemoveAll(u => u.Security.Name == secName);
+                            }
+                        }
+                    }
+
+                    var securitiesToAddNames = newSecurityNames.Except(currentSecurityNames).ToList();
+                    var newSecurityObjects = securities.Where(s => securitiesToAddNames.Contains(s.Name)).ToList();
+
+                    if (newSecurityObjects.Any())
+                    {
+                        LogMessageEvent?.Invoke($"Discovered {newSecurityObjects.Count} new securities.", LogMessageType.System);
+                        foreach (var security in newSecurityObjects)
+                        {
+                            var tab = CreateSimpleTab(security, _server);
+                            if (security.SecurityType == SecurityType.Option)
+                            {
+                                _allOptionsData.Add(new OptionDataRow { Security = security, SimpleTab = tab });
+                            }
+                            else
+                            {
+                                _uaData.Add(new UnderlyingAssetDataRow { Security = security, SimpleTab = tab });
+                            }
+                        }
+                    }
+
+                    if (securitiesToRemove.Any() || newSecurityObjects.Any())
+                    {
+                        if (_mainControl.IsHandleCreated)
+                        {
+                            _mainControl.Invoke(new Action(() =>
+                            {
+                                InitializeUaGrid();
+                                UpdateExpirationFilter();
+                                RefreshOptionsGrid();
+                            }));
+                        }
+                    }
                 }
-
-                // Update expiration filter on the UI thread
-                _mainControl.Invoke(new Action(() =>
-                {
-                    var allOptions = _allOptionsData.Select(o => o.Security).ToList();
-                    PopulateExpirationFilter(allOptions);
-                    RefreshOptionsGrid();
-                }));
             }
-        }
 
         #endregion
 
@@ -740,7 +766,7 @@ namespace OsEngine.OsTrader.Panels.Tab
                 { HeaderText = "Chart", Name = "UaChart", UseColumnTextForButtonValue = true, Text = "Open" });
             _uaGrid.Columns.Add(new DataGridViewTextBoxColumn
                 { HeaderText = "Qty", Name = "UaQty", ReadOnly = false, Width = 40 });
-            _uaGrid.SelectionChanged += (sender, args) => RefreshOptionsGrid();
+            _uaGrid.SelectionChanged += UaGrid_SelectionChanged;
             _uaGrid.CellClick += _uaGrid_CellClick;
             _uaGrid.CellValueChanged += _uaGrid_CellValueChanged; // Add this line
 
@@ -755,7 +781,7 @@ namespace OsEngine.OsTrader.Panels.Tab
                 Margin = new Padding(0, 3, 0, 0), BackColor = Color.FromArgb(21, 26, 30),
                 ForeColor = Color.FromArgb(154, 156, 158), FlatStyle = FlatStyle.Flat
             };
-            _expirationComboBox.SelectedIndexChanged += (sender, args) => RefreshOptionsGrid();
+            _expirationComboBox.SelectedIndexChanged += ExpirationComboBox_SelectedIndexChanged;
             filterPanel.Controls.Add(_expirationComboBox);
             filterPanel.Controls.Add(new Label()
             {
@@ -853,7 +879,7 @@ namespace OsEngine.OsTrader.Panels.Tab
 
             try
             {
-                var strike = (decimal)grid.Rows[e.RowIndex].Cells["Strike"].Value;
+                var strike = (double)grid.Rows[e.RowIndex].Cells["Strike"].Value;
                 var valueStr = grid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString();
 
                 if (!int.TryParse(valueStr, out int quantity))
@@ -866,12 +892,12 @@ namespace OsEngine.OsTrader.Panels.Tab
                 if (colName == "CallQty")
                 {
                     optionData = _allOptionsData.FirstOrDefault(o =>
-                        o.Security.Strike == strike && o.Security.OptionType == OptionType.Call);
+                        (double)o.Security.Strike == strike && o.Security.OptionType == OptionType.Call);
                 }
                 else // PutQty
                 {
                     optionData = _allOptionsData.FirstOrDefault(o =>
-                        o.Security.Strike == strike && o.Security.OptionType == OptionType.Put);
+                        (double)o.Security.Strike == strike && o.Security.OptionType == OptionType.Put);
                 }
 
                 if (optionData != null)
@@ -983,29 +1009,56 @@ namespace OsEngine.OsTrader.Panels.Tab
             }
         }
 
-        private void PopulateExpirationFilter(List<Security> options)
+        private void UaGrid_SelectionChanged(object sender, EventArgs e)
+        {
+            UpdateExpirationFilter();
+        }
+
+        private void ExpirationComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            RefreshOptionsGrid();
+        }
+
+        private void UpdateExpirationFilter()
         {
             if (_expirationComboBox.InvokeRequired)
             {
-                _expirationComboBox.Invoke(new Action<List<Security>>(PopulateExpirationFilter), options);
+                _expirationComboBox.Invoke(new Action(UpdateExpirationFilter));
                 return;
             }
 
-            var dates = options.Select(o => o.Expiration.Date).Distinct().OrderBy(d => d).ToList();
+            string previouslySelected = _expirationComboBox.SelectedItem?.ToString();
             _expirationComboBox.Items.Clear();
             _expirationComboBox.Items.Add("All");
-            foreach (var date in dates)
+
+            if (_uaGrid.SelectedRows.Count > 0)
             {
-                _expirationComboBox.Items.Add(date.ToShortDateString());
+                var selectedUaName = _uaGrid.SelectedRows[0].Cells["Name"].Value.ToString();
+
+                var expirationsForUa = _allOptionsData
+                    .Where(o => o.Security.UnderlyingAsset == selectedUaName)
+                    .Select(o => o.Security.Expiration.Date)
+                    .Distinct()
+                    .OrderBy(d => d)
+                    .ToList();
+
+                foreach (var date in expirationsForUa)
+                {
+                    _expirationComboBox.Items.Add(date.ToShortDateString());
+                }
             }
 
-            if (_expirationComboBox.Items.Count > 1)
+            if (previouslySelected != null && _expirationComboBox.Items.Contains(previouslySelected))
+            {
+                _expirationComboBox.SelectedItem = previouslySelected;
+            }
+            else if (_expirationComboBox.Items.Count > 1)
             {
                 _expirationComboBox.SelectedIndex = 1;
             }
             else
             {
-                _expirationComboBox.SelectedItem = "All";
+                _expirationComboBox.SelectedIndex = 0; // "All"
             }
         }
 
@@ -1047,7 +1100,7 @@ namespace OsEngine.OsTrader.Panels.Tab
             var strikesToDisplay = optionsForDisplay.GroupBy(o => o.Security.Strike)
                 .Select(group =>
                 {
-                    var strikeRow = new StrikeDataRow { Strike = group.Key };
+                    var strikeRow = new StrikeDataRow { Strike = (double)group.Key };
                     var callOption = group.FirstOrDefault(o => o.Security.OptionType == OptionType.Call);
                     var putOption = group.FirstOrDefault(o => o.Security.OptionType == OptionType.Put);
                     if (callOption != null)
@@ -1078,7 +1131,7 @@ namespace OsEngine.OsTrader.Panels.Tab
                 return;
             }
 
-            decimal atmStrike;
+            double atmStrike;
             if (uaPrice != 0)
             {
                 atmStrike = strikes.Aggregate((x, y) => Math.Abs(x - uaPrice) < Math.Abs(y - uaPrice) ? x : y);
@@ -1093,7 +1146,7 @@ namespace OsEngine.OsTrader.Panels.Tab
             int strikesToShowCount = (int)_strikesToShowNumericUpDown.Value;
             int startIndex = Math.Max(0, atmStrikeIndex - strikesToShowCount);
             int endIndex = Math.Min(strikes.Count - 1, atmStrikeIndex + strikesToShowCount);
-            var allowedStrikes = new HashSet<decimal>(strikes.GetRange(startIndex, endIndex - startIndex + 1));
+            var allowedStrikes = new HashSet<double>(strikes.GetRange(startIndex, endIndex - startIndex + 1));
 
             var finalStrikes = strikesToDisplay.Where(s => allowedStrikes.Contains(s.Strike)).OrderBy(s => s.Strike)
                 .ToList();
@@ -1157,8 +1210,8 @@ namespace OsEngine.OsTrader.Panels.Tab
 
             if (!isCallChart && !isPutChart && !isCallPnl && !isPutPnl) return;
 
-            var strike = (decimal)_optionsGrid.Rows[e.RowIndex].Cells["Strike"].Value;
-            var strikeData = _allOptionsData.Where(o => o.Security.Strike == strike).ToList();
+            var strike = (double)_optionsGrid.Rows[e.RowIndex].Cells["Strike"].Value;
+            var strikeData = _allOptionsData.Where(o => o != null && o.Security != null && (double)o.Security.Strike == strike).ToList();
 
             if (isCallPnl || isPutPnl)
             {
@@ -1294,7 +1347,7 @@ namespace OsEngine.OsTrader.Panels.Tab
 
             lock (_locker)
             {
-                var optionData = _allOptionsData.FirstOrDefault(o => o.Security.Name == data.SecurityName);
+                var optionData = _allOptionsData.FirstOrDefault(o => o != null && o.Security != null && o.Security.Name == data.SecurityName);
                 if (optionData != null)
                 {
                     if (data.Delta != 0)
@@ -1339,25 +1392,68 @@ namespace OsEngine.OsTrader.Panels.Tab
 
             var trade = trades[trades.Count - 1];
 
+            if (trade == null)
+            {
+                LogMessageEvent?.Invoke("Trade object is null in Connector_TickChangeEvent.", LogMessageType.Error);
+                return;
+            }
+
             lock (_locker)
             {
-                var optionData = _allOptionsData.FirstOrDefault(o => o.Security.Name == trade.SecurityNameCode);
+                OptionDataRow optionData = null;
+                foreach (var o in _allOptionsData)
+                {
+                    if (o == null)
+                    {
+                        LogMessageEvent?.Invoke("Null OptionDataRow found in _allOptionsData during TickChange event.", LogMessageType.Error);
+                        continue;
+                    }
+                    if (o.Security == null)
+                    {
+                        LogMessageEvent?.Invoke($"OptionDataRow with null Security found for a ticker.", LogMessageType.Error);
+                        continue;
+                    }
+                    if (o.Security.Name == trade.SecurityNameCode)
+                    {
+                        optionData = o;
+                        break;
+                    }
+                }
+
                 if (optionData != null)
                 {
                     if (trade.Price > 0)
                     {
-                        optionData.LastPrice = trade.Price;
+                        optionData.LastPrice = (double)trade.Price;
                     }
 
                     return;
                 }
 
-                var uaData = _uaData.FirstOrDefault(ud => ud.Security.Name == trade.SecurityNameCode);
+                UnderlyingAssetDataRow uaData = null;
+                foreach (var ud in _uaData)
+                {
+                    if (ud == null)
+                    {
+                        LogMessageEvent?.Invoke("Null UnderlyingAssetDataRow found in _uaData during TickChange event.", LogMessageType.Error);
+                        continue;
+                    }
+                    if (ud.Security == null)
+                    {
+                        LogMessageEvent?.Invoke($"UnderlyingAssetDataRow with null Security found.", LogMessageType.Error);
+                        continue;
+                    }
+                    if (ud.Security.Name == trade.SecurityNameCode)
+                    {
+                        uaData = ud;
+                        break;
+                    }
+                }
                 if (uaData != null)
                 {
                     if (trade.Price > 0)
                     {
-                        uaData.LastPrice = trade.Price;
+                        uaData.LastPrice = (double)trade.Price;
                     }
                 }
             }
@@ -1372,16 +1468,16 @@ namespace OsEngine.OsTrader.Panels.Tab
 
             lock (_locker)
             {
-                var optionData = _allOptionsData.FirstOrDefault(o => o.Security.Name == marketDepth.SecurityNameCode);
+                var optionData = _allOptionsData.FirstOrDefault(o => o != null && o.Security != null && o.Security.Name == marketDepth.SecurityNameCode);
                 if (optionData != null)
                 {
-                    decimal bestBid = 0;
+                    double bestBid = 0;
                     if (marketDepth.Bids != null && marketDepth.Bids.Count > 0)
                     {
                         bestBid = marketDepth.Bids[0].Price;
                     }
 
-                    decimal bestAsk = 0;
+                    double bestAsk = 0;
                     if (marketDepth.Asks != null && marketDepth.Asks.Count > 0)
                     {
                         bestAsk = marketDepth.Asks[0].Price;
@@ -1400,16 +1496,16 @@ namespace OsEngine.OsTrader.Panels.Tab
                     return;
                 }
 
-                var uaData = _uaData.FirstOrDefault(ud => ud.Security.Name == marketDepth.SecurityNameCode);
+                var uaData = _uaData.FirstOrDefault(ud => ud != null && ud.Security != null && ud.Security.Name == marketDepth.SecurityNameCode);
                 if (uaData != null)
                 {
-                    decimal bestBid = 0;
+                    double bestBid = 0;
                     if (marketDepth.Bids != null && marketDepth.Bids.Count > 0)
                     {
                         bestBid = marketDepth.Bids[0].Price;
                     }
 
-                    decimal bestAsk = 0;
+                    double bestAsk = 0;
                     if (marketDepth.Asks != null && marketDepth.Asks.Count > 0)
                     {
                         bestAsk = marketDepth.Asks[0].Price;
@@ -1450,13 +1546,13 @@ namespace OsEngine.OsTrader.Panels.Tab
             }
         }
 
-        private void UpdateGridCell(Dictionary<decimal, DataGridViewRow> rows, decimal strike, string cellName,
+        private void UpdateGridCell(Dictionary<double, DataGridViewRow> rows, double strike, string cellName,
             object value)
         {
             if (_mainControl.InvokeRequired)
             {
                 _mainControl.Invoke(
-                    new Action<Dictionary<decimal, DataGridViewRow>, decimal, string, object>(UpdateGridCell), rows,
+                    new Action<Dictionary<double, DataGridViewRow>, double, string, object>(UpdateGridCell), rows,
                     strike, cellName, value);
                 return;
             }
@@ -1479,12 +1575,38 @@ namespace OsEngine.OsTrader.Panels.Tab
         {
             _isDisposed = true;
             _updateTimer?.Dispose();
-            _dailyReloadTimer?.Dispose(); // Dispose the new timer
 
+            ServerMaster.ServerCreateEvent -= ServerMaster_ServerCreateEvent;
             if (_server != null)
             {
-                _server.SecuritiesChangeEvent -= OnSecuritiesChanged; // Unsubscribe
+                _server.ConnectStatusChangeEvent -= ServerOnConnectStatusChangeEvent;
+                _server.SecuritiesChangeEvent -= Server_SecuritiesChangeEvent;
+                _server.SecuritiesChangeEvent -= OnSecuritiesChanged; // Add this
             }
+
+            if (_uaGrid != null)
+            {
+                _uaGrid.SelectionChanged -= UaGrid_SelectionChanged;
+                _uaGrid.CellClick -= _uaGrid_CellClick;
+                _uaGrid.CellValueChanged -= _uaGrid_CellValueChanged;
+            }
+
+            if (_expirationComboBox != null)
+            {
+                _expirationComboBox.SelectedIndexChanged -= ExpirationComboBox_SelectedIndexChanged;
+            }
+
+            if (_optionsGrid != null)
+            {
+                _optionsGrid.CellClick -= _optionsGrid_CellClick;
+                _optionsGrid.CellValueChanged -= _optionsGrid_CellValueChanged;
+            }
+
+            _mainControl?.Dispose();
+            _uaGrid?.Dispose();
+            _optionsGrid?.Dispose();
+            _expirationComboBox?.Dispose();
+            _strikesToShowNumericUpDown?.Dispose();
 
             foreach (var tab in _simpleTabs.Values)
             {
@@ -1600,7 +1722,7 @@ namespace OsEngine.OsTrader.Panels.Tab
 
         public class StrikeDataRow
         {
-            public decimal Strike { get; set; }
+            public double Strike { get; set; }
             public OptionDataRow CallData { get; set; }
             public OptionDataRow PutData { get; set; }
         }
@@ -1609,14 +1731,14 @@ namespace OsEngine.OsTrader.Panels.Tab
         {
             public Security Security { get; set; }
             public BotTabSimple SimpleTab { get; set; }
-            public decimal Bid { get; set; }
-            public decimal Ask { get; set; }
-            public decimal LastPrice { get; set; }
-            public decimal Delta { get; set; }
-            public decimal Gamma { get; set; }
-            public decimal Vega { get; set; }
-            public decimal Theta { get; set; }
-            public decimal IV { get; set; }
+            public double Bid { get; set; }
+            public double Ask { get; set; }
+            public double LastPrice { get; set; }
+            public double Delta { get; set; }
+            public double Gamma { get; set; }
+            public double Vega { get; set; }
+            public double Theta { get; set; }
+            public double IV { get; set; }
             public int Quantity { get; set; }
         }
 
@@ -1624,9 +1746,9 @@ namespace OsEngine.OsTrader.Panels.Tab
         {
             public Security Security { get; set; }
             public BotTabSimple SimpleTab { get; set; }
-            public decimal Bid { get; set; }
-            public decimal Ask { get; set; }
-            public decimal LastPrice { get; set; }
+            public double Bid { get; set; }
+            public double Ask { get; set; }
+            public double LastPrice { get; set; }
             public int Quantity { get; set; }
         }
 
@@ -1659,12 +1781,12 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// <param name="strike">The strike price of the option.</param>
         /// <param name="expiration">The expiration date of the option.</param>
         /// <returns>The BotTabSimple for the specified option, or null if not found.</returns>
-        public BotTabSimple GetOptionTab(string underlyingAssetTicker, OptionType optionType, decimal strike, DateTime expiration)
+        public BotTabSimple GetOptionTab(string underlyingAssetTicker, OptionType optionType, double strike, DateTime expiration)
         {
             var optionData = _allOptionsData.FirstOrDefault(o =>
                 o.Security.UnderlyingAsset == underlyingAssetTicker &&
                 o.Security.OptionType == optionType &&
-                o.Security.Strike == strike &&
+                (double)o.Security.Strike == strike &&
                 o.Security.Expiration.Date == expiration.Date);
 
             return optionData?.SimpleTab;
@@ -1678,14 +1800,14 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// <param name="maxStrike">The maximum strike price.</param>
         /// <param name="expiration">The expiration date of the options.</param>
         /// <returns>A list of BotTabSimple for the options in the specified strike range.</returns>
-        public List<BotTabSimple> GetOptionTabs(string underlyingAssetTicker, decimal minStrike, decimal maxStrike, DateTime expiration)
+        public List<BotTabSimple> GetOptionTabs(string underlyingAssetTicker, double minStrike, double maxStrike, DateTime expiration)
         {
             return _allOptionsData
                 .Where(o =>
                     o.Security.UnderlyingAsset == underlyingAssetTicker &&
                     o.Security.Expiration.Date == expiration.Date &&
-                    o.Security.Strike >= minStrike &&
-                    o.Security.Strike <= maxStrike)
+                    (double)o.Security.Strike >= minStrike &&
+                    (double)o.Security.Strike <= maxStrike)
                 .Select(o => o.SimpleTab)
                 .ToList();
         }
@@ -1693,7 +1815,7 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// <summary>
         /// Gets the BotTabSimple for a straddle strategy (long a call and a put with the same strike and expiration).
         /// </summary>
-        public List<BotTabSimple> GetStraddleTabs(string underlyingAssetTicker, decimal strike, DateTime expiration)
+        public List<BotTabSimple> GetStraddleTabs(string underlyingAssetTicker, double strike, DateTime expiration)
         {
             var tabs = new List<BotTabSimple>();
             var callTab = GetOptionTab(underlyingAssetTicker, OptionType.Call, strike, expiration);
@@ -1706,7 +1828,7 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// <summary>
         /// Gets the BotTabSimple for a strangle strategy (long a call and a put with different strikes and the same expiration).
         /// </summary>
-        public List<BotTabSimple> GetStrangleTabs(string underlyingAssetTicker, decimal putStrike, decimal callStrike, DateTime expiration)
+        public List<BotTabSimple> GetStrangleTabs(string underlyingAssetTicker, double putStrike, double callStrike, DateTime expiration)
         {
             var tabs = new List<BotTabSimple>();
             var callTab = GetOptionTab(underlyingAssetTicker, OptionType.Call, callStrike, expiration);
@@ -1719,7 +1841,7 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// <summary>
         /// Gets the BotTabSimple for a vertical spread strategy (buying and selling options of the same type and expiration but different strikes).
         /// </summary>
-        public List<BotTabSimple> GetVerticalSpreadTabs(string underlyingAssetTicker, OptionType optionType, decimal longStrike, decimal shortStrike, DateTime expiration)
+        public List<BotTabSimple> GetVerticalSpreadTabs(string underlyingAssetTicker, OptionType optionType, double longStrike, double shortStrike, DateTime expiration)
         {
             var tabs = new List<BotTabSimple>();
             var longTab = GetOptionTab(underlyingAssetTicker, optionType, longStrike, expiration);
@@ -1732,7 +1854,7 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// <summary>
         /// Gets the BotTabSimple for a ratio spread strategy.
         /// </summary>
-        public List<BotTabSimple> GetRatioSpreadTabs(string underlyingAssetTicker, OptionType optionType, decimal longStrike, decimal shortStrike, DateTime expiration)
+        public List<BotTabSimple> GetRatioSpreadTabs(string underlyingAssetTicker, OptionType optionType, double longStrike, double shortStrike, DateTime expiration)
         {
             var tabs = new List<BotTabSimple>();
             var longTab = GetOptionTab(underlyingAssetTicker, optionType, longStrike, expiration);
@@ -1745,7 +1867,7 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// <summary>
         /// Gets the BotTabSimple for a horizontal (calendar) spread strategy (buying and selling options of the same type and strike but different expirations).
         /// </summary>
-        public List<BotTabSimple> GetHorizontalSpreadTabs(string underlyingAssetTicker, OptionType optionType, decimal strike, DateTime nearExpiration, DateTime farExpiration)
+        public List<BotTabSimple> GetHorizontalSpreadTabs(string underlyingAssetTicker, OptionType optionType, double strike, DateTime nearExpiration, DateTime farExpiration)
         {
             var tabs = new List<BotTabSimple>();
             var nearTab = GetOptionTab(underlyingAssetTicker, optionType, strike, nearExpiration);
@@ -1758,7 +1880,7 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// <summary>
         /// Gets the BotTabSimple for a butterfly strategy.
         /// </summary>
-        public List<BotTabSimple> GetButterflyTabs(string underlyingAssetTicker, OptionType optionType, decimal lowerStrike, decimal middleStrike, decimal upperStrike, DateTime expiration)
+        public List<BotTabSimple> GetButterflyTabs(string underlyingAssetTicker, OptionType optionType, double lowerStrike, double middleStrike, double upperStrike, DateTime expiration)
         {
             var tabs = new List<BotTabSimple>();
             var lowerTab = GetOptionTab(underlyingAssetTicker, optionType, lowerStrike, expiration);
@@ -1773,7 +1895,7 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// <summary>
         /// Gets the BotTabSimple for a condor strategy.
         /// </summary>
-        public List<BotTabSimple> GetCondorTabs(string underlyingAssetTicker, OptionType optionType, decimal strike1, decimal strike2, decimal strike3, decimal strike4, DateTime expiration)
+        public List<BotTabSimple> GetCondorTabs(string underlyingAssetTicker, OptionType optionType, double strike1, double strike2, double strike3, double strike4, DateTime expiration)
         {
             var tabs = new List<BotTabSimple>();
             var tab1 = GetOptionTab(underlyingAssetTicker, optionType, strike1, expiration);
@@ -1791,10 +1913,10 @@ namespace OsEngine.OsTrader.Panels.Tab
 
         public static class BlackScholes
         {
-            public static decimal CalculateOptionPrice(
+            public static double CalculateOptionPrice(
                 OptionType optionType,
-                decimal underlyingPrice,
-                decimal strikePrice,
+                double underlyingPrice,
+                double strikePrice,
                 double timeToExpiration,
                 double riskFreeRate,
                 double volatility)
@@ -1812,16 +1934,16 @@ namespace OsEngine.OsTrader.Panels.Tab
                     }
                 }
 
-                double d1 = (Math.Log((double)underlyingPrice / (double)strikePrice) + (riskFreeRate + 0.5 * Math.Pow(volatility, 2)) * timeToExpiration) / (volatility * Math.Sqrt(timeToExpiration));
+                double d1 = (Math.Log(underlyingPrice / strikePrice) + (riskFreeRate + 0.5 * Math.Pow(volatility, 2)) * timeToExpiration) / (volatility * Math.Sqrt(timeToExpiration));
                 double d2 = d1 - volatility * Math.Sqrt(timeToExpiration);
 
                 if (optionType == OptionType.Call)
                 {
-                    return (decimal)((double)underlyingPrice * Cdf(d1) - (double)strikePrice * Math.Exp(-riskFreeRate * timeToExpiration) * Cdf(d2));
+                    return (underlyingPrice * Cdf(d1) - strikePrice * Math.Exp(-riskFreeRate * timeToExpiration) * Cdf(d2));
                 }
                 else // Put
                 {
-                    return (decimal)((double)strikePrice * Math.Exp(-riskFreeRate * timeToExpiration) * Cdf(-d2) - (double)underlyingPrice * Cdf(-d1));
+                    return (strikePrice * Math.Exp(-riskFreeRate * timeToExpiration) * Cdf(-d2) - underlyingPrice * Cdf(-d1));
                 }
             }
 

@@ -885,7 +885,17 @@ namespace OsEngine.Market.Servers.Tester
                 Order order = OrdersActive[i];
                 // check availability of securities on the market / проверяем наличие инструмента на рынке
 
-                SecurityTester security = GetMySecurity(order);
+                SecurityTester security = null;
+                
+                if(order.MySecurityInTester != null)
+                {
+                    security = order.MySecurityInTester;
+                }
+                else
+                {
+                    security = GetMySecurity(order);
+                    order.MySecurityInTester = security;
+                }
 
                 if (security == null)
                 {
@@ -1168,7 +1178,17 @@ namespace OsEngine.Market.Servers.Tester
 
         private bool CheckOrdersInTickTest(Order order, Trade lastTrade, bool firstTime, bool isNewDay)
         {
-            SecurityTester security = SecuritiesTester.Find(tester => tester.Security.Name == order.SecurityNameCode);
+            SecurityTester security = null;
+
+            if(order.MySecurityInTester != null)
+            {
+                security = order.MySecurityInTester;
+            }
+            else
+            {
+                security = SecuritiesTester.Find(tester => tester.Security.Name == order.SecurityNameCode);
+                order.MySecurityInTester = security;
+            }
 
             if (security == null)
             {
@@ -1259,7 +1279,14 @@ namespace OsEngine.Market.Servers.Tester
                         slippage = _slippageToSimpleOrder;
                     }
 
-                    ExecuteOnBoardOrder(order, lastTrade.Price, ServerTime, slippage);
+                    decimal realPrice = order.Price;
+
+                    if (isNewDay == true)
+                    {
+                        realPrice = lastTrade.Price;
+                    }
+
+                    ExecuteOnBoardOrder(order, realPrice, lastTrade.Time, slippage);
 
                     for (int i = 0; i < OrdersActive.Count; i++)
                     {
@@ -1308,7 +1335,14 @@ namespace OsEngine.Market.Servers.Tester
                         slippage = _slippageToSimpleOrder;
                     }
 
-                    ExecuteOnBoardOrder(order, lastTrade.Price, ServerTime, slippage);
+                    decimal realPrice = order.Price;
+
+                    if (isNewDay == true)
+                    {
+                        realPrice = lastTrade.Price;
+                    }
+
+                    ExecuteOnBoardOrder(order, realPrice, lastTrade.Time, slippage);
 
                     for (int i = 0; i < OrdersActive.Count; i++)
                     {
@@ -1350,8 +1384,8 @@ namespace OsEngine.Market.Servers.Tester
             {
                 return false;
             }
-            decimal sellBestPrice = lastMarketDepth.Asks[0].Price;
-            decimal buyBestPrice = lastMarketDepth.Bids[0].Price;
+            decimal sellBestPrice = lastMarketDepth.Asks[0].Price.ToDecimal();
+            decimal buyBestPrice = lastMarketDepth.Bids[0].Price.ToDecimal();
 
             DateTime time = lastMarketDepth.Time;
 
@@ -1673,7 +1707,17 @@ namespace OsEngine.Market.Servers.Tester
 
             if (orderOnBoard.IsStopOrProfit)
             {
-                SecurityTester security = GetMySecurity(order);
+                SecurityTester security = null;
+
+                if (order.MySecurityInTester != null)
+                {
+                    security = order.MySecurityInTester;
+                }
+                else
+                {
+                    security = GetMySecurity(order);
+                    order.MySecurityInTester = security;
+                }
 
                 if (security.DataType == SecurityTesterDataType.Candle)
                 { // testing with using candles / прогон на свечках
@@ -4278,9 +4322,9 @@ namespace OsEngine.Market.Servers.Tester
                 _dataIsActive = true;
             }
 
-            if (NewBidAscIncomeEvent != null)
+            if (NewBidAskIncomeEvent != null)
             {
-                NewBidAscIncomeEvent(candle.Close, candle.Close, GetSecurityForName(nameSecurity, ""));
+                NewBidAskIncomeEvent((decimal)candle.Close, (decimal)candle.Close, GetSecurityForName(nameSecurity, ""));
             }
 
             _candleManager.SetNewCandleInSeries(candle, nameSecurity, timeFrame);
@@ -4313,7 +4357,7 @@ namespace OsEngine.Market.Servers.Tester
 
         public event Action<MarketDepth> NewMarketDepthEvent;
 
-        public event Action<decimal, decimal, Security> NewBidAscIncomeEvent;
+        public event Action<decimal, decimal, Security> NewBidAskIncomeEvent;
 
         #endregion
 
@@ -4407,9 +4451,9 @@ namespace OsEngine.Market.Servers.Tester
                     }
                 }
             }
-            if (NewBidAscIncomeEvent != null)
+            if (NewBidAskIncomeEvent != null)
             {
-                NewBidAscIncomeEvent(tradesNew[tradesNew.Count - 1].Price, tradesNew[tradesNew.Count - 1].Price, GetSecurityForName(tradesNew[tradesNew.Count - 1].SecurityNameCode, ""));
+                NewBidAskIncomeEvent((decimal)tradesNew[tradesNew.Count - 1].Price, (decimal)tradesNew[tradesNew.Count - 1].Price, GetSecurityForName(tradesNew[tradesNew.Count - 1].SecurityNameCode, ""));
             }
         }
 

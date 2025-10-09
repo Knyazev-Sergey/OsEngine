@@ -909,7 +909,14 @@ namespace OsEngine.Market.Servers.Optimizer
                         slippage = _slippageToSimpleOrder;
                     }
 
-                    ExecuteOnBoardOrder(order, lastTrade.Price, ServerTime, slippage);
+                    decimal realPrice = order.Price;
+
+                    if (isNewDay == true)
+                    {
+                        realPrice = lastTrade.Price;
+                    }
+
+                    ExecuteOnBoardOrder(order, realPrice, lastTrade.Time, slippage);
 
                     for (int i = 0; i < OrdersActive.Count; i++)
                     {
@@ -958,7 +965,14 @@ namespace OsEngine.Market.Servers.Optimizer
                         slippage = _slippageToSimpleOrder;
                     }
 
-                    ExecuteOnBoardOrder(order, lastTrade.Price, ServerTime, slippage);
+                    decimal realPrice = order.Price;
+
+                    if (isNewDay == true)
+                    {
+                        realPrice = lastTrade.Price;
+                    }
+
+                    ExecuteOnBoardOrder(order, realPrice, lastTrade.Time, slippage);
 
                     for (int i = 0; i < OrdersActive.Count; i++)
                     {
@@ -1002,8 +1016,8 @@ namespace OsEngine.Market.Servers.Optimizer
             {
                 return false;
             }
-            decimal sellBestPrice = lastMarketDepth.Asks[0].Price;
-            decimal buyBestPrice = lastMarketDepth.Bids[0].Price;
+            decimal sellBestPrice = lastMarketDepth.Asks[0].Price.ToDecimal();
+            decimal buyBestPrice = lastMarketDepth.Bids[0].Price.ToDecimal();
 
             DateTime time = lastMarketDepth.Time;
 
@@ -1995,9 +2009,9 @@ namespace OsEngine.Market.Servers.Optimizer
                 _dataIsActive = true;
             }
 
-            if (NewBidAscIncomeEvent != null)
+            if (NewBidAskIncomeEvent != null)
             {
-                NewBidAscIncomeEvent(candle.Close, candle.Close, GetSecurityForName(nameSecurity, ""));
+                NewBidAskIncomeEvent((decimal)candle.Close, (decimal)candle.Close, GetSecurityForName(nameSecurity, ""));
             }
 
             _candleManager.SetNewCandleInSeries(candle, nameSecurity, timeFrame);
@@ -2041,7 +2055,7 @@ namespace OsEngine.Market.Servers.Optimizer
             }
         }
 
-        public event Action<decimal, decimal, Security> NewBidAscIncomeEvent;
+        public event Action<decimal, decimal, Security> NewBidAskIncomeEvent;
 
         public event Action<MarketDepth> NewMarketDepthEvent;
 
@@ -2128,9 +2142,9 @@ namespace OsEngine.Market.Servers.Optimizer
                 TestingProgressChangeEvent(lastCount, maxCount, NumberServer);
             }
 
-            if (NewBidAscIncomeEvent != null)
+            if (NewBidAskIncomeEvent != null)
             {
-                NewBidAscIncomeEvent(tradesNew[tradesNew.Count - 1].Price, tradesNew[tradesNew.Count - 1].Price, GetSecurityForName(tradesNew[tradesNew.Count - 1].SecurityNameCode, ""));
+                NewBidAskIncomeEvent((decimal)tradesNew[tradesNew.Count - 1].Price, (decimal)tradesNew[tradesNew.Count - 1].Price, GetSecurityForName(tradesNew[tradesNew.Count - 1].SecurityNameCode, ""));
             }
         }
 

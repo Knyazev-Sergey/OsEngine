@@ -1536,8 +1536,8 @@ namespace OsEngine.Language
         "Ru:Позиция закрыта_");
 
         public string Label409 => OsLocalization.ConvertToLocString(
-        "Eng:Source_" +
-        "Ru:Источник_");
+        "Eng: Source_" +
+        "Ru: Источник_");
 
         public string Label410 => OsLocalization.ConvertToLocString(
         "Eng: Position support. Emergency position closing_" +
@@ -2275,5 +2275,120 @@ namespace OsEngine.Language
         "Eng:Are you going to delete the connector? The data cannot be recovered! Are you sure?_" +
         "Ru:Вы собираетесь удалить коннектор? Данные нельзя будет восстановить! Вы уверены?_");
 
+        public string Label594 => OsLocalization.ConvertToLocString(
+        "Eng:Are you going to delete the parameter? The data cannot be recovered! Are you sure?_" +
+        "Ru:Вы собираетесь удалить параметр? Данные нельзя будет восстановить! Вы уверены?_");
+
+        public string Label595 => OsLocalization.ConvertToLocString(
+        "Eng:Connector parameters_" +
+        "Ru:Параметры коннектора_");
+
+        public string Label596 => OsLocalization.ConvertToLocString(
+        "Eng:Server type_" +
+        "Ru:Тип сервера_");
+
+        public string Label597 => OsLocalization.ConvertToLocString(
+        "Eng:The parameters that will be configured_" +
+        "Ru:Параметры, которые будут настроены_");
+
+        public string Label598 => OsLocalization.ConvertToLocString(
+        "Eng:Deploy status_" +
+        "Ru:Статус создания_");
+
+        public string Label599 => OsLocalization.ConvertToLocString(
+        "Eng:Server status_" +
+        "Ru:Статус сервера_");
+
+        public string Label600 => OsLocalization.ConvertToLocString(
+        "Eng:Collapse_" +
+        "Ru:Свернуть_");
+
+        public string Label601 => OsLocalization.ConvertToLocString(
+        "Eng:Server UI_" +
+        "Ru:Окно сервера_");
+
+        public string Label602 => OsLocalization.ConvertToLocString(
+        "Eng:Connect_" +
+        "Ru:Подключить_");
+
+        public string Label603 => OsLocalization.ConvertToLocString(
+        "Eng:Disconnect_" +
+        "Ru:Отключить_");
+
+        public string Label604 => OsLocalization.ConvertToLocString(
+        "Eng:Are you going to delete the robot? The data cannot be recovered! Are you sure?_" +
+        "Ru:Вы собираетесь удалить робота? Данные нельзя будет восстановить! Вы уверены?_");
+
+        public string Label605 => OsLocalization.ConvertToLocString(
+        "Eng:Server availability_" +
+        "Ru:Доступность серверов_");
+
+        public string Label606 => OsLocalization.ConvertToLocString(
+        "Eng:Track the ping_" +
+        "Ru:Отслеживать пинг_");
+
+        public string Label607 => OsLocalization.ConvertToLocString(
+        "Eng:Ping interval. Seconds_" +
+        "Ru:Интервал пинга. Секунд_");
+
+        public string Label608 => OsLocalization.ConvertToLocString(
+        "Eng:Parameters and bot select_" +
+        "Ru:Параметры и выбор робота_");
+
+        public string Label609 => OsLocalization.ConvertToLocString(
+        "Eng:Robot sources settings_" +
+        "Ru:Настройки источников робота_");
+
+        public string Label610 => OsLocalization.ConvertToLocString(
+        "Eng:Pairs settings_" +
+        "Ru:Настройки пар_");
+
+        public string Label611 => OsLocalization.ConvertToLocString(
+        "Eng:Index settings_" +
+        "Ru:Настройки индекса_");
+
+        public string Label612 => OsLocalization.ConvertToLocString(
+        "Eng:Are you going to delete the security? The data cannot be recovered! Are you sure?_" +
+        "Ru:Вы собираетесь удалить бумагу? Данные нельзя будет восстановить! Вы уверены?_");
+
+        public string Label613 => OsLocalization.ConvertToLocString(
+        "Eng:Server number_" +
+        "Ru:Номер сервера_");
+
+        public string Label614 => OsLocalization.ConvertToLocString(
+        "Eng:Commission type_" +
+        "Ru:Тип комиссии_");
+
+        public string Label615 => OsLocalization.ConvertToLocString(
+        "Eng:Commission value_" +
+        "Ru:Значение комиссии_");
+
+        public string Label616 => OsLocalization.ConvertToLocString(
+        "Eng:Collect candles type_" +
+        "Ru:Данные для свечек_");
+
+        public string Label617 => OsLocalization.ConvertToLocString(
+        "Eng:Save trades in candle_" +
+        "Ru:Сохранять трейды в свечках_");
+
+        public string Label618 => OsLocalization.ConvertToLocString(
+        "Eng:Identifier (UID)_" +
+        "Ru:Идентификатор_");
+
+        public string Label619 => OsLocalization.ConvertToLocString(
+        "Eng:Close positions_" +
+        "Ru:Закрыть позиции_");
+
+        public string Label620 => OsLocalization.ConvertToLocString(
+        "Eng:Off_" +
+        "Ru:Выкл_");
+
+        public string Label621 => OsLocalization.ConvertToLocString(
+        "Eng:On_" +
+        "Ru:Вкл_");
+
+        public string Label622 => OsLocalization.ConvertToLocString(
+        "Eng:Synchronize_" +
+        "Ru:Синхронизировать_");
     }
 }

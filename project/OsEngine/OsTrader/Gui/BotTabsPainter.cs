@@ -16,7 +16,6 @@ using OsEngine.Journal;
 using OsEngine.Logging;
 using OsEngine.OsTrader.Panels.Tab;
 using OsEngine.Market;
-using OsEngine.OsTrader.ClientManagement;
 
 namespace OsEngine.OsTrader.Gui
 {
@@ -280,7 +279,16 @@ namespace OsEngine.OsTrader.Gui
                 else if (coluIndex == 9 &&
         rowIndex < botsCount)
                 { // вызываем окно удаление робота
-                    _master.DeleteByNum(rowIndex);
+
+                    AcceptDialogUi ui = new AcceptDialogUi(OsLocalization.Trader.Label4);
+                    ui.ShowDialog();
+
+                    if (ui.UserAcceptAction == false)
+                    {
+                        return;
+                    }
+
+                    _master.DeleteRobotByNum(rowIndex);
                 }
 
                 if(rowIndex == botsCount + 1)
@@ -294,7 +302,7 @@ namespace OsEngine.OsTrader.Gui
                     else if (_master._startProgram == StartProgram.IsOsTrader
                        && coluIndex == 6)
                     {
-                        ClientManagementMaster.Instance.ShowDialogClientsMaster();
+                        ServerMaster.ShowClientManagerDialog();
                     }
                     if (_master._startProgram == StartProgram.IsOsTrader
                         && coluIndex == 7)
@@ -632,7 +640,16 @@ namespace OsEngine.OsTrader.Gui
                     return;
                 }
 
-                _master.DeleteByNum(rowIndex);
+
+                AcceptDialogUi ui = new AcceptDialogUi(OsLocalization.Trader.Label4);
+                ui.ShowDialog();
+
+                if (ui.UserAcceptAction == false)
+                {
+                    return;
+                }
+
+                _master.DeleteRobotByNum(rowIndex);
             }
             catch (Exception ex)
             {
@@ -964,19 +981,10 @@ colum9.HeaderText = "Journal";
             row.Cells.Add(new DataGridViewTextBoxCell());
             row.Cells[5].Value = "";
 
+            row.Cells.Add(new DataGridViewTextBoxCell());
+            row.Cells[6].Value = "";
+            row.Cells[6].ReadOnly = true;
             
-            if (_master._startProgram == StartProgram.IsOsTrader)
-            {
-                row.Cells.Add(new DataGridViewButtonCell());
-                row.Cells[6].Value = OsLocalization.Trader.Label584;  //"Clients";
-            }
-            else
-            {
-                row.Cells.Add(new DataGridViewTextBoxCell());
-                row.Cells[6].Value = "";
-                row.Cells[6].ReadOnly = true;
-            }
-
             row.Cells.Add(new DataGridViewButtonCell());
 
             if(_master._startProgram == StartProgram.IsOsTrader)

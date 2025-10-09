@@ -781,8 +781,9 @@ namespace OsEngine.Market.Servers.TInvest
 
                     newSecurity.NameClass = SecurityType.Futures.ToString();
 
-                    newSecurity.SecurityType = SecurityType.Futures;
                     newSecurity.Lot = item.Lot;
+
+                    newSecurity.SecurityType = SecurityType.Futures;
                     newSecurity.VolumeStep = 1;
                     newSecurity.Go = GetValue(item.InitialMarginOnBuy); // есть еще при продаже (одинаковые?)
 
@@ -1834,7 +1835,7 @@ namespace OsEngine.Market.Servers.TInvest
                         for (int i = 0; i < marketDataResponse.Orderbook.Bids.Count; i++)
                         {
                             MarketDepthLevel newBid = new MarketDepthLevel();
-                            newBid.Price = GetValue(marketDataResponse.Orderbook.Bids[i].Price);
+                            newBid.Price = Convert.ToDouble(GetValue(marketDataResponse.Orderbook.Bids[i].Price));
                             newBid.Bid = marketDataResponse.Orderbook.Bids[i].Quantity;
                             depth.Bids.Add(newBid);
                         }
@@ -1842,7 +1843,7 @@ namespace OsEngine.Market.Servers.TInvest
                         for (int i = 0; i < marketDataResponse.Orderbook.Asks.Count; i++)
                         {
                             MarketDepthLevel newAsk = new MarketDepthLevel();
-                            newAsk.Price = GetValue(marketDataResponse.Orderbook.Asks[i].Price);
+                            newAsk.Price = Convert.ToDouble(GetValue(marketDataResponse.Orderbook.Asks[i].Price));
                             newAsk.Ask = marketDataResponse.Orderbook.Asks[i].Quantity;
                             depth.Asks.Add(newAsk);
                         }
@@ -2019,8 +2020,8 @@ namespace OsEngine.Market.Servers.TInvest
             List<MarketDepthLevel> bids = new List<MarketDepthLevel>();
 
             MarketDepthLevel newBid = new MarketDepthLevel();
-            newBid.Bid = trade.Volume;
-            newBid.Price = trade.Price;
+            newBid.Bid = Convert.ToDouble(trade.Volume);
+            newBid.Price = Convert.ToDouble(trade.Price);
             bids.Add(newBid);
 
             MarketDepth depth = new MarketDepth();
@@ -2032,8 +2033,8 @@ namespace OsEngine.Market.Servers.TInvest
             List<MarketDepthLevel> asks = new List<MarketDepthLevel>();
 
             MarketDepthLevel newAsk = new MarketDepthLevel();
-            newAsk.Ask = trade.Volume;
-            newAsk.Price = trade.Price;
+            newAsk.Ask = Convert.ToDouble(trade.Volume);
+            newAsk.Price = Convert.ToDouble(trade.Price);
             asks.Add(newAsk);
 
             depth.Asks = asks;
@@ -2614,13 +2615,13 @@ namespace OsEngine.Market.Servers.TInvest
                         order.SecurityNameCode = security.Name;
                         order.PortfolioNumber = state.AccountId;
                         order.Side = state.Direction == OrderDirection.Buy ? Side.Buy : Side.Sell;
-                        order.TypeOrder = state.OrderType == OrderType.Limit
+                        order.TypeOrder = state.OrderType == OrderType.Limit || state.OrderType == OrderType.Unspecified
                             ? OrderPriceType.Limit
                             : OrderPriceType.Market;
 
                         order.Volume = state.LotsRequested;
                         order.VolumeExecute = state.LotsExecuted;
-                        order.Price = order.TypeOrder == OrderPriceType.Limit ? GetValue(state.InitialOrderPrice) / order.Volume : 0;
+                        order.Price = order.TypeOrder == OrderPriceType.Limit ? GetValue(state.OrderPrice) : 0;
                         order.TimeCallBack = state.CreatedAt?.ToDateTime().AddHours(3) ?? DateTime.UtcNow.AddHours(3);// convert to MSK
                         order.SecurityClassCode = security.NameClass;
 
@@ -2645,11 +2646,18 @@ namespace OsEngine.Market.Servers.TInvest
                         else if (state.ExecutionReportStatus == OrderExecutionReportStatus.ExecutionReportStatusNew)
                         {
                             order.State = OrderStateType.Active;
+
+                            if (order.TypeOrder == OrderPriceType.Limit && order.Price == 0)
+                                continue; // ignore such status
                         }
                         else if (state.ExecutionReportStatus ==
                                  OrderExecutionReportStatus.ExecutionReportStatusPartiallyfill)
                         {
                             order.State = OrderStateType.Partial;
+                            if (state.CompletionTime != null)
+                            {
+                                order.State = OrderStateType.Cancel; // partially filled orders never go to cancelled state 
+                            }
                         }
 
                         if (orderStateResponse.OrderState.Trades != null)
@@ -2992,12 +3000,6 @@ namespace OsEngine.Market.Servers.TInvest
 
                 if (response != null)
                 {
-                    /*order.State = OrderStateType.Cancel;
-
-                    if (MyOrderEvent != null)
-                    {
-                        MyOrderEvent(order);
-                    }*/
                     return true;
                 }
                 else

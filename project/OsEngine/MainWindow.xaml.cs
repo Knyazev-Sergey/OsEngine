@@ -14,6 +14,7 @@ using OsEngine.OsData;
 using OsEngine.OsOptimizer;
 using OsEngine.OsTrader.Gui;
 using OsEngine.OsTrader.Gui.BlockInterface;
+using OsEngine.OsTrader.ServerAvailability;
 using OsEngine.OsTrader.SystemAnalyze;
 using OsEngine.PrimeSettings;
 using System;

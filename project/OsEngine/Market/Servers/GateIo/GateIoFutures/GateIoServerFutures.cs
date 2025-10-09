@@ -1977,8 +1977,8 @@ namespace OsEngine.Market.Servers.GateIo.GateIoFutures
                 {
                     ascs.Add(new MarketDepthLevel()
                     {
-                        Ask = responseDepths.result.asks[i].s.ToDecimal(),
-                        Price = responseDepths.result.asks[i].p.ToDecimal()
+                        Ask = responseDepths.result.asks[i].s.ToDouble(),
+                        Price = responseDepths.result.asks[i].p.ToDouble()
                     });
                 }
 
@@ -1986,8 +1986,8 @@ namespace OsEngine.Market.Servers.GateIo.GateIoFutures
                 {
                     bids.Add(new MarketDepthLevel()
                     {
-                        Bid = responseDepths.result.bids[i].s.ToDecimal(),
-                        Price = responseDepths.result.bids[i].p.ToDecimal()
+                        Bid = responseDepths.result.bids[i].s.ToDouble(),
+                        Price = responseDepths.result.bids[i].p.ToDouble()
                     });
                 }
 
@@ -2681,7 +2681,7 @@ namespace OsEngine.Market.Servers.GateIo.GateIoFutures
         private string SHA512HexHashString(string stringIn)
         {
             string hashString;
-            using (var sha256 = SHA512Managed.Create())
+            using (var sha256 = SHA512.Create())
             {
                 var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(stringIn));
                 hashString = ToHex(hash, false);
