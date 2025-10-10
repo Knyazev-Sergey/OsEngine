@@ -1812,7 +1812,15 @@ namespace OsEngine.Robots
                 return;
             }
 
-            if (_needCheckExecuteTPFirstOrders) return;
+            if (_needCheckExecuteTPFirstOrders)
+            {
+                _openVolumeLong = 0;
+                _openVolumeShort = 0;
+                _priceLongAverage = 0;
+                _priceShortAverage = 0;
+
+                return;
+            }
 
             decimal openVolumeLong = 0;
             decimal openVolumeShort = 0;
