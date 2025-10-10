@@ -1760,6 +1760,11 @@ namespace OsEngine.Robots
         {
             if (!_onTakeProfit)
             {
+                if (_tpOrders.Count > 0)
+                {
+                    CancelTpOrders();
+                }
+
                 return;
             }
 
@@ -2019,6 +2024,18 @@ namespace OsEngine.Robots
                             return;
                         }
                     }
+                    else
+                    {
+                        SendNewLogMessage($"Закрылась лонг позиция по ТП", _logType);
+                        _needCheckExecuteTPFirstOrders = false;
+
+                        _tab.BuyAtStopCancel();
+                        _tab.SellAtStopCancel();
+                        _openOrders.Clear();
+                        _tpOrders.Clear();
+
+                        return;
+                    }
                 }
 
                 if (_tab.PositionOpenShort.Count == 0)
@@ -2041,7 +2058,21 @@ namespace OsEngine.Robots
                             _tab.SellAtStopCancel();
                             _openOrders.Clear();
                             _tpOrders.Clear();
+
+                            return;
                         }
+                    }
+                    else
+                    {
+                        SendNewLogMessage($"Закрылась шорт позиция по ТП", _logType);
+                        _needCheckExecuteTPFirstOrders = false;
+
+                        _tab.BuyAtStopCancel();
+                        _tab.SellAtStopCancel();
+                        _openOrders.Clear();
+                        _tpOrders.Clear();
+
+                        return;
                     }
                 }
             }            

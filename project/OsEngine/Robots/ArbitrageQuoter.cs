@@ -1301,8 +1301,8 @@ namespace OsEngine.Robots
                 }
 
                 _firstTab.BestBidAskChangeEvent += First_BestBidAskChangeEvent;
-                _firstBestAsk = _firstTab.MarketDepth.Asks[0].Price;
-                _firstBestBid = _firstTab.MarketDepth.Bids[0].Price;
+                _firstBestAsk = (decimal)_firstTab.MarketDepth.Asks[0].Price;
+                _firstBestBid = (decimal)_firstTab.MarketDepth.Bids[0].Price;
             }
             else
             {
@@ -1312,8 +1312,8 @@ namespace OsEngine.Robots
                 }
 
                 _secondTab.BestBidAskChangeEvent += Second_BestBidAskChangeEvent;
-                _secondBestAsk = _secondTab.MarketDepth.Asks[0].Price;
-                _secondBestBid = _secondTab.MarketDepth.Bids[0].Price;
+                _secondBestAsk = (decimal)_secondTab.MarketDepth.Asks[0].Price;
+                _secondBestBid = (decimal)_secondTab.MarketDepth.Bids[0].Price;
             }
         }
 

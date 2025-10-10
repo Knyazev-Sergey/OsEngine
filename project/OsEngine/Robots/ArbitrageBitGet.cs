@@ -816,7 +816,7 @@ namespace OsEngine.Robots
 
             if (_needBuyCounterOrders)
             {
-                if (_listOrders[0].Price <= _tab2.MarketDepth.Bids[0].Price)
+                if (_listOrders[0].Price <= (decimal)_tab2.MarketDepth.Bids[0].Price)
                 {
                     SendNewLogMessage($"Заявка по встречному ордеру встала в Бид, отменяем этот ордер", _logging);
                     _needCancelOrders = true;
@@ -829,7 +829,7 @@ namespace OsEngine.Robots
 
             if (_setTradeOneSecurity)
             {
-                if (_setRatioForCounterOrder <= _tab2.MarketDepth.Asks[0].Price)
+                if (_setRatioForCounterOrder <= (decimal)_tab2.MarketDepth.Asks[0].Price)
                 {
                     _needBuySecondSecurity = true;
                     return;
@@ -866,7 +866,7 @@ namespace OsEngine.Robots
                 return;
             }
 
-            decimal summOrders = _tab2.MarketDepth.Asks[0].Ask * _secondAsk;
+            decimal summOrders = (decimal)_tab2.MarketDepth.Asks[0].Ask * _secondAsk;
             decimal volume = 0;
 
             
@@ -1091,7 +1091,7 @@ namespace OsEngine.Robots
             if (_timeUpdateDepth > _mdSecond.Time.TimeOfDay.TotalMilliseconds &&
                 _timeUpdateDepth + 2000 > DateTime.UtcNow.TimeOfDay.TotalMilliseconds) return;
 
-            if (_mdSecond.Bids[^1].Price >= _priceZeroLevel)
+            if ((decimal)_mdSecond.Bids[^1].Price >= _priceZeroLevel)
             {
                 SendNewLogMessage($"Цена ордера ({_priceZeroLevel}) вне массива стакана (мин цена в стакане = {_mdSecond.Bids[^1].Price}, отменяем ордера", _logging);
                 CancelAllOpenOrders();
@@ -1102,17 +1102,17 @@ namespace OsEngine.Robots
             {
                 MarketDepthLevel bid = _mdSecond.Bids[i];
 
-                if (bid.Price > _limitPriceRatio) continue;
+                if ((decimal)bid.Price > _limitPriceRatio) continue;
 
-                if (bid.Bid > _setOrderSizeForBestPrice)
+                if ((decimal)bid.Bid > _setOrderSizeForBestPrice)
                 {
-                    ListOrders orderByPrice = _listOrders.Find(o => o.Price == bid.Price);
+                    ListOrders orderByPrice = _listOrders.Find(o => o.Price == (decimal)bid.Price);
 
                     if (orderByPrice != null)
                     {
-                        if (bid.Bid - orderByPrice.Volume >= _setOrderSizeForBestPrice)
+                        if ((decimal)bid.Bid - orderByPrice.Volume >= _setOrderSizeForBestPrice)
                         {
-                            if (bid.Price > _priceZeroLevel)
+                            if ((decimal)bid.Price > _priceZeroLevel)
                             {
                                 //PrintMassive();
 
@@ -1123,9 +1123,9 @@ namespace OsEngine.Robots
                                 return;
                             }
 
-                            if (bid.Price < _priceZeroLevel)
+                            if ((decimal)bid.Price < _priceZeroLevel)
                             {
-                                if (i > 0 && _mdSecond.Bids[i - 1].Price != _priceZeroLevel)
+                                if (i > 0 && (decimal)_mdSecond.Bids[i - 1].Price != _priceZeroLevel)
                                 {
                                     //PrintMassive();
 
@@ -1135,7 +1135,7 @@ namespace OsEngine.Robots
                                     CancelAllOpenOrders();
                                     return;
                                 }
-                                else if (i > 0 && _mdSecond.Bids[i - 1].Price == _priceZeroLevel)
+                                else if (i > 0 && (decimal)_mdSecond.Bids[i - 1].Price == _priceZeroLevel)
                                 {
                                     return;
                                 }
@@ -1144,7 +1144,7 @@ namespace OsEngine.Robots
                     }
                     else
                     {
-                        if (bid.Price > _priceZeroLevel)
+                        if ((decimal)bid.Price > _priceZeroLevel)
                         {
                             //PrintMassive();
 
@@ -1154,9 +1154,9 @@ namespace OsEngine.Robots
                             return;
                         }
 
-                        if (bid.Price < _priceZeroLevel)
+                        if ((decimal)bid.Price < _priceZeroLevel)
                         {
-                            if (i > 0 && _mdSecond.Bids[i - 1].Price != _priceZeroLevel)
+                            if (i > 0 && (decimal)_mdSecond.Bids[i - 1].Price != _priceZeroLevel)
                             {
                                 //PrintMassive();
 
@@ -1165,7 +1165,7 @@ namespace OsEngine.Robots
                                 CancelAllOpenOrders();
                                 return;
                             }
-                            else if (i > 0 && _mdSecond.Bids[i - 1].Price == _priceZeroLevel)
+                            else if (i > 0 && (decimal)_mdSecond.Bids[i - 1].Price == _priceZeroLevel)
                             {
                                 return;
                             }
@@ -1273,7 +1273,7 @@ namespace OsEngine.Robots
 
             decimal summOrders = GetSummOrders();
 
-            if (_mdSecond.Bids[^1].Price > _priceZeroLevel) return;
+            if ((decimal)_mdSecond.Bids[^1].Price > _priceZeroLevel) return;
 
             if (summOrders <= 0)
             {
@@ -1456,14 +1456,14 @@ namespace OsEngine.Robots
 
             for (int i = 0; i < md.Bids.Count; i++)
             {
-                decimal price = Math.Round(md.Bids[i].Price + _tab2.Security.PriceStep, _tab2.Security.Decimals);
+                decimal price = Math.Round((decimal)md.Bids[i].Price + _tab2.Security.PriceStep, _tab2.Security.Decimals);
 
                 if (_limitPriceRatio < price)
                 {
                     continue;
                 }
 
-                if (md.Bids[i].Bid >= _setOrderSizeForBestPrice)
+                if ((decimal)md.Bids[i].Bid >= _setOrderSizeForBestPrice)
                 {
                     return price;
                 }
