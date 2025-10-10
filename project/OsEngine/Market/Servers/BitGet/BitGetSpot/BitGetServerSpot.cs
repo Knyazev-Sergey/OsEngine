@@ -34,6 +34,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetSpot
             CreateParameterPassword(OsLocalization.Market.ServerParameterSecretKey, "");
             CreateParameterPassword(OsLocalization.Market.ServerParameterPassphrase, "");
             CreateParameterBoolean("Extended Data", false);
+            CreateParameterBoolean("Demo Trading", false);
         }
     }
 
@@ -85,6 +86,17 @@ namespace OsEngine.Market.Servers.BitGet.BitGetSpot
             else
             {
                 _extendedMarketData = false;
+            }
+
+            if (((ServerParameterBool)ServerParameters[4]).Value == true)
+            {
+                _demoTrading = true;
+                _webSocketUrlPrivate = "wss://wspap.bitget.com/v2/ws/private";
+                _webSocketUrlPublic = "wss://wspap.bitget.com/v2/ws/public";
+            }
+            else
+            {
+                _demoTrading = false;
             }
 
             try
@@ -180,6 +192,8 @@ namespace OsEngine.Market.Servers.BitGet.BitGetSpot
         private int _limitCandlesData = 200;
 
         private bool _extendedMarketData;
+
+        private bool _demoTrading;
 
         #endregion
 
@@ -2590,6 +2604,11 @@ namespace OsEngine.Market.Servers.BitGet.BitGetSpot
                 requestRest.AddHeader("ACCESS-PASSPHRASE", Passphrase);
                 requestRest.AddHeader("X-CHANNEL-API-CODE", "6yq7w");
 
+                if (_demoTrading)
+                {
+                    requestRest.AddHeader("paptrading", "1");
+                }
+
                 RestClient client = new RestClient(BaseUrl);
 
                 if (_myProxy != null)
@@ -2630,6 +2649,11 @@ namespace OsEngine.Market.Servers.BitGet.BitGetSpot
                 requestRest.AddHeader("ACCESS-TIMESTAMP", timestamp);
                 requestRest.AddHeader("ACCESS-PASSPHRASE", Passphrase);
                 requestRest.AddHeader("X-CHANNEL-API-CODE", "6yq7w");
+
+                if (_demoTrading)
+                {
+                    requestRest.AddHeader("paptrading", "1");
+                }
 
                 if (method.ToString().Equals("POST"))
                 {
