@@ -302,6 +302,11 @@ namespace OsEngine.Robots
 
             ResponseMessageRest<List<HistoryFunding>> funding = JsonConvert.DeserializeAnonymousType(responseMessage.Content, new ResponseMessageRest<List<HistoryFunding>>());
 
+            if (funding == null)
+            {
+                return null;
+            }
+
             return funding.data;
         }
 
@@ -313,6 +318,11 @@ namespace OsEngine.Robots
             IRestResponse responseMessage = new RestClient(_baseUrl).Execute(requestRest);
 
             ResponseMessageRest<CurrentFunding> funding = JsonConvert.DeserializeAnonymousType(responseMessage.Content, new ResponseMessageRest<CurrentFunding>());
+
+            if (funding == null)
+            {
+                return null;
+            }
 
             return funding.data;
         }
