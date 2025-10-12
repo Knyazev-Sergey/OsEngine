@@ -283,6 +283,11 @@ namespace OsEngine.Entity
         public int CancellingTryCount;
 
         /// <summary>
+        /// Put it on the queue for execution or withdraw it. True - only Maker can be used
+        /// </summary>
+        public bool LimitsMakerOnly;
+
+        /// <summary>
         /// The last time an attempt was made to withdraw an order
         /// </summary>
         public DateTime LastCancelTryLocalTime;
@@ -681,6 +686,11 @@ namespace OsEngine.Entity
         /// <summary>
         /// Order will be throughout the day. If the exchange has such possibilities
         /// </summary>
-        Day
+        Day,
+
+        /// <summary>
+        /// Passive order. Order that is added to the order book only if it cannot be executed immediately
+        /// </summary>
+        BookOrCancel
     }
 }
