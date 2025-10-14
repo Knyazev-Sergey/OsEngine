@@ -272,6 +272,8 @@ namespace OsEngine.Robots
 
                 int countPeriods = days * 24 / (int)period;
 
+                if (countPeriods == 0) return 0;
+
                 if (countPeriods > _historyFunding.Count)
                 {
                     countPeriods = _historyFunding.Count;

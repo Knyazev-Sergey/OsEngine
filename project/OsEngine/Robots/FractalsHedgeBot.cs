@@ -14,7 +14,6 @@ using OsEngine.Charts.CandleChart.Indicators;
 using OsEngine.Charts.CandleChart.Elements;
 using System.Drawing;
 using System.IO;
-using OsEngine.Market.Servers.BingX.BingXFutures.Entity;
 
 namespace OsEngine.Robots
 {
@@ -2090,7 +2089,7 @@ namespace OsEngine.Robots
         {
             if (_needCheckExecuteTPSecondOrdersLong)
             {
-                if (_tab.PositionOpenLong.Count == 0)
+                if (_tab.PositionOpenShort.Count == 0)
                 {
                     _needCheckExecuteTPSecondOrdersLong = false;
                 }
@@ -2098,7 +2097,7 @@ namespace OsEngine.Robots
 
             if (_needCheckExecuteTPSecondOrdersShort)
             {
-                if (_tab.PositionOpenShort.Count == 0)
+                if (_tab.PositionOpenLong.Count == 0)
                 {
                     _needCheckExecuteTPSecondOrdersShort = false;
                 }

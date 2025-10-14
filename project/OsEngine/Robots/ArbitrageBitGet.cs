@@ -642,6 +642,8 @@ namespace OsEngine.Robots
                 return;
             }
 
+            if (_tab2.PositionOpenLong.Count == 0) return;
+
             List<Order> openOrders = _tab2.PositionOpenLong[0].OpenOrders;
 
             if (openOrders.Count == 0)
@@ -743,11 +745,7 @@ namespace OsEngine.Robots
                         openOrders[j].State != OrderStateType.None)
                     {
                         count++;
-                        break;
-                        /*if (_listOrders[i].NumberUser == openOrders[j].NumberUser.ToString())
-                        {
-                            
-                        }*/
+                        break;                      
                     }
                 }
             }
@@ -792,6 +790,8 @@ namespace OsEngine.Robots
 
         private void CheckStopBot()
         {
+            if (!_needBuySecondSecurity) return;
+
             if (_regime == Regime.Shutdown)
             {
                 return;
@@ -1007,8 +1007,12 @@ namespace OsEngine.Robots
                                 {
                                     if (_listOrders[i].State != OrderStateType.Done)
                                     {
-                                        _needDelayExecuteOrders = true;
-                                        _timeDelayExecuteOrder = DateTime.UtcNow;
+                                        if (_setTradeOneSecurity)
+                                        {
+                                            _needDelayExecuteOrders = true;
+                                            _timeDelayExecuteOrder = DateTime.UtcNow;
+                                        }
+
                                         _listOrders[i].VolumeExecute = openOrders[j].VolumeExecute;
 
                                         SendNewLogMessage($"Частично исполнился ордер: {openOrders[j].NumberUser}, Price: {openOrders[j].Price}, VolEx: {openOrders[j].VolumeExecute}", _logging);
@@ -1026,8 +1030,11 @@ namespace OsEngine.Robots
                                     {
                                         _listOrders[i].State = OrderStateType.Done;
 
-                                        _needDelayExecuteOrders = true;
-                                        _timeDelayExecuteOrder = DateTime.UtcNow;
+                                        if (_setTradeOneSecurity)
+                                        {
+                                            _needDelayExecuteOrders = true;
+                                            _timeDelayExecuteOrder = DateTime.UtcNow;
+                                        }
 
                                         SendNewLogMessage($"Ордер исполнился: {openOrders[j].NumberUser}, Price: {openOrders[j].Price}, VolEx: {openOrders[j].VolumeExecute}", _logging);
                                     }
@@ -1061,24 +1068,7 @@ namespace OsEngine.Robots
                 CancelAllOpenOrders();
                 return;
             }
-
-            // если условия в стакане меняются
-            // 
-            if (_limitPriceRatio <= _secondBid)
-            {
-                /*if (_maxPriceInListOrders != _limitPriceRatio)
-                {
-                    SendNewLogMessage($"Цена соотношения {_limitPriceRatio} находится в бид {_secondBid}", _logging);
-                    SendNewLogMessage($"Максимальная цена в сетке {_maxPriceInListOrders} не равна цене соотношения {_limitPriceRatio}.", _logging);
-                    PrintMD();
-                    CancelAllOpenOrders();
-                }*/
-            }
-            else
-            {
-                //CheckMD();
-            }
-
+            
             CheckMD();
         }
 
@@ -1361,7 +1351,7 @@ namespace OsEngine.Robots
                 _listOrders.Add(new ListOrders { Price = price, Volume = volume, DeviationPrice = _listTableGrid[i].DeviationPrice });
             }
 
-            if (_listOrders.Count == 0)
+            if (_listOrders.Count == 0 && _limitPriceRatio <= _secondBid)
             {
                 for (int i = 0; i < _listTableGrid.Count; i++)
                 {
@@ -1376,6 +1366,12 @@ namespace OsEngine.Robots
                     }
 
                     decimal price = Math.Round(_listTableGrid[i].DeviationPrice + _limitPriceRatio, _tab2.Security.Decimals);
+
+                    if (price >= _secondAsk)
+                    {
+                        continue;
+                    }
+
                     decimal volume = _listTableGrid[i].Volume;
 
                     _listOrders.Add(new ListOrders { Price = price, Volume = volume, DeviationPrice = _listTableGrid[i].DeviationPrice });
@@ -1515,7 +1511,7 @@ namespace OsEngine.Robots
                 summSecond - summFirst > 2)
             {
                 decimal volume = Math.Round((volumeSecond * priceSecond - volumeFirst * priceFirst) / _firstBid, _tab1.Security.DecimalsVolume, MidpointRounding.ToZero);
-                decimal price = Math.Round(_firstBid - _tab1.Security.PriceStep * 1000, _tab1.Security.Decimals);
+                decimal price = Math.Round(_firstBid - _tab1.Security.PriceStep * 100, _tab1.Security.Decimals);
 
                 if (_tab1.PositionOpenShort.Count == 0)
                 {
@@ -1526,7 +1522,7 @@ namespace OsEngine.Robots
                     _tab1.SellAtLimitToPosition(_tab1.PositionOpenShort[0], price, volume);
                 }
 
-                SendNewLogMessage($"Куплено {_tab2.Security.Name} = {volumeSecond}, есть {_tab1.Security.Name} = {volumeFirst}, нудно продать {_tab1.Security.Name}: {volume}", _logging);
+                SendNewLogMessage($"Куплено {_tab2.Security.Name} = {volumeSecond}, есть {_tab1.Security.Name} = {volumeFirst}, нужно продать {_tab1.Security.Name}: {volume}", _logging);
                 SendNewLogMessage("Ордер на продажу первого инструмента отправлен на исполнение", _logging);
                 _needCheckSellFirstSecurity = true;
             }            
@@ -1545,8 +1541,8 @@ namespace OsEngine.Robots
                 SendNewLogMessage("Ордер на продажу первого инструмента исполнен", _logging);
                 _needCheckSellFirstSecurity = false;
 
-                /*_needDelayExecuteOrders = true;
-                _timeDelayExecuteOrder = DateTime.UtcNow;*/
+                _needDelayExecuteOrders = true;
+                _timeDelayExecuteOrder = DateTime.UtcNow;
 
                 return;
             }
