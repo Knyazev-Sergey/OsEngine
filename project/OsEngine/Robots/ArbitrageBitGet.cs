@@ -425,6 +425,7 @@ namespace OsEngine.Robots
         private decimal _ratioTakenPositions;
         private MarketDepth _mdSecond;
         private double _timeUpdateDepth;
+        private DateTime _checkFlags = DateTime.UtcNow;
 
         private void _tab1_BestBidAskChangeEvent(decimal bid, decimal ask)
         {
@@ -564,6 +565,21 @@ namespace OsEngine.Robots
             BuyCounterOrders();
             QuoterSecondOrders();
             BuySecondSecurity();
+
+            PrintFlags();
+        }
+
+        private void PrintFlags()
+        {
+            if (_checkFlags.AddMinutes(1) > DateTime.UtcNow) return;
+
+            _checkFlags = DateTime.UtcNow;
+
+            SendNewLogMessage("*************************************************************************", _logging);
+            SendMessageFlags();
+            PrintMassive();
+            PrintMD();
+            SendNewLogMessage("*************************************************************************", _logging);
         }
 
         private bool CheckRegime()
@@ -620,6 +636,9 @@ namespace OsEngine.Robots
             str += "\n_volumeFirstSecurity: " + _volumeFirstSecurity;
             str += "\n_volumeSecondSecurity: " + _volumeSecondSecurity;
             str += "\n_ratioTakenPositions: " + _ratioTakenPositions;
+            str += "\n_timeUpdateDepth: " + _timeUpdateDepth;
+            str += "\n_mdSecond.Time.TimeOfDay.TotalMilliseconds: " + _mdSecond?.Time.TimeOfDay.TotalMilliseconds;
+            str += "\nDateTime.UtcNow.TimeOfDay.TotalMilliseconds: " + DateTime.UtcNow.TimeOfDay.TotalMilliseconds;
 
             SendNewLogMessage(str, _logging);
         }
@@ -676,6 +695,12 @@ namespace OsEngine.Robots
                         if (openOrders[j].State != OrderStateType.Active)
                         {
                             count++;
+                        }
+
+                        if (openOrders[j].State == OrderStateType.Fail)
+                        {
+                            _needCancelOrders = true;
+                            return;
                         }
                     }
                 }
@@ -1300,8 +1325,6 @@ namespace OsEngine.Robots
 
             string strMsg = "Massive orders: ";
 
-            _maxPriceInListOrders = 0;
-
             for (int i = 0; i < _listOrders.Count; i++)
             {
                 SendOrderBuy(_listOrders[i].Price, _listOrders[i].Volume);
@@ -1382,6 +1405,7 @@ namespace OsEngine.Robots
         private decimal GetSummOrders()
         {
             decimal summOrders = 0;
+            _maxPriceInListOrders = 0;
 
             for (int i = 0; i < _listOrders.Count; i++)
             {

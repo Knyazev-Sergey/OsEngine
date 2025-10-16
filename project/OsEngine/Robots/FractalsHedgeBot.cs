@@ -378,12 +378,7 @@ namespace OsEngine.Robots
             }
 
             decimal freeMoney = Math.Round(_tab.Portfolio.ValueCurrent - _tab.Portfolio.ValueBlocked, 4);
-            decimal wallet = Math.Round(_volume.ValueDecimal * _leverage.ValueDecimal, 4);
-
-            if (_typeVolume.ValueString == GetDescription(TypeVolume.Percent))
-            {
-                wallet = Math.Round(_tab.Portfolio.ValueCurrent * _volume.ValueDecimal / 100 * _leverage.ValueDecimal, 4);
-            }
+            decimal wallet = GetWallet();
 
             decimal openVolumeLong = GetOpenVolume(_tab.PositionOpenLong);
             decimal openVolumeShort = GetOpenVolume(_tab.PositionOpenShort);
@@ -448,6 +443,18 @@ namespace OsEngine.Robots
             _gridMonitoring.Rows[9].Cells[1].Value = diffLongShort + " (" + diffLongShortPercent + "%)"; //Расстояние в процентах и пунтакх между открытыми позициями ЛОНГ и ШОРТ
             _gridMonitoring.Rows[10].Cells[1].Value = "Long: " + openOrderVolumeLong + ", Short: " + openOrderVolumeShort;//Состояние ордеров (выставленный объем в шорт и лонг)
             _gridMonitoring.Rows[11].Cells[1].Value = "Long: " + unrealizLong + ", Short: " + unrealizShort + ", Sum: " + unrealizPNL;//Нереализованный PNL
+        }
+
+        private decimal GetWallet()
+        {
+            decimal wallet = Math.Round(_volume.ValueDecimal * _leverage.ValueDecimal, 4);
+
+            if (_typeVolume.ValueString == GetDescription(TypeVolume.Percent))
+            {
+                wallet = Math.Round(_tab.Portfolio.ValueCurrent * _volume.ValueDecimal / 100 * _leverage.ValueDecimal, 4);
+            }
+
+            return wallet;
         }
 
         private decimal AveragePricePositions(List<Position> pos)
@@ -729,6 +736,22 @@ namespace OsEngine.Robots
                     }
                 }
             }
+
+            if (order.State == OrderStateType.Cancel)
+            {
+                for (int i = 0; i < _tpOrders?.Count; i++)
+                {
+                    if (_tpOrders[i].NumberUser == order.NumberUser)
+                    {
+                        SendNewLogMessage($"Отменился ТП ордер #{order.NumberUser}", _logType);
+
+                        _openVolumeLong = 0;
+                        _openVolumeShort = 0;
+                        _priceLongAverage = 0;
+                        _priceShortAverage = 0;
+                    }
+                }                
+            }
         }
 
         private bool _isConnected = false;
@@ -783,6 +806,7 @@ namespace OsEngine.Robots
 
             if (_status == Status.Stop)
             {
+                TakeProfit();
                 ChangeUpFractal();
                 ChangeDownFractal();
             }
@@ -935,9 +959,9 @@ namespace OsEngine.Robots
                 }
             }
 
-            CancelTpOrders();
+            /*CancelTpOrders();
 
-            _openOrders.Clear();
+            _openOrders.Clear();*/
         }
 
         private void PushCloseAndStopButton()
@@ -1024,7 +1048,7 @@ namespace OsEngine.Robots
 
         private void CheckPosition()
         {
-            if (_needCheckExecuteTPSecondOrdersLong && _needCheckExecuteTPSecondOrdersShort) return;
+            if (_needCheckExecuteTPSecondOrdersLong || _needCheckExecuteTPSecondOrdersShort) return;
             if (_needCheckExecuteTPFirstOrders) return;
 
             if (_status != Status.Start)
@@ -1488,11 +1512,12 @@ namespace OsEngine.Robots
                 return;
             }
 
-            decimal minVolumeUSDT = _minVolumeData.ValueDecimal * _leverage.ValueDecimal;
+            decimal wallet = GetWallet();
+            decimal minVolumeUSDT = _minVolumeData.ValueDecimal;
 
             if (_typeMinVolume.ValueString == GetDescription(TypeVolume.Percent))
             {
-                minVolumeUSDT = _tab.Portfolio.ValueCurrent * _minVolumeData.ValueDecimal / 100 * _leverage.ValueDecimal;
+                minVolumeUSDT = wallet * _minVolumeData.ValueDecimal / 100;
             }
 
             decimal volumeStep = _tab.Security.VolumeStep;
@@ -1750,7 +1775,6 @@ namespace OsEngine.Robots
         private decimal _priceShortAverage = 0;
         private bool _needCancelTakeProfitOrders = false;
         private bool _needCheckExecuteTPFirstOrders = false;
-        private bool _needCheckExecuteTPFirstOrdersShort = false;
         private bool _needCheckExecuteTPSecondOrdersLong = false;
         private bool _needCheckExecuteTPSecondOrdersShort = false;
         private List<TakeProfitOrders> _tpOrders = new();

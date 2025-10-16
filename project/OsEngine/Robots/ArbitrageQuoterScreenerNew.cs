@@ -14,12 +14,11 @@ using System.Windows.Forms.Integration;
 using System.Drawing;
 using System.Globalization;
 using OsEngine.Market;
-using OsEngine.Charts.CandleChart.Indicators;
 
 namespace OsEngine.Robots
 {
-    [Bot("ArbitrageQuoterScreener")]
-    public class ArbitrageQuoterScreener : BotPanel
+    [Bot("ArbitrageQuoterScreenerNew")]
+    public class ArbitrageQuoterScreenerNew : BotPanel
     {       
         private BotTabScreener _tab0;
         private BotTabScreener _tab1;
@@ -65,7 +64,7 @@ namespace OsEngine.Robots
         private bool _secondChangePos;
         
 
-        public ArbitrageQuoterScreener(string name, StartProgram startProgram) : base(name, startProgram)
+        public ArbitrageQuoterScreenerNew(string name, StartProgram startProgram) : base(name, startProgram)
         {
             CultureInfo.CurrentCulture = new CultureInfo("ru-RU");
 
@@ -196,6 +195,7 @@ namespace OsEngine.Robots
         private DataGridView _gridSettingsPosition;
         private DataGridView _gridResultPosition;
         private DataGridView _gridDeposit;
+        private TabControl _tabPage;
         private List<string> _listExercise;
         private List<string> _listScheme;
         private List<string> _listTypelimit;
@@ -212,6 +212,7 @@ namespace OsEngine.Robots
             _gridSchemePosition = GridSchemePosition();
             _gridResultPosition = GridResultPosition();
             _gridDeposit = GridDeposit();
+            _tabPage = GridTabPage();
 
             _gridSettingsPosition.CurrentCellDirtyStateChanged += _gridSettingsPosition_CurrentCellDirtyStateChanged;
             _gridSettingsPosition.CellValueChanged += __gridSettingsSetPosition_CellValueChanged;
@@ -219,7 +220,7 @@ namespace OsEngine.Robots
             _gridSettingsPosition.DataError += __gridSettingsSetPosition_DataError;
             _gridSettingsPosition.CellPainting += __gridSettingsSetPosition_CellPainting;
 
-            TableLayoutPanel panelSettingsScheme = new TableLayoutPanel();
+            /*TableLayoutPanel panelSettingsScheme = new TableLayoutPanel();
             panelSettingsScheme.Dock = DockStyle.Fill;
             panelSettingsScheme.ColumnCount = 2;
             panelSettingsScheme.RowCount = 1;
@@ -228,7 +229,17 @@ namespace OsEngine.Robots
             panelSettingsScheme.CellBorderStyle = TableLayoutPanelCellBorderStyle.Single;
             panelSettingsScheme.BackColor = Color.Black;
             panelSettingsScheme.Controls.Add(_gridSettingsPosition, 0, 0);
-            panelSettingsScheme.Controls.Add(_gridSchemePosition, 1, 0);
+            panelSettingsScheme.Controls.Add(_gridSchemePosition, 1, 0);*/
+
+            TableLayoutPanel panelTabPage = new TableLayoutPanel();
+            panelTabPage.Dock = DockStyle.Fill;
+            panelTabPage.ColumnCount = 1;
+            panelTabPage.RowCount = 1;
+            panelTabPage.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            panelTabPage.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            panelTabPage.CellBorderStyle = TableLayoutPanelCellBorderStyle.Single;
+            panelTabPage.BackColor = Color.Black;
+            panelTabPage.Controls.Add(_tabPage, 0, 0);
 
             TableLayoutPanel panelUpDown = new TableLayoutPanel();
             panelUpDown.Dock = DockStyle.Fill;
@@ -239,11 +250,38 @@ namespace OsEngine.Robots
             panelUpDown.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             panelUpDown.CellBorderStyle = TableLayoutPanelCellBorderStyle.Single;
             panelUpDown.BackColor = Color.Black;
-            panelUpDown.Controls.Add(panelSettingsScheme, 0, 0);
+            panelUpDown.Controls.Add(panelTabPage, 0, 0);
             panelUpDown.Controls.Add(_gridDeposit, 0, 1);
             panelUpDown.Controls.Add(_gridResultPosition, 0, 2);
 
             _hostTableOpen.Child = panelUpDown;
+        }
+
+        private TabControl GridTabPage()
+        {
+            TabControl tabControl = new TabControl();
+
+            tabControl.Dock = DockStyle.Fill;
+            //tabControl.Location = new Point(0, 0);
+            //tabControl.Size = new Size(800, 600);
+            
+
+            TabPage newTabPage = new TabPage("Tab");
+
+            // Создаем DataGridView для вкладки
+            DataGridView dataGridView = DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect,
+               DataGridViewAutoSizeRowsMode.AllCells);
+
+            // Добавляем DataGridView на вкладку
+            newTabPage.Controls.Add(dataGridView);
+
+            // Добавляем вкладку в TabControl
+            tabControl.TabPages.Add(newTabPage);
+
+            // Выбираем новую вкладку
+            tabControl.SelectedTab = newTabPage;
+
+            return tabControl;
         }
 
         private DataGridView GridDeposit()
@@ -920,7 +958,7 @@ namespace OsEngine.Robots
             }
 
             // формируем данные для таблицы
-            List<ResultPositions> resultPositions = new List<ResultPositions>();
+            List<ResultPositionsNew> resultPositions = new List<ResultPositionsNew>();
 
             for (int i = 0; i < TabsScreener.Count; i++)
             {
@@ -933,7 +971,7 @@ namespace OsEngine.Robots
 
                     if (tab.PositionsAll.Count != 0)
                     {
-                        ResultPositions result = new ResultPositions();
+                        ResultPositionsNew result = new ResultPositionsNew();
 
                         Position pos = tab.PositionsAll[tab.PositionsAll.Count - 1];
 
@@ -1029,7 +1067,7 @@ namespace OsEngine.Robots
             }
 
             // Сортировка таблицы по инструменту
-            List<ResultPositions> sortedList = new();
+            List<ResultPositionsNew> sortedList = new();
             sortedList = resultPositions.OrderBy(spot => spot.SecurityName).ToList();
 
             resultPositions.Clear();
@@ -1269,7 +1307,7 @@ namespace OsEngine.Robots
                     return;
                 }
 
-                List<ResultDeposit> listResultDeposit = new();
+                List<ResultDepositNew> listResultDeposit = new();
 
                 if (TabsScreener == null) return;
                 if (TabsScreener.Count == 0) return;
@@ -1331,7 +1369,7 @@ namespace OsEngine.Robots
                         }*/
                     }
 
-                    ResultDeposit resultDeposit = new ResultDeposit();
+                    ResultDepositNew resultDeposit = new ResultDepositNew();
 
                     resultDeposit.Exchange = exchange;
                     resultDeposit.DepositUSDT = depositUSDT;
@@ -1908,10 +1946,11 @@ namespace OsEngine.Robots
 
         private void ExerciseOpen()
         {
+            // проверка на лимит задания
             if (_firstTab.PositionsOpenAll.Count > 0 && _secondTab.PositionsOpenAll.Count > 0)
             {
-                if (_firstTab.PositionsOpenAll[0].OpenVolume * _firstTab.Security.Lot == _firstLimitVolume &&
-                    _secondTab.PositionsOpenAll[0].OpenVolume * _secondTab.Security.Lot == _secondLimitVolume)
+                if (_firstTab.PositionsOpenAll[0].OpenVolume * _firstTab.Security.Lot >= _firstLimitVolume &&
+                    _secondTab.PositionsOpenAll[0].OpenVolume * _secondTab.Security.Lot >= _secondLimitVolume)
                 {
                     return;
                 }
@@ -1940,43 +1979,42 @@ namespace OsEngine.Robots
 
         private void OpenTradeTakerTaker()
         {
-            if (CheckOpenPosition())
+            if (!CheckOpenPosition()) return;
+            
+            decimal volumeLong = GetVolumeOpen(Side.Buy);
+            decimal volumeShort = GetVolumeOpen(Side.Sell);
+
+            if (volumeLong > 0)
             {
-                decimal volumeLong = GetVolumeOpen(Side.Buy);
-                decimal volumeShort = GetVolumeOpen(Side.Sell);
+                decimal price = _firstTab.PriceBestAsk + _firstTab.Security.PriceStep * _longCountPriceStep;
 
-                if (volumeLong > 0)
+                if (_firstTab.PositionsOpenAll.Count > 0)
                 {
-                    decimal price = _firstTab.PriceBestAsk + _firstTab.Security.PriceStep * _longCountPriceStep;
-
-                    if (_firstTab.PositionsOpenAll.Count > 0)
-                    {
-                        _firstTab.BuyAtLimitToPosition(_firstTab.PositionsOpenAll[0], price, volumeLong);
-                        SetComissionOpen(_firstTab, _longСomissionTaker);
-                    }
-                    else
-                    {
-                        _firstTab.BuyAtLimit(volumeLong, price);
-                        SetComissionOpen(_firstTab, _longСomissionTaker);
-                    }
+                    _firstTab.BuyAtLimitToPosition(_firstTab.PositionsOpenAll[0], price, volumeLong);
+                    SetComissionOpen(_firstTab, _longСomissionTaker);
                 }
-                
-                if (volumeShort > 0)
+                else
                 {
-                    decimal price = _secondTab.PriceBestBid - _secondTab.Security.PriceStep * _shortCountPriceStep;
+                    _firstTab.BuyAtLimit(volumeLong, price);
+                    SetComissionOpen(_firstTab, _longСomissionTaker);
+                }
+            }
+                
+            if (volumeShort > 0)
+            {
+                decimal price = _secondTab.PriceBestBid - _secondTab.Security.PriceStep * _shortCountPriceStep;
 
-                    if (_secondTab.PositionsOpenAll.Count > 0)
-                    {
-                        _secondTab.SellAtLimitToPosition(_secondTab.PositionsOpenAll[0], price, volumeShort);
-                        SetComissionOpen(_secondTab, _shortСomissionTaker);
-                    }
-                    else
-                    {
-                        _secondTab.SellAtLimit(volumeShort, price);
-                        SetComissionOpen(_secondTab, _shortСomissionTaker);
-                    }
-                }                
-            }                
+                if (_secondTab.PositionsOpenAll.Count > 0)
+                {
+                    _secondTab.SellAtLimitToPosition(_secondTab.PositionsOpenAll[0], price, volumeShort);
+                    SetComissionOpen(_secondTab, _shortСomissionTaker);
+                }
+                else
+                {
+                    _secondTab.SellAtLimit(volumeShort, price);
+                    SetComissionOpen(_secondTab, _shortСomissionTaker);
+                }
+            }              
         }
 
         private void SetComissionOpen(BotTabSimple tab, decimal comiss)
@@ -2003,11 +2041,6 @@ namespace OsEngine.Robots
                     return false;
                 }
 
-                if (!CompareSpread())
-                {
-                    return false;
-                }
-
                 if (_firstTab.PositionsOpenAll.Count == 0 && _secondTab.PositionsOpenAll.Count == 0)
                 {
                     return true;
@@ -2023,17 +2056,22 @@ namespace OsEngine.Robots
 
                     if (_firstTab.PositionsOpenAll[0].OpenVolume * _firstTab.Security.Lot == _secondTab.PositionsOpenAll[0].OpenVolume * _secondTab.Security.Lot)
                     {
-                        if (_firstTab.PositionsOpenAll[0].OpenOrders.Last().State == OrderStateType.Done &&
-                            _secondTab.PositionsOpenAll[0].OpenOrders.Last().State == OrderStateType.Done)
+                        if (_firstTab.PositionsOpenAll[0].OpenOrders[^1].State == OrderStateType.Done &&
+                            _secondTab.PositionsOpenAll[0].OpenOrders[^1].State == OrderStateType.Done)
                         {
                             return true;
                         }
 
-                        if (_firstTab.PositionsOpenAll[0].OpenOrders.Last().State == OrderStateType.Cancel ||
-                            _secondTab.PositionsOpenAll[0].OpenOrders.Last().State == OrderStateType.Cancel)
+                        if (_firstTab.PositionsOpenAll[0].OpenOrders[^1].State == OrderStateType.Cancel ||
+                            _secondTab.PositionsOpenAll[0].OpenOrders[^1].State == OrderStateType.Cancel)
                         {
                             return true;
                         }
+                    }
+
+                    if (!CompareSpread())
+                    {
+                        return false;
                     }
                 }
 
@@ -4039,7 +4077,7 @@ namespace OsEngine.Robots
         #endregion       
     }
 
-    public class ResultPositions
+    public class ResultPositionsNew
     {
         public string ServerName;
         public string SecurityName;
@@ -4067,71 +4105,12 @@ namespace OsEngine.Robots
         public decimal SumFinans;
     }
 
-    public class ResultDeposit
+    public class ResultDepositNew
     {
         public string Exchange;
         public decimal DepositUSDT;
         public decimal DepositSecurity;
         public decimal DepositTotal;
-    }
-
-    public class ResultTable : INotifyPropertyChanged
-    {
-        private string _exchange;
-        private string _tiker;
-        private string _direction;
-        private string _periodicity;
-        private string _openVolume;
-        private string _openPrice;
-        private string _openSumm;
-
-        public string Exchange
-        {
-            get => _exchange;
-            set { _exchange = value; OnPropertyChanged(nameof(Exchange)); }
-        }
-
-        public string Tiker
-        {
-            get => _tiker;
-            set { _tiker = value; OnPropertyChanged(nameof(Tiker)); }
-        }
-
-        public string Direction
-        {
-            get => _direction;
-            set { _direction = value; OnPropertyChanged(nameof(Direction)); }
-        }
-
-        public string Periodicity
-        {
-            get => _periodicity;
-            set { _periodicity = value; OnPropertyChanged(nameof(Periodicity)); }
-        }
-
-        public string OpenVolume
-        {
-            get => _openVolume;
-            set { _openVolume = value; OnPropertyChanged(nameof(OpenVolume)); }
-        }
-        public string OpenPrice
-        {
-            get => _openPrice;
-            set { _openPrice = value; OnPropertyChanged(nameof(OpenPrice)); }
-        }
-
-        public string OpenSumm
-        {
-            get => _openSumm;
-            set { _openSumm = value; OnPropertyChanged(nameof(OpenSumm)); }
-        }
-
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        protected virtual void OnPropertyChanged(string propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
     }
 }
 
