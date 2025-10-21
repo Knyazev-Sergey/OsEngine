@@ -14,12 +14,17 @@ using System.Windows.Forms.Integration;
 using System.Drawing;
 using System.Globalization;
 using OsEngine.Market;
+using OsEngine.Logging;
+using Newtonsoft.Json;
 
 namespace OsEngine.Robots
 {
     [Bot("ArbitrageQuoterScreenerNew")]
+
+    #region Bot
+
     public class ArbitrageQuoterScreenerNew : BotPanel
-    {       
+    {
         private BotTabScreener _tab0;
         private BotTabScreener _tab1;
         private BotTabScreener _tab2;
@@ -27,42 +32,8 @@ namespace OsEngine.Robots
         private BotTabScreener _tab4;
         private BotTabScreener _tab5;
         private BotTabScreener _tab6;
-        private BotTabScreener _tab7;
-        private BotTabSimple _firstTab;
-        private BotTabSimple _secondTab;
+        private BotTabScreener _tab7;        
         private StrategyParameterString _regime1;
-        private string _regime;
-        private string _exercise;
-        private string _schemeOrderSettings;
-        private string _typeSpread = TypeSpread.Percent.ToString();
-        private decimal _setSpread;
-        private string _compareSpread;
-        private decimal _currentSpread;
-        private decimal _firstBestBid;
-        private decimal _firstBestAsk;
-        private decimal _secondBestBid;
-        private decimal _secondBestAsk;
-        private decimal _firstLimitVolume;
-        private decimal _secondLimitVolume;
-        private decimal _firstLimitVolumeTable;
-        private decimal _secondLimitVolumeTable;
-        private decimal _maxVolume;
-        private string _firstTypeLimit = TypeLimit.USDT.ToString();
-        private string _secondTypeLimit = TypeLimit.USDT.ToString();
-        private decimal _longСomissionTaker;
-        private decimal _shortСomissionTaker;
-        private decimal _longСomissionMaker;
-        private decimal _shortСomissionMaker;
-        private int _longCountPriceStep;
-        private int _shortCountPriceStep;
-        private decimal _firstStepOrder;
-        private decimal _secondStepOrder;
-        private DateTime _timeExecute;
-        private string _firstTypeStepOrder;
-        private string _secondTypeStepOrder;
-        private bool _firstChangePos;
-        private bool _secondChangePos;
-        
 
         public ArbitrageQuoterScreenerNew(string name, StartProgram startProgram) : base(name, startProgram)
         {
@@ -88,10 +59,8 @@ namespace OsEngine.Robots
             _regime1 = CreateParameter("", "", " ");
 
             this.ParamGuiSettings.Title = "Arbitrage Quoter Screener";
-            this.ParamGuiSettings.Height = 900;
+            this.ParamGuiSettings.Height = 1100;
             this.ParamGuiSettings.Width = 1200;
-
-            _regime = GetDescription(Regime.Off);
 
             CustomTabToParametersUi customTabOpen = ParamGuiSettings.CreateCustomTab(" Торговля ");
 
@@ -105,139 +74,36 @@ namespace OsEngine.Robots
 
             Thread worker = new Thread(ThreadRefreshTable) { IsBackground = true };
             worker.Start();
-
-            Thread trade = new Thread(TradeLogic) { IsBackground = true };
-            trade.Start();
-
-            LoadSettings();
         }
 
         private void ArbitrageQuoterScreener_NewTabCreateEvent(BotTabSimple tab)
         {
-            tab.SecuritySubscribeEvent += TabsSecuritySubscribeEvent;
             tab.ManualPositionSupport.DisableManualSupport();
-            tab.TabDeletedEvent += Tab_TabDeletedEvent;
         }
-
-        private void Tab_TabDeletedEvent()
-        {
-            AddItemToComboBox();
-        }
-
-        private void TabsSecuritySubscribeEvent(Security obj)
-        {
-            AddItemToComboBox();
-        }
-
-        private void AddItemToComboBox()
-        {
-            if (MainWindow.GetDispatcher.CheckAccess() == false)
-            {
-                MainWindow.GetDispatcher.Invoke(AddItemToComboBox);
-
-                return;
-            }
-            try
-            {
-                DataGridViewComboBoxCell cell = _gridSettingsPosition.Rows[3].Cells[1] as DataGridViewComboBoxCell;
-                AddValueToCell(cell);
-
-                DataGridViewComboBoxCell cell1 = _gridSettingsPosition.Rows[3].Cells[2] as DataGridViewComboBoxCell;
-                AddValueToCell(cell1);
-            }
-            catch (Exception ex)
-            {
-                SendNewLogMessage("AddItemToComboBox: " + ex.ToString(), Logging.LogMessageType.Error);
-            }
-        }
-
-        private void AddValueToCell(DataGridViewComboBoxCell cell)
-        {
-            try
-            {
-                object currentValue = cell.Value;
-
-                cell.Items.Clear();
-
-                for (int i = 0; i < TabsScreener.Count; i++)
-                {
-                    for (int j = 0; j < TabsScreener[i].Tabs.Count; j++)
-                    {
-                        string exchange = TabsScreener[i].Tabs[j].Security?.Exchange;
-                        string tiker = TabsScreener[i].Tabs[j].Security?.Name;
-
-                        if (exchange == null || tiker == null)
-                        {
-                            continue;
-                        }
-                        cell.Items.Add(exchange + "/" + tiker);
-                    }
-                }
-
-                if (cell.Value == null || !cell.Items.Contains(cell.Value))
-                {
-                    cell.Value = cell.Items[0];
-                }
-                
-                _gridSettingsPosition.InvalidateCell(cell);
-                _gridSettingsPosition.RefreshEdit();
-            }
-            catch (Exception ex)
-            {
-                SendNewLogMessage("AddValueToCell: " + ex.ToString(), Logging.LogMessageType.Error);
-            }
-        }        
 
         #region Отрисовка таблиц 
 
         private WindowsFormsHost _hostTableOpen;
-        private DataGridView _gridSchemePosition;
-        private DataGridView _gridSettingsPosition;
         private DataGridView _gridResultPosition;
         private DataGridView _gridDeposit;
         private TabControl _tabPage;
-        private List<string> _listExercise;
-        private List<string> _listScheme;
-        private List<string> _listTypelimit;
-        private List<string> _listTypeSpread;
-        private List<string> _listTypeStepOrder;
-        private List<string> _listRegime;
-        private List<string> _listCompareSpread;
+        private ContextMenuStrip _tabContextMenu;
 
         private void CreateTableOpen()
         {
             _hostTableOpen = new WindowsFormsHost();
 
-            _gridSettingsPosition = GridSettingsPosition();
-            _gridSchemePosition = GridSchemePosition();
             _gridResultPosition = GridResultPosition();
             _gridDeposit = GridDeposit();
             _tabPage = GridTabPage();
 
-            _gridSettingsPosition.CurrentCellDirtyStateChanged += _gridSettingsPosition_CurrentCellDirtyStateChanged;
-            _gridSettingsPosition.CellValueChanged += __gridSettingsSetPosition_CellValueChanged;
-            _gridSettingsPosition.CellBeginEdit += _gridSettingsSetPosition_CellBeginEdit;
-            _gridSettingsPosition.DataError += __gridSettingsSetPosition_DataError;
-            _gridSettingsPosition.CellPainting += __gridSettingsSetPosition_CellPainting;
-
-            /*TableLayoutPanel panelSettingsScheme = new TableLayoutPanel();
-            panelSettingsScheme.Dock = DockStyle.Fill;
-            panelSettingsScheme.ColumnCount = 2;
-            panelSettingsScheme.RowCount = 1;
-            panelSettingsScheme.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            panelSettingsScheme.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));            
-            panelSettingsScheme.CellBorderStyle = TableLayoutPanelCellBorderStyle.Single;
-            panelSettingsScheme.BackColor = Color.Black;
-            panelSettingsScheme.Controls.Add(_gridSettingsPosition, 0, 0);
-            panelSettingsScheme.Controls.Add(_gridSchemePosition, 1, 0);*/
+            _tabPage.MouseClick += TabControl_MouseClick;
 
             TableLayoutPanel panelTabPage = new TableLayoutPanel();
             panelTabPage.Dock = DockStyle.Fill;
             panelTabPage.ColumnCount = 1;
             panelTabPage.RowCount = 1;
             panelTabPage.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            panelTabPage.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            panelTabPage.CellBorderStyle = TableLayoutPanelCellBorderStyle.Single;
             panelTabPage.BackColor = Color.Black;
             panelTabPage.Controls.Add(_tabPage, 0, 0);
 
@@ -254,34 +120,239 @@ namespace OsEngine.Robots
             panelUpDown.Controls.Add(_gridDeposit, 0, 1);
             panelUpDown.Controls.Add(_gridResultPosition, 0, 2);
 
+            _hostTableOpen.Background = System.Windows.Media.Brushes.Black;
             _hostTableOpen.Child = panelUpDown;
         }
 
         private TabControl GridTabPage()
         {
+            var settings = LoadSettings();
+            List<string> settingsTabs = settings.Keys.ToList();
+
             TabControl tabControl = new TabControl();
 
             tabControl.Dock = DockStyle.Fill;
-            //tabControl.Location = new Point(0, 0);
-            //tabControl.Size = new Size(800, 600);
-            
+            tabControl.BackColor = Color.FromArgb(21, 26, 30);
+            tabControl.ForeColor = Color.White;
+            tabControl.DrawMode = TabDrawMode.OwnerDrawFixed;
+            tabControl.DrawItem += TabControl_DrawItem;
 
-            TabPage newTabPage = new TabPage("Tab");
+            if (settingsTabs == null || settingsTabs.Count == 0)
+            {
+                TabPage newTabPage = SetTabPage("Tab0", settings);
+                tabControl.TabPages.Add(newTabPage);
+                tabControl.SelectedTab = newTabPage;
+            }
+            else
+            {
+                for (int i = 0; i < settingsTabs.Count; i++)
+                {
+                    TabPage newTabPage = SetTabPage(settingsTabs[i], settings);
+                    tabControl.TabPages.Add(newTabPage);
+                    tabControl.SelectedTab = newTabPage;
+                }
+            }
 
-            // Создаем DataGridView для вкладки
-            DataGridView dataGridView = DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect,
-               DataGridViewAutoSizeRowsMode.AllCells);
-
-            // Добавляем DataGridView на вкладку
-            newTabPage.Controls.Add(dataGridView);
-
-            // Добавляем вкладку в TabControl
-            tabControl.TabPages.Add(newTabPage);
-
-            // Выбираем новую вкладку
-            tabControl.SelectedTab = newTabPage;
+            InitializeContextMenu();
 
             return tabControl;
+        }
+
+        private TabPage SetTabPage(string tabName, Dictionary<string, Dictionary<string, dynamic>> settings)
+        {
+            Dictionary<string, dynamic> settingsTab = new();
+
+            if (settings != null)
+            {
+                if (settings.ContainsKey(tabName))
+                {
+                    settingsTab = settings[tabName];
+                }                
+            }
+
+            TabPage newTabPage = new TabPage(tabName);
+            newTabPage.BackColor = Color.FromArgb(21, 26, 30);
+            newTabPage.ForeColor = Color.White;
+
+            TabPageManager manager = new TabPageManager(newTabPage, TabsScreener, settingsTab);
+            newTabPage.Tag = manager;
+            manager.SaveTabPage += Manager_SaveTabPage;
+            manager.LogMessageEvent += Manager_LogMessageEvent;
+
+            return newTabPage;
+        }
+
+        private void Manager_LogMessageEvent(string message, LogMessageType type)
+        {
+            SendNewLogMessage(message, type);
+        }
+
+        private void TabControl_MouseClick(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                for (int i = 0; i < _tabPage.TabCount; i++)
+                {
+                    Rectangle tabRect = _tabPage.GetTabRect(i);
+                    if (tabRect.Contains(e.Location))
+                    {
+                        _tabPage.SelectedIndex = i;
+                        _tabContextMenu.Show(_tabPage, e.Location);
+                        return;
+                    }
+                }
+            }
+        }
+
+        private void InitializeContextMenu()
+        {
+            _tabContextMenu = new ContextMenuStrip();
+
+            var addTabMenuItem = new ToolStripMenuItem("Добавить вкладку");
+            addTabMenuItem.Click += (s, e) => AddNewTab();
+            _tabContextMenu.Items.Add(addTabMenuItem);
+
+            var removeTabMenuItem = new ToolStripMenuItem("Удалить вкладку");
+            removeTabMenuItem.Click += (s, e) => RemoveCurrentTab();
+            _tabContextMenu.Items.Add(removeTabMenuItem);
+
+            var renameTabMenuItem = new ToolStripMenuItem("Переименовать вкладку");
+            renameTabMenuItem.Click += (s, e) => RenameCurrentTab();
+            _tabContextMenu.Items.Add(renameTabMenuItem);
+        }
+
+        private void AddNewTab()
+        {
+            string tabName = $"Tab{_tabPage.TabCount}";
+
+            int tabCount = 1;
+
+            while (true)
+            {
+                int count = 0;
+
+                for (int i = 0; i < _tabPage.TabPages.Count; i++)
+                {
+                    if (_tabPage.TabPages[i].Text == tabName)
+                    {
+                        tabName = $"Tab{_tabPage.TabCount + tabCount}";
+                        count++;
+                        tabCount++;
+                    }
+                }
+
+                if (count == 0) break;
+            }
+
+            TabPage newTabPage = new TabPage(tabName);
+
+            newTabPage.BackColor = Color.FromArgb(21, 26, 30);
+            newTabPage.ForeColor = Color.White;
+            newTabPage.Name = tabName;
+            _tabPage.TabPages.Add(newTabPage);
+            _tabPage.SelectedTab = newTabPage;
+
+            TabPageManager manager = new TabPageManager(newTabPage, TabsScreener, null);
+            newTabPage.Tag = manager;
+
+            manager.SaveTabPage += Manager_SaveTabPage;
+            manager.LogMessageEvent += Manager_LogMessageEvent;
+        }
+
+        private void RemoveCurrentTab()
+        {
+            if (_tabPage.TabCount <= 1)
+            {
+                MessageBox.Show("Нельзя удалить последнюю вкладку!", "Предупреждение",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            TabPage currentTab = _tabPage.SelectedTab;
+
+            if (currentTab == null) return;
+           
+            DialogResult result = MessageBox.Show(
+                $"Удалить вкладку '{currentTab.Text}'?",
+                "Подтверждение удаления",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+            {
+                DeleteTabInFileParams(currentTab.Text);
+
+                TabPageManager manager = (TabPageManager)currentTab.Tag;
+                manager.SaveTabPage -= Manager_SaveTabPage;
+                manager.LogMessageEvent -= Manager_LogMessageEvent;
+
+                (currentTab.Tag as IDisposable)?.Dispose();
+                _tabPage.TabPages.Remove(currentTab);
+
+                manager = null;
+            }           
+        }
+
+        private void RenameCurrentTab()
+        {
+            TabPage currentTab = _tabPage.SelectedTab;
+
+            string oldName = currentTab.Text;
+
+            if (currentTab == null) return;
+
+            string newName = Microsoft.VisualBasic.Interaction.InputBox(
+                "Введите новое название вкладки:",
+                "Переименовать вкладку",
+                currentTab.Text,
+                -1, -1);
+
+            for(int i = 0; i < _tabPage.TabPages.Count; i++)
+            {
+                if (_tabPage.TabPages[i].Text == newName)
+                {
+                    SendNewLogMessage("Название такой вкладки уже существует", LogMessageType.Error);
+                    return;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(newName))
+            {
+                currentTab.Text = newName.Trim();
+            }
+
+            RenameTabInFileParams(oldName, currentTab.Text);
+        }
+
+        private void TabControl_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            TabControl tabControl = (TabControl)sender;
+            TabPage tabPage = tabControl.TabPages[e.Index];
+
+            // Определяем цвета
+            bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+
+            // Активная вкладка - черная, неактивная - серая
+            Color backColor = isSelected ? Color.FromArgb(21, 26, 30) : Color.FromArgb(80, 80, 80);
+            Color textColor = Color.White;
+
+            // Рисуем фон вкладки
+            using (Brush brush = new SolidBrush(backColor))
+            {
+                e.Graphics.FillRectangle(brush, e.Bounds);
+            }
+
+            // Рисуем текст
+            TextRenderer.DrawText(e.Graphics, tabPage.Text, e.Font, e.Bounds, textColor, backColor,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
+
+        private void TabControl_Paint(object sender, PaintEventArgs e)
+        {
+            TabControl tabControl = (TabControl)sender;
+
+            // Просто заливаем черным, без рисования границ
+            e.Graphics.Clear(Color.FromArgb(21, 26, 30));
         }
 
         private DataGridView GridDeposit()
@@ -315,238 +386,6 @@ namespace OsEngine.Robots
             dgv.Columns[3].HeaderText = "Итого";
 
             return dgv;
-        }
-
-        private DataGridView GridSettingsPosition()
-        {
-            try
-            {
-                DataGridView newGrid =
-               DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect,
-               DataGridViewAutoSizeRowsMode.AllCells);
-
-                newGrid.Dock = DockStyle.Fill;
-                newGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-                newGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-                newGrid.GridColor = Color.FromArgb(255, 60, 60, 60);
-                newGrid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
-                newGrid.ColumnHeadersDefaultCellStyle.Font = new Font(newGrid.Font, FontStyle.Bold | FontStyle.Italic);
-                newGrid.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
-
-                newGrid.Columns.Add("Col1", "Настройки");
-                newGrid.Columns.Add("Col2", "");
-                newGrid.Columns.Add("Col3", "");
-
-                newGrid.Columns[0].ReadOnly = true;
-
-                foreach (DataGridViewColumn column in newGrid.Columns)
-                {
-                    column.SortMode = DataGridViewColumnSortMode.NotSortable;
-                    column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
-                }
-
-                // 0 Исполнение задания
-                _listExercise = new List<string> { GetDescription(Exercise.Open), GetDescription(Exercise.Close), GetDescription(Exercise.Change) };
-                _listRegime = new List<string> { GetDescription(Regime.Off), GetDescription(Regime.On), GetDescription(Regime.Pause) };
-
-                DataGridViewRow newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Исполнение задания" });
-                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listExercise, Value = GetDescription(Exercise.Open) });
-                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listRegime, Value = _listRegime[0] });
-
-                newGrid.Rows.Add(newRow);
-
-                // 1 Сторона
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Сторона" });
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Long" });
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Short" });
-                newGrid.Rows.Add(newRow);
-
-                // 2 Изменение позиции
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Изменение позиции" });
-                newRow.Cells.Add(new DataGridViewCheckBoxCell() { Value = false });
-                newRow.Cells.Add(new DataGridViewCheckBoxCell() { Value = false });
-                newGrid.Rows.Add(newRow);
-
-                // 3 Площадка
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Площадка" });
-                newRow.Cells.Add(new DataGridViewComboBoxCell());
-                newRow.Cells.Add(new DataGridViewComboBoxCell());
-                newGrid.Rows.Add(newRow);
-
-                // 4 Инструмент
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Инструмент" });
-                newGrid.Rows.Add(newRow);
-
-                // 5 Тип лимита
-                _listTypelimit = new List<string> { TypeLimit.USDT.ToString(), TypeLimit.Token.ToString() };
-
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Тип лимита" });
-                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listTypelimit, Value = TypeLimit.USDT.ToString() });
-                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listTypelimit, Value = TypeLimit.USDT.ToString() });
-                newGrid.Rows.Add(newRow);
-
-                // 6 Лимит задания
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Лимит задания" });
-                newGrid.Rows.Add(newRow);
-
-                // 7 Схема торгов
-
-                _listScheme = new List<string>{
-                        GetDescription(SchemeOrderSettings.MakerTaker),
-                        GetDescription(SchemeOrderSettings.TakerMaker),
-                        GetDescription(SchemeOrderSettings.MakerMaker),
-                        GetDescription(SchemeOrderSettings.TakerTaker) }
-                ;
-
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Схема торгов" });
-                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listScheme, Value = _listScheme[0] });
-                newGrid.Rows.Add(newRow);
-
-                // 8 Тип установки ордера
-                _listTypeStepOrder = new List<string> { TypeStepOrder.PriceStep.ToString(), TypeStepOrder.Percent.ToString() };
-
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Тип установки ордера" });
-                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listTypeStepOrder, Value = _listTypeStepOrder[0] });
-                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listTypeStepOrder, Value = _listTypeStepOrder[0] });
-                newGrid.Rows.Add(newRow);
-
-                // 9 Установки ордера
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Установки ордера" });
-                newGrid.Rows.Add(newRow);
-
-                // 10 Максимальный размер единовременного ордера
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Максимальный размер единовременного ордера" });
-                newGrid.Rows.Add(newRow);
-
-                // 11 Тип спреда
-                _listTypeSpread = new List<string>() { TypeSpread.Percent.ToString(), TypeSpread.USDT.ToString() };
-
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Тип спреда" });
-                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listTypeSpread, Value = _listTypeSpread[0] });
-                newGrid.Rows.Add(newRow);
-
-                // 12 Размер спреда
-                _listCompareSpread = new List<string> { GetDescription(CompareSpreadEnum.More), GetDescription(CompareSpreadEnum.Less) };
-
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Размер спреда" });
-                newRow.Cells.Add(new DataGridViewTextBoxCell());
-                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listCompareSpread, Value = _listCompareSpread[0] });
-                newGrid.Rows.Add(newRow);
-
-                // 13 Комиссия Тейкер
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Комиссия Тейкер" });
-                newGrid.Rows.Add(newRow);
-
-                // 14 Комиссия Мейкер
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Комиссия Мейкер" });
-                newGrid.Rows.Add(newRow);
-
-                // 15 Время исполнения
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Время исполнения" });
-                newGrid.Rows.Add(newRow);
-
-                // 16 Прогресс
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Прогресс" });
-                newGrid.Rows.Add(newRow);
-
-                // 17 Шаги инструмента для тейк-заявок
-                newRow = new DataGridViewRow();
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Шаги инструмента для тейк-заявок" });
-                newGrid.Rows.Add(newRow);
-
-                newGrid.Rows[1].Cells[1].ReadOnly = true;
-                newGrid.Rows[1].Cells[2].ReadOnly = true;
-                newGrid.Rows[4].Cells[1].ReadOnly = true;
-                newGrid.Rows[4].Cells[2].ReadOnly = true;
-
-                _exercise = newGrid.Rows[0].Cells[1].Value.ToString();
-
-                return newGrid;
-            }
-            catch (Exception ex)
-            {
-                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
-                return null;
-            }
-        }
-
-        private DataGridView GridSchemePosition()
-        {
-            DataGridView newGrid =
-               DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect,
-               DataGridViewAutoSizeRowsMode.AllCells);
-
-            newGrid.Dock = DockStyle.Fill;
-            newGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            newGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            newGrid.GridColor = Color.FromArgb(255, 60, 60, 60);
-            newGrid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
-            newGrid.ColumnHeadersDefaultCellStyle.Font = new Font(newGrid.Font, FontStyle.Bold | FontStyle.Italic);
-            newGrid.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
-
-            newGrid.Columns.Add("Col1", "Виды действий");
-            newGrid.Columns.Add("Col2", "Long");
-            newGrid.Columns.Add("Col3", "Short");
-            newGrid.Columns.Add("Col4", "Spread");
-            newGrid.Columns.Add("Col5", "Sum");
-
-            for (int i = 0; i < newGrid.Columns.Count; i++)
-            {
-                newGrid.Columns[i].ReadOnly = true;
-                DataGridViewColumn column = newGrid.Columns[i];
-                column.SortMode = DataGridViewColumnSortMode.NotSortable;
-                column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            }          
-
-            // 0 Мейк/Тейк
-            DataGridViewRow newRow = new DataGridViewRow();
-
-            newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Мейк/Тейк" });
-            newGrid.Rows.Add(newRow);
-
-            // 1 Мейк/Тейк комиссия
-            newRow = new DataGridViewRow();
-            newGrid.Rows.Add(newRow);
-
-            // 2 Тейк/Мейк 
-            newRow = new DataGridViewRow();
-
-            newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Тейк/Мейк" });
-            newGrid.Rows.Add(newRow);
-
-            // 3 Тейк/Мейк комиссия
-            newRow = new DataGridViewRow();
-            newGrid.Rows.Add(newRow);
-
-            // 4 Тейк/Тейк
-            newRow = new DataGridViewRow();
-            newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Тейк/Тейк" });          
-            newGrid.Rows.Add(newRow);
-
-            // 5 Тейк/Тейк комиссия
-            newRow = new DataGridViewRow();
-            newGrid.Rows.Add(newRow);
-
-            newGrid.ReadOnly = false;
-
-            return newGrid;
         }
 
         private DataGridView GridResultPosition()
@@ -590,367 +429,39 @@ namespace OsEngine.Robots
         #region Обновление таблиц
 
         private void ThreadRefreshTable()
-        {           
+        {
             while (true)
             {
                 try
                 {
                     RefreshResultTable();
 
-                    if (_firstTab == null || _secondTab == null)
+                   /* if (_firstTab == null || _secondTab == null)
                     {
                         Thread.Sleep(1000);
                         continue;
-                    }
+                    }*/
 
-                    RefreshSettingsTable();
-                    RefreshSchemeTable();
                     RefreshDepositTable();
 
                     Thread.Sleep(1000);
                 }
                 catch (Exception ex)
                 {
-                    SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+                    SendNewLogMessage(ex.ToString(), LogMessageType.Error);
                     Thread.Sleep(5000);
                 }
             }
         }
 
-        private void RefreshSettingsTable()
-        {
-            if (_firstTab.PositionOpenLong == null || _secondTab.PositionOpenShort == null)
-            {
-                return;
-            }
-
-            if (_regime == GetDescription(Regime.On))
-            {
-                string formattedTime = (DateTime.Now - _timeExecute).ToString("hh\\:mm\\:ss");
-                _gridSettingsPosition.Rows[15].Cells[1].Value = formattedTime;
-
-                if (_exercise == GetDescription(Exercise.Open))
-                {
-                    if (_firstTab.PositionOpenLong.Count == 0 || _secondTab.PositionOpenShort.Count == 0)
-                    {
-                        _gridSettingsPosition.Rows[16].Cells[1].Value = "0%";
-                    }
-                    else
-                    {
-                        if (_firstTab.PositionOpenLong[0].OpenVolume * _firstTab.Security.Lot == _secondTab.PositionOpenShort[0].OpenVolume * _secondTab.Security.Lot)
-                        {
-                            decimal percent = Math.Round(_firstTab.PositionOpenLong[0].OpenVolume * _firstTab.Security.Lot / _firstLimitVolume * 100, 2);
-                            _gridSettingsPosition.Rows[16].Cells[1].Value = percent + "%";
-
-                            if (percent == 100)
-                            {
-                                _regime = GetDescription(Regime.Off);
-                                _gridSettingsPosition.Rows[0].Cells[2].Value = _listRegime[0];
-                            }
-                        }
-                    }
-                }
-
-                if (_exercise == GetDescription(Exercise.Close))
-                {
-                    if (_firstTab.PositionOpenLong.Count == 0 && _secondTab.PositionOpenShort.Count == 0)
-                    {
-                        _gridSettingsPosition.Rows[16].Cells[1].Value = "100%";
-
-                        _regime = GetDescription(Regime.Off);
-                        _gridSettingsPosition.Rows[0].Cells[2].Value = _listRegime[0];
-                    }
-                    else if (_firstTab.PositionOpenLong.Count > 0 && _secondTab.PositionOpenShort.Count > 0)
-                    {
-                        if (_firstTab.PositionOpenLong[0].OpenVolume * _firstTab.Security.Lot == _secondTab.PositionOpenShort[0].OpenVolume * _secondTab.Security.Lot)
-                        {
-                            _gridSettingsPosition.Rows[16].Cells[1].Value = Math.Round(100 - (_firstTab.PositionOpenLong[0].OpenVolume * _firstTab.Security.Lot / _firstLimitVolume * 100), 2) + "%";
-                        }
-                    }
-                }
-
-                if (_exercise == GetDescription(Exercise.Change))
-                {
-                    if (_firstChangePos)
-                    {
-                        if (_secondTab.PositionOpenShort.Count == 0)
-                        {
-                            _gridSettingsPosition.Rows[16].Cells[1].Value = "0%";
-                        }
-                        else
-                        {
-                            if (_secondTab.PositionsLast.OpenVolume * _secondTab.Security.Lot == (_firstTab.PositionsLast.MaxVolume - _firstTab.PositionsLast.OpenVolume) * _firstTab.Security.Lot)
-                            {
-                                decimal percent = Math.Round(_secondTab.PositionsLast.OpenVolume * _secondTab.Security.Lot / _firstLimitVolume * 100, 2);
-                                _gridSettingsPosition.Rows[16].Cells[1].Value = percent + "%";
-
-                                if (percent == 100)
-                                {
-                                    _regime = GetDescription(Regime.Off);
-                                    _gridSettingsPosition.Rows[0].Cells[2].Value = _listRegime[0];
-                                }
-                            }                                                      
-                        }                        
-                    }
-
-                    if (_secondChangePos)
-                    {
-                        if (_firstTab.PositionOpenLong.Count == 0)
-                        {
-                            _gridSettingsPosition.Rows[16].Cells[1].Value = "0%";
-                        }
-                        else
-                        {
-                            if (_firstTab.PositionsLast.OpenVolume * _firstTab.Security.Lot == (_secondTab.PositionsLast.MaxVolume - _secondTab.PositionsLast.OpenVolume) * _secondTab.Security.Lot)
-                            {
-                                decimal percent = Math.Round(_firstTab.PositionsLast.OpenVolume * _firstTab.Security.Lot / _firstLimitVolume * 100, 2);
-                                _gridSettingsPosition.Rows[16].Cells[1].Value = percent + "%";
-
-                                if (percent == 100)
-                                {
-                                    _regime = GetDescription(Regime.Off);
-                                    _gridSettingsPosition.Rows[0].Cells[2].Value = _listRegime[0];
-                                }
-                            }                                
-                        }                            
-                    }
-                }
-            }            
-        }
-
-        private void RefreshSchemeTable()
-        {
-            decimal sum = 0;
-            // maker/taker
-
-            if (_exercise == GetDescription(Exercise.Open))
-            {
-                _gridSchemePosition.Rows[0].Cells[1].Value = _firstBestBid; // long maker
-                _gridSchemePosition.Rows[0].Cells[2].Value = _secondBestBid; // short taker
-                _gridSchemePosition.Rows[0].Cells[3].Value = _secondBestBid - _firstBestBid; // spread maker/taker
-
-                if (_firstBestBid == 0)
-                {
-                    sum = 0;
-                }
-                else
-                {
-                    sum = Math.Round((_secondBestBid - _firstBestBid) / _firstBestBid * 100, 4);
-                }
-                _gridSchemePosition.Rows[0].Cells[4].Value = sum.ToString() + "%"; // sum maker/taker
-                _gridSchemePosition.Rows[1].Cells[1].Value = _longСomissionMaker;
-                _gridSchemePosition.Rows[1].Cells[2].Value = _shortСomissionTaker;
-
-                decimal sumKom = _longСomissionMaker + _shortСomissionTaker;
-                _gridSchemePosition.Rows[1].Cells[3].Value = sumKom;
-                _gridSchemePosition.Rows[1].Cells[4].Value = (sum - sumKom).ToString() + "%";
-
-                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.MakerTaker))
-                {
-                    if (_typeSpread == TypeSpread.Percent.ToString())
-                    {
-                        _currentSpread = sum - sumKom;
-                    }
-                    else
-                    {
-                        _currentSpread = _secondBestBid - _firstBestBid;
-                    }
-                }
-            }
-
-            if (_exercise == GetDescription(Exercise.Close))
-            {
-                _gridSchemePosition.Rows[0].Cells[1].Value = _firstBestAsk; // long maker
-                _gridSchemePosition.Rows[0].Cells[2].Value = _secondBestAsk; // short taker
-                _gridSchemePosition.Rows[0].Cells[3].Value = _secondBestAsk - _firstBestAsk; // spread maker/taker
-
-                if (_firstBestAsk == 0)
-                {
-                    sum = 0;
-                }
-                else
-                {
-                    sum = Math.Round((_secondBestAsk - _firstBestAsk) / _firstBestAsk * 100, 4);
-                }
-                _gridSchemePosition.Rows[0].Cells[4].Value = sum.ToString() + "%"; // sum maker/taker
-                _gridSchemePosition.Rows[1].Cells[1].Value = _longСomissionMaker;
-                _gridSchemePosition.Rows[1].Cells[2].Value = _shortСomissionTaker;
-
-                decimal sumKom = _longСomissionMaker + _shortСomissionTaker;
-                _gridSchemePosition.Rows[1].Cells[3].Value = sumKom;
-                _gridSchemePosition.Rows[1].Cells[4].Value = (sum - sumKom).ToString() + "%";
-
-                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.MakerTaker))
-                {
-                    if (_typeSpread == TypeSpread.Percent.ToString())
-                    {
-                        _currentSpread = sum - sumKom;
-                    }
-                    else
-                    {
-                        _currentSpread = _secondBestAsk - _firstBestAsk;
-                    }
-                }
-            }
-
-            // Taker/maker
-            if (_exercise == GetDescription(Exercise.Open))
-            {                
-                _gridSchemePosition.Rows[2].Cells[1].Value = _firstBestAsk; // long taker
-                _gridSchemePosition.Rows[2].Cells[2].Value = _secondBestAsk; // short maker
-                _gridSchemePosition.Rows[2].Cells[3].Value = _secondBestAsk - _firstBestAsk; // spread taker/maker
-
-                if (_firstBestAsk == 0)
-                {
-                    sum = 0;
-                }
-                else
-                {
-                    sum = Math.Round((_secondBestAsk - _firstBestAsk) / _firstBestAsk * 100, 4);
-                }
-
-                _gridSchemePosition.Rows[2].Cells[4].Value = sum.ToString() + "%"; // sum taker/maker
-                _gridSchemePosition.Rows[3].Cells[1].Value = _longСomissionTaker;
-                _gridSchemePosition.Rows[3].Cells[2].Value = _shortСomissionMaker;
-
-                decimal sumKom = _longСomissionTaker + _shortСomissionMaker;
-                _gridSchemePosition.Rows[3].Cells[3].Value = sumKom;
-                _gridSchemePosition.Rows[3].Cells[4].Value = (sum - sumKom).ToString() + "%";
-
-                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.TakerMaker))
-                {
-                    if (_typeSpread == TypeSpread.Percent.ToString())
-                    {
-                        _currentSpread = sum - sumKom;
-                    }
-                    else
-                    {
-                        _currentSpread = _secondBestAsk - _firstBestAsk;
-                    }
-                }
-            }
-
-            if (_exercise == GetDescription(Exercise.Close))
-            {
-                _gridSchemePosition.Rows[2].Cells[1].Value = _firstBestBid; // long taker
-                _gridSchemePosition.Rows[2].Cells[2].Value = _secondBestBid; // short maker
-                _gridSchemePosition.Rows[2].Cells[3].Value = _secondBestBid - _firstBestBid; // spread taker/maker
-
-                if (_firstBestBid == 0)
-                {
-                    sum = 0;
-                }
-                else
-                {
-                    sum = Math.Round((_secondBestBid - _firstBestBid) / _firstBestBid * 100, 4);
-                }
-
-                _gridSchemePosition.Rows[2].Cells[4].Value = sum.ToString() + "%"; // sum taker/maker
-                _gridSchemePosition.Rows[3].Cells[1].Value = _longСomissionTaker;
-                _gridSchemePosition.Rows[3].Cells[2].Value = _shortСomissionMaker;
-
-                decimal sumKom = _longСomissionTaker + _shortСomissionMaker;
-                _gridSchemePosition.Rows[3].Cells[3].Value = sumKom;
-                _gridSchemePosition.Rows[3].Cells[4].Value = (sum - sumKom).ToString() + "%";
-
-                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.TakerMaker))
-                {
-                    if (_typeSpread == TypeSpread.Percent.ToString())
-                    {
-                        _currentSpread = sum - sumKom;
-                    }
-                    else
-                    {
-                        _currentSpread = _secondBestBid - _firstBestBid;
-                    }
-                }
-            }
-
-            // taker/taker
-
-            if (_exercise == GetDescription(Exercise.Open))
-            {
-                _gridSchemePosition.Rows[4].Cells[1].Value = _firstBestAsk; // long taker
-                _gridSchemePosition.Rows[4].Cells[2].Value = _secondBestBid; // short taker
-                _gridSchemePosition.Rows[4].Cells[3].Value = _secondBestBid - _firstBestAsk; // spread taker/taker
-
-                if (_firstBestAsk == 0)
-                {
-                    sum = 0;
-                }
-                else
-                {
-                    sum = Math.Round((_secondBestBid - _firstBestAsk) / _firstBestAsk * 100, 4);
-                }
-
-                _gridSchemePosition.Rows[4].Cells[4].Value = sum.ToString() + "%"; // sum taker/taker
-                _gridSchemePosition.Rows[5].Cells[1].Value = _longСomissionTaker;
-                _gridSchemePosition.Rows[5].Cells[2].Value = _shortСomissionTaker;
-
-                decimal sumKom = _longСomissionTaker + _shortСomissionTaker;
-                _gridSchemePosition.Rows[5].Cells[3].Value = sumKom;
-                _gridSchemePosition.Rows[5].Cells[4].Value = (sum - sumKom).ToString() + "%";
-
-                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.TakerTaker) ||
-                    _schemeOrderSettings == GetDescription(SchemeOrderSettings.MakerMaker))
-                {
-                    if (_typeSpread == TypeSpread.Percent.ToString())
-                    {
-                        _currentSpread = sum - sumKom;
-                    }
-                    else
-                    {
-                        _currentSpread = _secondBestBid - _firstBestAsk;
-                    }
-                }
-            }
-
-            if (_exercise == GetDescription(Exercise.Close))
-            {
-                _gridSchemePosition.Rows[4].Cells[1].Value = _firstBestBid; // long taker
-                _gridSchemePosition.Rows[4].Cells[2].Value = _secondBestAsk; // short taker
-                _gridSchemePosition.Rows[4].Cells[3].Value = _secondBestAsk - _firstBestBid; // spread taker/taker
-
-                if (_firstBestBid == 0)
-                {
-                    sum = 0;
-                }
-                else
-                {
-                    sum = Math.Round((_secondBestAsk - _firstBestBid) / _firstBestBid * 100, 4);
-                }
-
-                _gridSchemePosition.Rows[4].Cells[4].Value = sum.ToString() + "%"; // sum taker/taker
-                _gridSchemePosition.Rows[5].Cells[1].Value = _longСomissionTaker;
-                _gridSchemePosition.Rows[5].Cells[2].Value = _shortСomissionTaker;
-
-                decimal sumKom = _longСomissionTaker + _shortСomissionTaker;
-                _gridSchemePosition.Rows[5].Cells[3].Value = sumKom;
-                _gridSchemePosition.Rows[5].Cells[4].Value = (sum - sumKom).ToString() + "%";
-
-                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.TakerTaker) ||
-                    _schemeOrderSettings == GetDescription(SchemeOrderSettings.MakerMaker))
-                {
-                    if (_typeSpread == TypeSpread.Percent.ToString())
-                    {
-                        _currentSpread = sum - sumKom;
-                    }
-                    else
-                    {
-                        _currentSpread = _secondBestAsk - _firstBestBid;
-                    }
-                }
-            }
-        }
-
         private void RefreshResultTable()
-        {            
+        {
             if (MainWindow.GetDispatcher.CheckAccess() == false)
             {
                 MainWindow.GetDispatcher.Invoke(RefreshResultTable);
 
                 return;
-            }           
+            }
 
             if (TabsScreener == null)
             {
@@ -1114,7 +625,7 @@ namespace OsEngine.Robots
             _gridResultPosition.Rows[0].Cells[27].Value = "Margin";
 
             List<string> listColumns = new List<string>() { "Биржа", "Инструмент", "Направление", "Частота", "Время", "Вид маржи", "Плечо",
-                "Кол-во", "Цена", "Сумма", 
+                "Кол-во", "Цена", "Сумма",
                 "Кол-во", "Цена", "Сумма", "Unrealized P&L, $", "Unrealized P&L, %", "Ставка фондирования, $", "Ставка фондирования, %", "Ожид доходность",
                 "Кол-во", "Цена", "Сумма", "Realized P&L, $", "Realized P&L, %",
                 "Комиссия,$", "Комиссия,%", "Фондирование", "Сумма,$",
@@ -1146,7 +657,7 @@ namespace OsEngine.Robots
                 row.Cells[9].Value = resultPositions[i].OpenSum;
 
                 // Текущая позиция
-                row.Cells[10].Value = resultPositions[i].CurrentVolume;                
+                row.Cells[10].Value = resultPositions[i].CurrentVolume;
                 row.Cells[11].Value = resultPositions[i].CurrentPrice;
                 row.Cells[12].Value = resultPositions[i].CurrentSum;
                 row.Cells[13].Value = resultPositions[i].UnrealizPL;
@@ -1232,7 +743,7 @@ namespace OsEngine.Robots
                 else
                 {
                     decimal.TryParse(_gridResultPosition.Rows[j].Cells[index].Value.ToString(), out value);
-                }                    
+                }
 
                 if (_gridResultPosition.Rows[j].Cells[2].Value != null)
                 {
@@ -1244,7 +755,7 @@ namespace OsEngine.Robots
                     {
                         sum += value;
                     }
-                }                
+                }
             }
 
             return sum;
@@ -1266,8 +777,8 @@ namespace OsEngine.Robots
                 {
                     decimal.TryParse(_gridResultPosition.Rows[j].Cells[index].Value.ToString(), out value);
                 }
-                    
-                sum += value;               
+
+                sum += value;
             }
 
             return sum;
@@ -1438,9 +949,662 @@ namespace OsEngine.Robots
 
         #endregion
 
+        #region Load/Save
+
+        private object _lockFile = new();
+
+        private void Manager_SaveTabPage(string tabName, Dictionary<string, dynamic> settings)
+        {
+            try
+            {
+                lock (_lockFile)
+                {
+                    Dictionary<string, Dictionary<string, dynamic>> settingsLoad = new();
+                    string fileName = @"Engine\" + NameStrategyUniq + @"Params.json";
+
+                    if (File.Exists(fileName))
+                    {
+                        string jsonLoad = File.ReadAllText(fileName);
+                        settingsLoad = JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, dynamic>>>(jsonLoad);
+                    }
+
+                    if (settingsLoad.Count == 0)
+                    {
+                        settingsLoad[tabName] = new Dictionary<string, dynamic>();
+                        settingsLoad[tabName] = settings;
+                    }
+                    else
+                    {
+                        if (settingsLoad.ContainsKey(tabName))
+                        {
+                            settingsLoad.Remove(tabName);
+                            settingsLoad[tabName] = new Dictionary<string, dynamic>();
+                            settingsLoad[tabName] = settings;
+                        }
+                        else
+                        {
+                            settingsLoad[tabName] = new Dictionary<string, dynamic>();
+                            settingsLoad[tabName] = settings;
+                        }
+                    }
+
+                    string jsonSave = JsonConvert.SerializeObject(settingsLoad, Formatting.Indented);
+                    File.WriteAllText(fileName, jsonSave);
+                }
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void RenameTabInFileParams(string oldName, string newName)
+        {
+            try
+            {
+                lock (_lockFile)
+                {
+                    Dictionary<string, Dictionary<string, dynamic>> settingsLoad = new();
+                    string fileName = @"Engine\" + NameStrategyUniq + @"Params.json";
+
+                    if (File.Exists(fileName))
+                    {
+                        string jsonLoad = File.ReadAllText(fileName);
+                        settingsLoad = JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, dynamic>>>(jsonLoad);
+                    }
+
+                    if (settingsLoad.ContainsKey(oldName))
+                    {
+                        var currentSettings = settingsLoad[oldName];
+                        settingsLoad.Remove(oldName);
+                        settingsLoad[newName] = new Dictionary<string, dynamic>();
+                        settingsLoad[newName] = currentSettings;
+                    }
+
+                    string jsonSave = JsonConvert.SerializeObject(settingsLoad, Formatting.Indented);
+                    File.WriteAllText(fileName, jsonSave);
+                }
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void DeleteTabInFileParams(string tabName)
+        {
+            try
+            {
+                lock (_lockFile)
+                {
+                    Dictionary<string, Dictionary<string, dynamic>> settingsLoad = new();
+                    string fileName = @"Engine\" + NameStrategyUniq + @"Params.json";
+
+                    if (File.Exists(fileName))
+                    {
+                        string jsonLoad = File.ReadAllText(fileName);
+                        settingsLoad = JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, dynamic>>>(jsonLoad);
+                    }
+
+                    if (settingsLoad.ContainsKey(tabName))
+                    {
+                        settingsLoad.Remove(tabName);
+                    }
+
+                    string jsonSave = JsonConvert.SerializeObject(settingsLoad, Formatting.Indented);
+                    File.WriteAllText(fileName, jsonSave);
+                }
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private Dictionary<string, Dictionary<string, dynamic>> LoadSettings()
+        {
+            try
+            {
+                lock (_lockFile)
+                {
+                    string fileName = @"Engine\" + NameStrategyUniq + @"Params.json";
+
+                    if (File.Exists(fileName))
+                    {
+                        string jsonLoad = File.ReadAllText(fileName);
+                        return JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, dynamic>>>(jsonLoad);
+                    }
+
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+                return null;
+            }
+        }
+
+        #endregion
+    }
+
+    #endregion
+
+    #region Trade class
+
+    public class TabPageManager
+    {
+        private TabPage _tabPage;
+        private DataGridView _gridSettingsPosition;
+        private DataGridView _gridSchemePosition;
+        private BotTabSimple _firstTab;
+        private BotTabSimple _secondTab;
+        private string _regime;
+        private string _exercise;
+        private string _schemeOrderSettings;
+        private string _typeSpread = TypeSpread.Percent.ToString();
+        private decimal _setSpread;
+        private string _compareSpread;
+        private decimal _currentSpread;
+        private decimal _firstBestBid;
+        private decimal _firstBestAsk;
+        private decimal _secondBestBid;
+        private decimal _secondBestAsk;
+        private decimal _firstLimitVolume;
+        private decimal _secondLimitVolume;
+        private decimal _firstLimitVolumeTable;
+        private decimal _secondLimitVolumeTable;
+        private decimal _maxVolume;
+        private string _firstTypeLimit = TypeLimit.USDT.ToString();
+        private string _secondTypeLimit = TypeLimit.USDT.ToString();
+        private decimal _longСomissionTaker;
+        private decimal _shortСomissionTaker;
+        private decimal _longСomissionMaker;
+        private decimal _shortСomissionMaker;
+        private int _longCountPriceStep;
+        private int _shortCountPriceStep;
+        private decimal _firstStepOrder;
+        private decimal _secondStepOrder;
+        private DateTime _timeExecute;
+        private string _firstTypeStepOrder;
+        private string _secondTypeStepOrder;
+        private bool _firstChangePos;
+        private bool _secondChangePos;
+        private List<BotTabScreener> TabsScreener;
+        private string _firstSecurityName;
+        private string _secondSecurityName;
+
+        public TabPageManager(TabPage tabPage, List<BotTabScreener> tabScreener, Dictionary<string, dynamic> settings)
+        {
+            _tabPage = tabPage;
+            TabsScreener = tabScreener;
+            
+            _gridSettingsPosition = GridSettingsPosition();
+            _gridSchemePosition = GridSchemePosition();
+
+            TableLayoutPanel panelSettingsScheme = new TableLayoutPanel();
+            panelSettingsScheme.Dock = DockStyle.Fill;
+            panelSettingsScheme.ColumnCount = 2;
+            panelSettingsScheme.RowCount = 1;
+            panelSettingsScheme.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            panelSettingsScheme.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            panelSettingsScheme.CellBorderStyle = TableLayoutPanelCellBorderStyle.Single;
+            panelSettingsScheme.BackColor = Color.Black;
+            panelSettingsScheme.Controls.Add(_gridSettingsPosition, 0, 0);
+            panelSettingsScheme.Controls.Add(_gridSchemePosition, 1, 0);
+
+            _tabPage.Controls.Add(panelSettingsScheme);
+
+            //_tabPage.Disposed += (s, e) => Dispose();
+
+            _regime = GetDescription(Regime.Off);
+            _schemeOrderSettings = GetDescription(SchemeOrderSettings.MakerTaker);
+
+            Thread trade = new Thread(TradeLogic) { IsBackground = true };
+            trade.Start();
+
+            Thread tables = new Thread(RefreshTables) { IsBackground = true };
+            tables.Start();
+
+            SetSettings(settings);
+
+            for (int i = 0; i < TabsScreener.Count; i++)
+            {
+                TabsScreener[i].NewTabCreateEvent += TabPageManager_NewTabCreateEvent;
+            }
+        }
+
+        private void TabPageManager_NewTabCreateEvent(BotTabSimple tab)
+        {
+            tab.SecuritySubscribeEvent += TabsSecuritySubscribeEvent;
+            tab.TabDeletedEvent += Tab_TabDeletedEvent;
+        }
+
+        private void Tab_TabDeletedEvent()
+        {
+            AddItemToComboBox();
+        }
+
+        private void TabsSecuritySubscribeEvent(Security obj)
+        {
+            AddItemToComboBox();
+        }
+
+        private void AddItemToComboBox()
+        {
+            if (MainWindow.GetDispatcher.CheckAccess() == false)
+            {
+                MainWindow.GetDispatcher.Invoke(AddItemToComboBox);
+
+                return;
+            }
+            try
+            {
+                DataGridViewComboBoxCell cell = _gridSettingsPosition.Rows[3].Cells[1] as DataGridViewComboBoxCell;
+                AddValueToCell(cell);
+
+                DataGridViewComboBoxCell cell1 = _gridSettingsPosition.Rows[3].Cells[2] as DataGridViewComboBoxCell;
+                AddValueToCell(cell1);
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage("AddItemToComboBox: " + ex.ToString(), Logging.LogMessageType.Error);
+            }
+        }
+
+        #region Отрисовка таблиц
+
+        private List<string> _listExercise;
+        private List<string> _listScheme;
+        private List<string> _listTypelimit;
+        private List<string> _listTypeSpread;
+        private List<string> _listTypeStepOrder;
+        private List<string> _listRegime;
+        private List<string> _listCompareSpread;
+
+        private DataGridView GridSettingsPosition()
+        {
+            try
+            {
+                DataGridView newGrid =
+               DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect,
+               DataGridViewAutoSizeRowsMode.AllCells);
+
+                newGrid.Dock = DockStyle.Fill;
+                newGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+                newGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+                newGrid.GridColor = Color.FromArgb(255, 60, 60, 60);
+                newGrid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
+                newGrid.ColumnHeadersDefaultCellStyle.Font = new Font(newGrid.Font, FontStyle.Bold | FontStyle.Italic);
+                newGrid.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+
+                newGrid.Columns.Add("Col1", "Настройки");
+                newGrid.Columns.Add("Col2", "");
+                newGrid.Columns.Add("Col3", "");
+
+                newGrid.Columns[0].ReadOnly = true;
+
+                foreach (DataGridViewColumn column in newGrid.Columns)
+                {
+                    column.SortMode = DataGridViewColumnSortMode.NotSortable;
+                    column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+                }
+
+                // 0 Исполнение задания
+                _listExercise = new List<string> { GetDescription(Exercise.Open), GetDescription(Exercise.Close), GetDescription(Exercise.Change) };
+                _listRegime = new List<string> { GetDescription(Regime.Off), GetDescription(Regime.On), GetDescription(Regime.Pause) };
+
+                DataGridViewRow newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Исполнение задания" });
+                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listExercise, Value = GetDescription(Exercise.Open) });
+                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listRegime, Value = _listRegime[0] });
+
+                newGrid.Rows.Add(newRow);
+
+                // 1 Сторона
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Сторона" });
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Long" });
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Short" });
+                newGrid.Rows.Add(newRow);
+
+                // 2 Изменение позиции
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Изменение позиции" });
+                newRow.Cells.Add(new DataGridViewCheckBoxCell() { Value = false });
+                newRow.Cells.Add(new DataGridViewCheckBoxCell() { Value = false });
+                newGrid.Rows.Add(newRow);
+
+                // 3 Площадка
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Площадка" });
+                newRow.Cells.Add(new DataGridViewComboBoxCell());
+                newRow.Cells.Add(new DataGridViewComboBoxCell());
+                newGrid.Rows.Add(newRow);
+
+                // 4 Инструмент
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Инструмент" });
+                newGrid.Rows.Add(newRow);
+
+                // 5 Тип лимита
+                _listTypelimit = new List<string> { TypeLimit.USDT.ToString(), TypeLimit.Token.ToString() };
+
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Тип лимита" });
+                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listTypelimit, Value = TypeLimit.USDT.ToString() });
+                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listTypelimit, Value = TypeLimit.USDT.ToString() });
+                newGrid.Rows.Add(newRow);
+
+                // 6 Лимит задания
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Лимит задания" });
+                newGrid.Rows.Add(newRow);
+
+                // 7 Схема торгов
+
+                _listScheme = new List<string>{
+                        GetDescription(SchemeOrderSettings.MakerTaker),
+                        GetDescription(SchemeOrderSettings.TakerMaker),
+                        GetDescription(SchemeOrderSettings.MakerMaker),
+                        GetDescription(SchemeOrderSettings.TakerTaker) }
+                ;
+
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Схема торгов" });
+                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listScheme, Value = _listScheme[0] });
+                newGrid.Rows.Add(newRow);
+
+                // 8 Тип установки ордера
+                _listTypeStepOrder = new List<string> { TypeStepOrder.PriceStep.ToString(), TypeStepOrder.Percent.ToString() };
+
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Тип установки ордера" });
+                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listTypeStepOrder, Value = _listTypeStepOrder[0] });
+                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listTypeStepOrder, Value = _listTypeStepOrder[0] });
+                newGrid.Rows.Add(newRow);
+
+                // 9 Установки ордера
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Установки ордера" });
+                newGrid.Rows.Add(newRow);
+
+                // 10 Максимальный размер единовременного ордера
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Максимальный размер единовременного ордера" });
+                newGrid.Rows.Add(newRow);
+
+                // 11 Тип спреда
+                _listTypeSpread = new List<string>() { TypeSpread.Percent.ToString(), TypeSpread.USDT.ToString() };
+
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Тип спреда" });
+                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listTypeSpread, Value = _listTypeSpread[0] });
+                newGrid.Rows.Add(newRow);
+
+                // 12 Размер спреда
+                _listCompareSpread = new List<string> { GetDescription(CompareSpreadEnum.More), GetDescription(CompareSpreadEnum.Less) };
+
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Размер спреда" });
+                newRow.Cells.Add(new DataGridViewTextBoxCell());
+                newRow.Cells.Add(new DataGridViewComboBoxCell() { DataSource = _listCompareSpread, Value = _listCompareSpread[0] });
+                newGrid.Rows.Add(newRow);
+
+                // 13 Комиссия Тейкер
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Комиссия Тейкер" });
+                newGrid.Rows.Add(newRow);
+
+                // 14 Комиссия Мейкер
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Комиссия Мейкер" });
+                newGrid.Rows.Add(newRow);
+
+                // 15 Время исполнения
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Время исполнения" });
+                newGrid.Rows.Add(newRow);
+
+                // 16 Прогресс
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Прогресс" });
+                newGrid.Rows.Add(newRow);
+
+                // 17 Шаги инструмента для тейк-заявок
+                newRow = new DataGridViewRow();
+                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Шаги инструмента для тейк-заявок" });
+                newGrid.Rows.Add(newRow);
+
+                newGrid.Rows[1].Cells[1].ReadOnly = true;
+                newGrid.Rows[1].Cells[2].ReadOnly = true;
+                newGrid.Rows[4].Cells[1].ReadOnly = true;
+                newGrid.Rows[4].Cells[2].ReadOnly = true;
+
+                _exercise = newGrid.Rows[0].Cells[1].Value.ToString();
+
+                newGrid.CurrentCellDirtyStateChanged += _gridSettingsPosition_CurrentCellDirtyStateChanged;
+                newGrid.CellValueChanged += _gridSettingsSetPosition_CellValueChanged;
+                //newGrid.CellBeginEdit += _gridSettingsSetPosition_CellBeginEdit;
+                newGrid.DataError += _gridSettingsSetPosition_DataError;
+                newGrid.CellPainting += _gridSettingsSetPosition_CellPainting;
+                newGrid.CellClick += NewGrid_CellClick;
+
+                return newGrid;
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+                return null;
+            }
+        }
+
+        private DataGridView GridSchemePosition()
+        {
+            DataGridView newGrid =
+               DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect,
+               DataGridViewAutoSizeRowsMode.AllCells);
+
+            newGrid.Dock = DockStyle.Fill;
+            newGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            newGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            newGrid.GridColor = Color.FromArgb(255, 60, 60, 60);
+            newGrid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
+            newGrid.ColumnHeadersDefaultCellStyle.Font = new Font(newGrid.Font, FontStyle.Bold | FontStyle.Italic);
+            newGrid.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+
+            newGrid.Columns.Add("Col1", "Виды действий");
+            newGrid.Columns.Add("Col2", "Long");
+            newGrid.Columns.Add("Col3", "Short");
+            newGrid.Columns.Add("Col4", "Spread");
+            newGrid.Columns.Add("Col5", "Sum");
+
+            for (int i = 0; i < newGrid.Columns.Count; i++)
+            {
+                newGrid.Columns[i].ReadOnly = true;
+                DataGridViewColumn column = newGrid.Columns[i];
+                column.SortMode = DataGridViewColumnSortMode.NotSortable;
+                column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            }
+
+            // 0 Мейк/Тейк
+            DataGridViewRow newRow = new DataGridViewRow();
+
+            newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Мейк/Тейк" });
+            newGrid.Rows.Add(newRow);
+
+            // 1 Мейк/Тейк комиссия
+            newRow = new DataGridViewRow();
+            newGrid.Rows.Add(newRow);
+
+            // 2 Тейк/Мейк 
+            newRow = new DataGridViewRow();
+
+            newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Тейк/Мейк" });
+            newGrid.Rows.Add(newRow);
+
+            // 3 Тейк/Мейк комиссия
+            newRow = new DataGridViewRow();
+            newGrid.Rows.Add(newRow);
+
+            // 4 Тейк/Тейк
+            newRow = new DataGridViewRow();
+            newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = "Тейк/Тейк" });
+            newGrid.Rows.Add(newRow);
+
+            // 5 Тейк/Тейк комиссия
+            newRow = new DataGridViewRow();
+            newGrid.Rows.Add(newRow);
+
+            newGrid.ReadOnly = false;
+
+            return newGrid;
+        }
+
+        #endregion
+
         #region События таблиц
 
-        private void __gridSettingsSetPosition_CellPainting(object sender, DataGridViewCellPaintingEventArgs e)
+        private void NewGrid_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex == 3)
+            {
+                DataGridViewComboBoxCell cell = _gridSettingsPosition.Rows[e.RowIndex].Cells[e.ColumnIndex] as DataGridViewComboBoxCell;
+                AddValueToCell(cell);
+            }
+        }
+
+        private void AddValueToCell(DataGridViewComboBoxCell cell)
+        {
+            try
+            {              
+                string value = "";
+                object currentValue = cell.Value;
+                string loadSecurity = _firstSecurityName;
+
+                if (cell.ColumnIndex == 2)
+                {
+                    loadSecurity = _secondSecurityName;
+                }
+
+                cell.Items.Clear();
+
+                for (int i = 0; i < TabsScreener.Count; i++)
+                {
+                    for (int j = 0; j < TabsScreener[i].Tabs.Count; j++)
+                    {
+                        string exchange = TabsScreener[i].Tabs[j].Security?.Exchange;
+                        string tiker = TabsScreener[i].Tabs[j].Security?.Name;
+
+                        if (exchange == null || tiker == null)
+                        {
+                            continue;
+                        }
+                        cell.Items.Add(exchange + "/" + tiker);
+                    }
+                }
+
+                if (cell.Items.Count == 0) return;
+
+                if (currentValue == null || !cell.Items.Contains(currentValue))
+                {
+                    value = cell.Items[0].ToString();
+                }
+
+                if (loadSecurity != null)
+                {
+                    if (cell.Items.Contains(loadSecurity))
+                    {
+                        value = loadSecurity;
+                    }
+                    else
+                    {
+                        value = "";
+                    }
+                }
+                
+                cell.Value = value;
+
+                if (cell.ColumnIndex == 1)
+                {
+                    _firstSecurityName = cell.Value.ToString();
+
+                    if (_firstSecurityName != null && _firstSecurityName != "")
+                    {
+                        string[] field = _firstSecurityName.Split('/');
+                        string exchange = field[0];
+                        string ticker = field[1];
+
+                        for (int i = 0; i < TabsScreener.Count; i++)
+                        {
+                            if (TabsScreener[i].ServerType.ToString() == exchange)
+                            {
+                                for (int j = 0; j < TabsScreener[i].Tabs.Count; j++)
+                                {
+                                    if (TabsScreener[i].Tabs[j].Security.Name == ticker)
+                                    {
+                                        _firstTab = TabsScreener[i].Tabs[j];
+                                        break;
+                                    }
+                                }
+
+                                break;
+                            }
+                        }
+                        SubscribeBidAsk("first");
+                    }
+                    else
+                    {
+                        UnSubscribeBidAsk("first");
+                    }
+                }
+
+                if (cell.ColumnIndex == 2)
+                {
+                    _secondSecurityName = cell.Value.ToString();
+
+                    if (_secondSecurityName != null && _secondSecurityName != "")
+                    {
+                        string[] field = _secondSecurityName.Split('/');
+                        string exchange = field[0];
+                        string ticker = field[1];
+
+                        for (int i = 0; i < TabsScreener.Count; i++)
+                        {
+                            if (TabsScreener[i].ServerType.ToString() == exchange)
+                            {
+                                for (int j = 0; j < TabsScreener[i].Tabs.Count; j++)
+                                {
+                                    if (TabsScreener[i].Tabs[j].Security.Name == ticker)
+                                    {
+                                        _secondTab = TabsScreener[i].Tabs[j];
+                                        break;
+                                    }
+                                }
+
+                                break;
+                            }
+                        }
+                        SubscribeBidAsk("second");
+                    }
+                    else
+                    {
+                        UnSubscribeBidAsk("second");
+                    }
+                }
+
+                SaveSettings();
+
+                _gridSettingsPosition.InvalidateCell(cell);
+                _gridSettingsPosition.RefreshEdit();
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage("AddValueToCell: " + ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void _gridSettingsSetPosition_CellPainting(object sender, DataGridViewCellPaintingEventArgs e)
         {
             if (e.ColumnIndex == 1)
             {
@@ -1458,7 +1622,7 @@ namespace OsEngine.Robots
             }
         }
 
-        private void __gridSettingsSetPosition_DataError(object sender, DataGridViewDataErrorEventArgs e)
+        private void _gridSettingsSetPosition_DataError(object sender, DataGridViewDataErrorEventArgs e)
         {
             //SendNewLogMessage("__gridSettingsSetPosition_DataError: " + e.Exception.ToString(), Logging.LogMessageType.Error);
         }
@@ -1491,10 +1655,10 @@ namespace OsEngine.Robots
             if (_gridSettingsPosition.CurrentCell is DataGridViewCheckBoxCell)
             {
                 _gridSettingsPosition.CommitEdit(DataGridViewDataErrorContexts.Commit);
-            }            
+            }
         }
 
-        private void __gridSettingsSetPosition_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        private void _gridSettingsSetPosition_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
             // задание
             if (e.ColumnIndex == 1 && e.RowIndex == 0)
@@ -1507,22 +1671,6 @@ namespace OsEngine.Robots
                 _gridSettingsPosition.Rows[15].Cells[1].Value = "";
                 _gridSettingsPosition.Rows[16].Cells[1].Value = "";
 
-                /*if (_exercise == GetDescription(Exercise.Open))
-                {
-                    DialogResult result = MessageBox.Show("Удалить позиции из таблицы результатов?", "Сообщение", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1);
-
-                    if (result == DialogResult.Yes)
-                    {
-                        *//*for (int i = 0; i < TabsSimple.Count; i++)
-                        {
-                            TabsSimple[i].PositionsOpenAll.Clear();
-                            TabsSimple[i].PositionsAll.Clear();
-                            TabsSimple[i].PositionOpenLong.Clear();
-                            TabsSimple[i].PositionOpenShort.Clear();
-                        }*//*
-                    }                   
-                }*/
-
                 SaveSettings();
             }
 
@@ -1534,7 +1682,7 @@ namespace OsEngine.Robots
                 if (_regime == GetDescription(Regime.On))
                 {
                     SetTypeLimit();
-                    
+
                     _timeExecute = DateTime.Now;
                     _gridSettingsPosition.Rows[15].Cells[1].Value = "";
                     _gridSettingsPosition.Rows[16].Cells[1].Value = "";
@@ -1550,16 +1698,16 @@ namespace OsEngine.Robots
                     if (_firstChangePos)
                     {
                         _gridSettingsPosition.Rows[e.RowIndex].Cells[e.ColumnIndex + 1].Value = false;
-                    }   
+                    }
                 }
 
                 if (e.ColumnIndex == 2)
-                {                    
+                {
                     bool.TryParse(_gridSettingsPosition.Rows[e.RowIndex].Cells[e.ColumnIndex].Value.ToString(), out _secondChangePos);
                     if (_secondChangePos)
                     {
                         _gridSettingsPosition.Rows[e.RowIndex].Cells[e.ColumnIndex - 1].Value = false;
-                    }                    
+                    }
                 }
             }
 
@@ -1570,6 +1718,13 @@ namespace OsEngine.Robots
                 {
                     return;
                 }
+
+                if (_firstTab != null)
+                {
+                    UnSubscribeBidAsk("first");
+                }
+
+                _firstSecurityName = _gridSettingsPosition.Rows[e.RowIndex].Cells[e.ColumnIndex].Value.ToString();
 
                 string[] field = _gridSettingsPosition.Rows[e.RowIndex].Cells[e.ColumnIndex].Value.ToString().Split('/');
                 string exchange = field[0];
@@ -1595,6 +1750,7 @@ namespace OsEngine.Robots
                 _gridSettingsPosition.Rows[e.RowIndex + 1].Cells[e.ColumnIndex].Value = ticker;
 
                 SubscribeBidAsk("first");
+                SaveSettings();
             }
             if (e.ColumnIndex == 2 && e.RowIndex == 3)
             {
@@ -1602,6 +1758,13 @@ namespace OsEngine.Robots
                 {
                     return;
                 }
+
+                if (_secondTab != null)
+                {
+                    UnSubscribeBidAsk("second");
+                }
+
+                _secondSecurityName = _gridSettingsPosition.Rows[e.RowIndex].Cells[e.ColumnIndex].Value.ToString();
 
                 string[] field = _gridSettingsPosition.Rows[e.RowIndex].Cells[e.ColumnIndex].Value.ToString().Split('/');
                 string exchange = field[0];
@@ -1627,6 +1790,7 @@ namespace OsEngine.Robots
                 _gridSettingsPosition.Rows[e.RowIndex + 1].Cells[e.ColumnIndex].Value = ticker;
 
                 SubscribeBidAsk("second");
+                SaveSettings();
             }
 
             // тип лимита
@@ -1644,7 +1808,7 @@ namespace OsEngine.Robots
 
             // лимит задания
             if (e.ColumnIndex == 1 && e.RowIndex == 6)
-            {               
+            {
                 decimal.TryParse(_gridSettingsPosition.Rows[e.RowIndex].Cells[e.ColumnIndex].Value.ToString().Replace(".", ","), out _firstLimitVolumeTable);
                 SaveSettings();
             }
@@ -1653,7 +1817,7 @@ namespace OsEngine.Robots
                 decimal.TryParse(_gridSettingsPosition.Rows[e.RowIndex].Cells[e.ColumnIndex].Value.ToString().Replace(".", ","), out _secondLimitVolumeTable);
                 SaveSettings();
             }
-                        
+
             // схема торгов
             if (e.ColumnIndex == 1 && e.RowIndex == 7)
             {
@@ -1757,7 +1921,7 @@ namespace OsEngine.Robots
         }
 
         private void SetTypeLimit()
-        {            
+        {
             try
             {
                 if (_firstBestAsk == 0 || _secondBestBid == 0)
@@ -1784,13 +1948,15 @@ namespace OsEngine.Robots
             {
                 SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
             }
-           
+
         }
 
         private void SubscribeBidAsk(string str)
-        {          
+        {
             if (str == "first")
             {
+                UnSubscribeBidAsk("first");
+
                 if (_firstTab.MarketDepth == null)
                 {
                     return;
@@ -1802,6 +1968,8 @@ namespace OsEngine.Robots
             }
             else
             {
+                UnSubscribeBidAsk("second");
+
                 if (_secondTab.MarketDepth == null)
                 {
                     return;
@@ -1843,6 +2011,359 @@ namespace OsEngine.Robots
 
         #endregion
 
+        #region Обновление таблиц
+
+        private void RefreshTables()
+        {
+            while (true)
+            {
+                try
+                {
+                    Thread.Sleep(1000);
+
+                    if (_firstTab == null || _secondTab == null)
+                    {
+                        continue;
+                    }
+
+                    RefreshSettingsTable();
+                    RefreshSchemeTable();
+                }
+                catch (Exception ex)
+                {
+                    SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+                }
+            }
+        }
+
+        private void RefreshSettingsTable()
+        {
+            if (_firstTab.PositionOpenLong == null || _secondTab.PositionOpenShort == null)
+            {
+                return;
+            }
+
+            if (_regime == GetDescription(Regime.On))
+            {
+                string formattedTime = (DateTime.Now - _timeExecute).ToString("hh\\:mm\\:ss");
+                _gridSettingsPosition.Rows[15].Cells[1].Value = formattedTime;
+
+                if (_exercise == GetDescription(Exercise.Open))
+                {
+                    if (_firstTab.PositionOpenLong.Count == 0 || _secondTab.PositionOpenShort.Count == 0)
+                    {
+                        _gridSettingsPosition.Rows[16].Cells[1].Value = "0%";
+                    }
+                    else
+                    {
+                        if (_firstTab.PositionOpenLong[0].OpenVolume * _firstTab.Security.Lot == _secondTab.PositionOpenShort[0].OpenVolume * _secondTab.Security.Lot)
+                        {
+                            decimal percent = Math.Round(_firstTab.PositionOpenLong[0].OpenVolume * _firstTab.Security.Lot / _firstLimitVolume * 100, 2);
+                            _gridSettingsPosition.Rows[16].Cells[1].Value = percent + "%";
+
+                            if (percent == 100)
+                            {
+                                _regime = GetDescription(Regime.Off);
+                                _gridSettingsPosition.Rows[0].Cells[2].Value = _listRegime[0];
+                            }
+                        }
+                    }
+                }
+
+                if (_exercise == GetDescription(Exercise.Close))
+                {
+                    if (_firstTab.PositionOpenLong.Count == 0 && _secondTab.PositionOpenShort.Count == 0)
+                    {
+                        _gridSettingsPosition.Rows[16].Cells[1].Value = "100%";
+
+                        _regime = GetDescription(Regime.Off);
+                        _gridSettingsPosition.Rows[0].Cells[2].Value = _listRegime[0];
+                    }
+                    else if (_firstTab.PositionOpenLong.Count > 0 && _secondTab.PositionOpenShort.Count > 0)
+                    {
+                        if (_firstTab.PositionOpenLong[0].OpenVolume * _firstTab.Security.Lot == _secondTab.PositionOpenShort[0].OpenVolume * _secondTab.Security.Lot)
+                        {
+                            _gridSettingsPosition.Rows[16].Cells[1].Value = Math.Round(100 - (_firstTab.PositionOpenLong[0].OpenVolume * _firstTab.Security.Lot / _firstLimitVolume * 100), 2) + "%";
+                        }
+                    }
+                }
+
+                if (_exercise == GetDescription(Exercise.Change))
+                {
+                    if (_firstChangePos)
+                    {
+                        if (_secondTab.PositionOpenShort.Count == 0)
+                        {
+                            _gridSettingsPosition.Rows[16].Cells[1].Value = "0%";
+                        }
+                        else
+                        {
+                            if (_secondTab.PositionsLast.OpenVolume * _secondTab.Security.Lot == (_firstTab.PositionsLast.MaxVolume - _firstTab.PositionsLast.OpenVolume) * _firstTab.Security.Lot)
+                            {
+                                decimal percent = Math.Round(_secondTab.PositionsLast.OpenVolume * _secondTab.Security.Lot / _firstLimitVolume * 100, 2);
+                                _gridSettingsPosition.Rows[16].Cells[1].Value = percent + "%";
+
+                                if (percent == 100)
+                                {
+                                    _regime = GetDescription(Regime.Off);
+                                    _gridSettingsPosition.Rows[0].Cells[2].Value = _listRegime[0];
+                                }
+                            }
+                        }
+                    }
+
+                    if (_secondChangePos)
+                    {
+                        if (_firstTab.PositionOpenLong.Count == 0)
+                        {
+                            _gridSettingsPosition.Rows[16].Cells[1].Value = "0%";
+                        }
+                        else
+                        {
+                            if (_firstTab.PositionsLast.OpenVolume * _firstTab.Security.Lot == (_secondTab.PositionsLast.MaxVolume - _secondTab.PositionsLast.OpenVolume) * _secondTab.Security.Lot)
+                            {
+                                decimal percent = Math.Round(_firstTab.PositionsLast.OpenVolume * _firstTab.Security.Lot / _firstLimitVolume * 100, 2);
+                                _gridSettingsPosition.Rows[16].Cells[1].Value = percent + "%";
+
+                                if (percent == 100)
+                                {
+                                    _regime = GetDescription(Regime.Off);
+                                    _gridSettingsPosition.Rows[0].Cells[2].Value = _listRegime[0];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void RefreshSchemeTable()
+        {
+            decimal sum = 0;
+            // maker/taker
+
+            if (_exercise == GetDescription(Exercise.Open))
+            {
+                _gridSchemePosition.Rows[0].Cells[1].Value = _firstBestBid; // long maker
+                _gridSchemePosition.Rows[0].Cells[2].Value = _secondBestBid; // short taker
+                _gridSchemePosition.Rows[0].Cells[3].Value = _secondBestBid - _firstBestBid; // spread maker/taker
+
+                if (_firstBestBid == 0)
+                {
+                    sum = 0;
+                }
+                else
+                {
+                    sum = Math.Round((_secondBestBid - _firstBestBid) / _firstBestBid * 100, 4);
+                }
+                _gridSchemePosition.Rows[0].Cells[4].Value = sum.ToString() + "%"; // sum maker/taker
+                _gridSchemePosition.Rows[1].Cells[1].Value = _longСomissionMaker;
+                _gridSchemePosition.Rows[1].Cells[2].Value = _shortСomissionTaker;
+
+                decimal sumKom = _longСomissionMaker + _shortСomissionTaker;
+                _gridSchemePosition.Rows[1].Cells[3].Value = sumKom;
+                _gridSchemePosition.Rows[1].Cells[4].Value = (sum - sumKom).ToString() + "%";
+
+                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.MakerTaker))
+                {
+                    if (_typeSpread == TypeSpread.Percent.ToString())
+                    {
+                        _currentSpread = sum - sumKom;
+                    }
+                    else
+                    {
+                        _currentSpread = _secondBestBid - _firstBestBid;
+                    }
+                }
+            }
+
+            if (_exercise == GetDescription(Exercise.Close))
+            {
+                _gridSchemePosition.Rows[0].Cells[1].Value = _firstBestAsk; // long maker
+                _gridSchemePosition.Rows[0].Cells[2].Value = _secondBestAsk; // short taker
+                _gridSchemePosition.Rows[0].Cells[3].Value = _secondBestAsk - _firstBestAsk; // spread maker/taker
+
+                if (_firstBestAsk == 0)
+                {
+                    sum = 0;
+                }
+                else
+                {
+                    sum = Math.Round((_secondBestAsk - _firstBestAsk) / _firstBestAsk * 100, 4);
+                }
+                _gridSchemePosition.Rows[0].Cells[4].Value = sum.ToString() + "%"; // sum maker/taker
+                _gridSchemePosition.Rows[1].Cells[1].Value = _longСomissionMaker;
+                _gridSchemePosition.Rows[1].Cells[2].Value = _shortСomissionTaker;
+
+                decimal sumKom = _longСomissionMaker + _shortСomissionTaker;
+                _gridSchemePosition.Rows[1].Cells[3].Value = sumKom;
+                _gridSchemePosition.Rows[1].Cells[4].Value = (sum - sumKom).ToString() + "%";
+
+                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.MakerTaker))
+                {
+                    if (_typeSpread == TypeSpread.Percent.ToString())
+                    {
+                        _currentSpread = sum - sumKom;
+                    }
+                    else
+                    {
+                        _currentSpread = _secondBestAsk - _firstBestAsk;
+                    }
+                }
+            }
+
+            // Taker/maker
+            if (_exercise == GetDescription(Exercise.Open))
+            {
+                _gridSchemePosition.Rows[2].Cells[1].Value = _firstBestAsk; // long taker
+                _gridSchemePosition.Rows[2].Cells[2].Value = _secondBestAsk; // short maker
+                _gridSchemePosition.Rows[2].Cells[3].Value = _secondBestAsk - _firstBestAsk; // spread taker/maker
+
+                if (_firstBestAsk == 0)
+                {
+                    sum = 0;
+                }
+                else
+                {
+                    sum = Math.Round((_secondBestAsk - _firstBestAsk) / _firstBestAsk * 100, 4);
+                }
+
+                _gridSchemePosition.Rows[2].Cells[4].Value = sum.ToString() + "%"; // sum taker/maker
+                _gridSchemePosition.Rows[3].Cells[1].Value = _longСomissionTaker;
+                _gridSchemePosition.Rows[3].Cells[2].Value = _shortСomissionMaker;
+
+                decimal sumKom = _longСomissionTaker + _shortСomissionMaker;
+                _gridSchemePosition.Rows[3].Cells[3].Value = sumKom;
+                _gridSchemePosition.Rows[3].Cells[4].Value = (sum - sumKom).ToString() + "%";
+
+                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.TakerMaker))
+                {
+                    if (_typeSpread == TypeSpread.Percent.ToString())
+                    {
+                        _currentSpread = sum - sumKom;
+                    }
+                    else
+                    {
+                        _currentSpread = _secondBestAsk - _firstBestAsk;
+                    }
+                }
+            }
+
+            if (_exercise == GetDescription(Exercise.Close))
+            {
+                _gridSchemePosition.Rows[2].Cells[1].Value = _firstBestBid; // long taker
+                _gridSchemePosition.Rows[2].Cells[2].Value = _secondBestBid; // short maker
+                _gridSchemePosition.Rows[2].Cells[3].Value = _secondBestBid - _firstBestBid; // spread taker/maker
+
+                if (_firstBestBid == 0)
+                {
+                    sum = 0;
+                }
+                else
+                {
+                    sum = Math.Round((_secondBestBid - _firstBestBid) / _firstBestBid * 100, 4);
+                }
+
+                _gridSchemePosition.Rows[2].Cells[4].Value = sum.ToString() + "%"; // sum taker/maker
+                _gridSchemePosition.Rows[3].Cells[1].Value = _longСomissionTaker;
+                _gridSchemePosition.Rows[3].Cells[2].Value = _shortСomissionMaker;
+
+                decimal sumKom = _longСomissionTaker + _shortСomissionMaker;
+                _gridSchemePosition.Rows[3].Cells[3].Value = sumKom;
+                _gridSchemePosition.Rows[3].Cells[4].Value = (sum - sumKom).ToString() + "%";
+
+                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.TakerMaker))
+                {
+                    if (_typeSpread == TypeSpread.Percent.ToString())
+                    {
+                        _currentSpread = sum - sumKom;
+                    }
+                    else
+                    {
+                        _currentSpread = _secondBestBid - _firstBestBid;
+                    }
+                }
+            }
+
+            // taker/taker
+
+            if (_exercise == GetDescription(Exercise.Open))
+            {
+                _gridSchemePosition.Rows[4].Cells[1].Value = _firstBestAsk; // long taker
+                _gridSchemePosition.Rows[4].Cells[2].Value = _secondBestBid; // short taker
+                _gridSchemePosition.Rows[4].Cells[3].Value = _secondBestBid - _firstBestAsk; // spread taker/taker
+
+                if (_firstBestAsk == 0)
+                {
+                    sum = 0;
+                }
+                else
+                {
+                    sum = Math.Round((_secondBestBid - _firstBestAsk) / _firstBestAsk * 100, 4);
+                }
+
+                _gridSchemePosition.Rows[4].Cells[4].Value = sum.ToString() + "%"; // sum taker/taker
+                _gridSchemePosition.Rows[5].Cells[1].Value = _longСomissionTaker;
+                _gridSchemePosition.Rows[5].Cells[2].Value = _shortСomissionTaker;
+
+                decimal sumKom = _longСomissionTaker + _shortСomissionTaker;
+                _gridSchemePosition.Rows[5].Cells[3].Value = sumKom;
+                _gridSchemePosition.Rows[5].Cells[4].Value = (sum - sumKom).ToString() + "%";
+
+                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.TakerTaker) ||
+                    _schemeOrderSettings == GetDescription(SchemeOrderSettings.MakerMaker))
+                {
+                    if (_typeSpread == TypeSpread.Percent.ToString())
+                    {
+                        _currentSpread = sum - sumKom;
+                    }
+                    else
+                    {
+                        _currentSpread = _secondBestBid - _firstBestAsk;
+                    }
+                }
+            }
+
+            if (_exercise == GetDescription(Exercise.Close))
+            {
+                _gridSchemePosition.Rows[4].Cells[1].Value = _firstBestBid; // long taker
+                _gridSchemePosition.Rows[4].Cells[2].Value = _secondBestAsk; // short taker
+                _gridSchemePosition.Rows[4].Cells[3].Value = _secondBestAsk - _firstBestBid; // spread taker/taker
+
+                if (_firstBestBid == 0)
+                {
+                    sum = 0;
+                }
+                else
+                {
+                    sum = Math.Round((_secondBestAsk - _firstBestBid) / _firstBestBid * 100, 4);
+                }
+
+                _gridSchemePosition.Rows[4].Cells[4].Value = sum.ToString() + "%"; // sum taker/taker
+                _gridSchemePosition.Rows[5].Cells[1].Value = _longСomissionTaker;
+                _gridSchemePosition.Rows[5].Cells[2].Value = _shortСomissionTaker;
+
+                decimal sumKom = _longСomissionTaker + _shortСomissionTaker;
+                _gridSchemePosition.Rows[5].Cells[3].Value = sumKom;
+                _gridSchemePosition.Rows[5].Cells[4].Value = (sum - sumKom).ToString() + "%";
+
+                if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.TakerTaker) ||
+                    _schemeOrderSettings == GetDescription(SchemeOrderSettings.MakerMaker))
+                {
+                    if (_typeSpread == TypeSpread.Percent.ToString())
+                    {
+                        _currentSpread = sum - sumKom;
+                    }
+                    else
+                    {
+                        _currentSpread = _secondBestAsk - _firstBestBid;
+                    }
+                }
+            }
+        }
+
+        #endregion
+
         #region Trade Logic
 
         private void TradeLogic()
@@ -1852,10 +2373,10 @@ namespace OsEngine.Robots
                 try
                 {
                     Thread.Sleep(1);
-        
+
                     if (_regime == GetDescription(Regime.Off))
                     {
-                        continue;                      
+                        continue;
                     }
 
                     if (!CheckTryWork())
@@ -1866,11 +2387,6 @@ namespace OsEngine.Robots
                         _gridSettingsPosition.Rows[16].Cells[1].Value = "";
 
                         continue;
-                    }
-
-                    if (_schemeOrderSettings == null)
-                    {
-                        _schemeOrderSettings = GetDescription(SchemeOrderSettings.MakerTaker);
                     }
 
                     if (_exercise == GetDescription(Exercise.Open))
@@ -1888,17 +2404,17 @@ namespace OsEngine.Robots
                 }
                 catch (Exception ex)
                 {
-                    SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+                    SendNewLogMessage(ex.ToString(), LogMessageType.Error);
                     Thread.Sleep(5000);
-                }                
-            }      
+                }
+            }
         }
 
         private bool CheckTryWork()
         {
             if (_firstTab == null || _secondTab == null)
             {
-                SendNewLogMessage("Не выбраны биржи", Logging.LogMessageType.Error);
+                SendNewLogMessage("Не выбраны биржи", LogMessageType.Error);
                 return false;
             }
 
@@ -1907,37 +2423,31 @@ namespace OsEngine.Robots
                     _secondBestAsk == 0 ||
                     _secondBestBid == 0)
             {
-                SendNewLogMessage("Нет данных бид/аск от бирж", Logging.LogMessageType.Error);
+                SendNewLogMessage("Нет данных бид/аск от бирж", LogMessageType.Error);
                 return false;
             }
 
             if (_firstLimitVolume == 0 || _secondLimitVolume == 0)
             {
-                SendNewLogMessage("Не указан лимит задания", Logging.LogMessageType.Error);
+                SendNewLogMessage("Не указан лимит задания", LogMessageType.Error);
                 return false;
             }
 
             if (_maxVolume == 0)
             {
-                SendNewLogMessage("Не указан максимальный размер ордера", Logging.LogMessageType.Error);
+                SendNewLogMessage("Не указан максимальный размер ордера", LogMessageType.Error);
                 return false;
             }
 
             if (_longCountPriceStep == 0 || _shortCountPriceStep == 0)
             {
-                SendNewLogMessage("Не указаны шаги цены для тейк-заявок", Logging.LogMessageType.Error);
+                SendNewLogMessage("Не указаны шаги цены для тейк-заявок", LogMessageType.Error);
                 return false;
             }
 
-            /*if (_setSpread == 0)
+            if (string.IsNullOrEmpty(_compareSpread))
             {
-                SendNewLogMessage("Не указан размер спреда", Logging.LogMessageType.Error);
-                return false;
-            }*/
-
-            if (string.IsNullOrEmpty(_compareSpread)) 
-            {
-                SendNewLogMessage("Не указано направление спреда", Logging.LogMessageType.Error);
+                SendNewLogMessage("Не указано направление спреда", LogMessageType.Error);
                 return false;
             }
 
@@ -1955,6 +2465,10 @@ namespace OsEngine.Robots
                     return;
                 }
             }
+
+            if (CheckPause()) return;
+
+            CancelOpenOrder();
 
             if (_schemeOrderSettings == GetDescription(SchemeOrderSettings.TakerTaker))
             {
@@ -1977,44 +2491,129 @@ namespace OsEngine.Robots
             }
         }
 
-        private void OpenTradeTakerTaker()
+        private bool _needCancelOpenFirstOrder = false;
+        private bool _needCheckCancelFirstOpenOrders = false;
+
+        private void CancelOpenOrder()
         {
-            if (!CheckOpenPosition()) return;
-            
-            decimal volumeLong = GetVolumeOpen(Side.Buy);
-            decimal volumeShort = GetVolumeOpen(Side.Sell);
+            CheckCancelOpenOrders();
 
-            if (volumeLong > 0)
+            if (_needCancelOpenFirstOrder)
             {
-                decimal price = _firstTab.PriceBestAsk + _firstTab.Security.PriceStep * _longCountPriceStep;
-
-                if (_firstTab.PositionsOpenAll.Count > 0)
+                if (!_needCheckCancelFirstOpenOrders)
                 {
-                    _firstTab.BuyAtLimitToPosition(_firstTab.PositionsOpenAll[0], price, volumeLong);
-                    SetComissionOpen(_firstTab, _longСomissionTaker);
-                }
-                else
-                {
-                    _firstTab.BuyAtLimit(volumeLong, price);
-                    SetComissionOpen(_firstTab, _longСomissionTaker);
+                    if (_firstTab.PositionsOpenAll.Count > 0)
+                    {
+                        if (_firstTab.PositionsOpenAll[0].OpenActive)
+                        {
+                            if (_firstTab.PositionsOpenAll[0].OpenOrders[^1].State == OrderStateType.Active)
+                            {
+                                _firstTab.CloseOrder(_firstTab.PositionsOpenAll[0].OpenOrders[^1]);
+                                _needCheckCancelFirstOpenOrders = true;
+                            }
+                        }
+                    }
                 }
             }
-                
-            if (volumeShort > 0)
-            {
-                decimal price = _secondTab.PriceBestBid - _secondTab.Security.PriceStep * _shortCountPriceStep;
+        }
 
-                if (_secondTab.PositionsOpenAll.Count > 0)
+        private void CheckCancelOpenOrders()
+        {
+            if (_needCheckCancelFirstOpenOrders)
+            {
+                if (_firstTab.PositionsOpenAll.Count > 0)
                 {
-                    _secondTab.SellAtLimitToPosition(_secondTab.PositionsOpenAll[0], price, volumeShort);
-                    SetComissionOpen(_secondTab, _shortСomissionTaker);
+                    if (_firstTab.PositionsOpenAll[0].OpenOrders.Count > 0)
+                    {
+                        if (_firstTab.PositionsOpenAll[0].OpenOrders[^1].State == OrderStateType.Cancel ||
+                            _firstTab.PositionsOpenAll[0].OpenOrders[^1].State == OrderStateType.Fail)
+                        {
+                            _needCheckCancelFirstOpenOrders = false;
+                            _needCancelOpenFirstOrder = false;
+                        }
+                    }
                 }
-                else
+            }
+        }
+
+        private bool CheckPause()
+        {
+            if (_regime != GetDescription(Regime.Pause)) return false;
+
+            if (_exercise == GetDescription(Exercise.Open))
+            {
+                WithdrawOpenOrders();
+                //CheckOpenPositions();
+            }
+
+            if (_exercise == GetDescription(Exercise.Close))
+            {
+                WithdrawCloseOrders();
+                //CheckClosePositions();
+            }
+
+            if (_setWithdrawFirstTabOrder && _setWithdrawSecondTabOrder) return true;
+
+            _regime = GetDescription(Regime.Off);
+            _gridSettingsPosition.Rows[0].Cells[2].Value = _listRegime[0];
+
+            return true;
+        }
+
+        private bool _needCheckExecuteFirstOrderTT = false;
+        private bool _needCheckExecuteSecondOrderTT = false;
+
+        private void OpenTradeTakerTaker()
+        {
+            CheckOpenPosition();
+
+            if (!CompareSpread()) return; 
+
+            if (!_needCheckExecuteFirstOrderTT)
+            {
+                decimal volumeLong = GetVolumeOpen(Side.Buy);
+
+                if (volumeLong > 0)
+                {                
+                    decimal price = _firstTab.PriceBestAsk + _firstTab.Security.PriceStep * _longCountPriceStep;
+
+                    if (_firstTab.PositionsOpenAll.Count > 0)
+                    {
+                        _firstTab.BuyAtLimitToPosition(_firstTab.PositionsOpenAll[0], price, volumeLong);
+                        //SetComissionOpen(_firstTab, _longСomissionTaker);                    
+                    }
+                    else
+                    {
+                        _firstTab.BuyAtLimit(volumeLong, price);
+                        //SetComissionOpen(_firstTab, _longСomissionTaker);
+                    }
+
+                    _needCheckExecuteFirstOrderTT = true;
+                }
+            }
+
+            if (_needCheckExecuteSecondOrderTT)
+            {
+                decimal volumeShort = GetVolumeOpen(Side.Sell);
+
+                if (volumeShort > 0)
                 {
-                    _secondTab.SellAtLimit(volumeShort, price);
-                    SetComissionOpen(_secondTab, _shortСomissionTaker);
+                    decimal price = _secondTab.PriceBestBid - _secondTab.Security.PriceStep * _shortCountPriceStep;
+
+                    if (_secondTab.PositionsOpenAll.Count > 0)
+                    {
+                        _secondTab.SellAtLimitToPosition(_secondTab.PositionsOpenAll[0], price, volumeShort);
+                        //SetComissionOpen(_secondTab, _shortСomissionTaker);                                       
+                    }
+                    else
+                    {
+                        _secondTab.SellAtLimit(volumeShort, price);
+                        //SetComissionOpen(_secondTab, _shortСomissionTaker);
+                    }
+
+                    _needCheckExecuteSecondOrderTT = true;
                 }
-            }              
+            }
         }
 
         private void SetComissionOpen(BotTabSimple tab, decimal comiss)
@@ -2029,24 +2628,66 @@ namespace OsEngine.Robots
             tab.PositionsLast.Comment = "open/" + comiss + "/close/" + closeCom;
         }
 
-        private bool CheckOpenPosition()
+        private bool _needEqualizePositions = false;
+        private bool _needEqalizeOpenFirstOrder = false;
+
+        private void CheckOpenPosition()
         {
             try
             {
-                if (_regime == GetDescription(Regime.Pause))
-                {
-                    _regime = GetDescription(Regime.Off);
-                    _gridSettingsPosition.Rows[0].Cells[2].Value = _listRegime[0];
+                if (!_needCheckExecuteFirstOrderTT && !_needCheckExecuteSecondOrderTT) return;
 
-                    return false;
+                // проверить исполнился ли ордер
+                // если не исполнился, и активный проверить не попал ли он в стакан, если попал в стакан, то переставить его
+
+                if (_needCheckExecuteFirstOrderTT)
+                {
+                    if (_firstTab.PositionsOpenAll.Count != 0)
+                    {
+                        if (_firstTab.PositionsOpenAll[0].OpenOrders.Count > 0)
+                        {
+                            Order order = _firstTab.PositionsOpenAll[0].OpenOrders[^1];
+
+                            if (order.State == OrderStateType.Done ||
+                                order.State == OrderStateType.Cancel)
+                            {
+                                _needCheckExecuteFirstOrderTT = false;
+                            }
+
+                            if (order.State == OrderStateType.Active)
+                            {
+                                if (order.Price < _firstBestBid)
+                                {
+                                    _needEqalizeOpenFirstOrder = true;
+                                }
+                            }
+                        }
+                    }
                 }
 
-                if (_firstTab.PositionsOpenAll.Count == 0 && _secondTab.PositionsOpenAll.Count == 0)
+                if (_needCheckExecuteSecondOrderTT)
                 {
-                    return true;
+                    if (_secondTab.PositionsOpenAll.Count != 0)
+                    {
+                        if (_secondTab.PositionsOpenAll[0].OpenOrders.Count > 0)
+                        {
+                            if (_secondTab.PositionsOpenAll[0].OpenOrders[^1].State == OrderStateType.Done ||
+                                _secondTab.PositionsOpenAll[0].OpenOrders[^1].State == OrderStateType.Cancel)
+                            {
+                                _needCheckExecuteSecondOrderTT = false;
+                            }
+                        }
+                    }
+                }
+                
+
+                if (_firstTab.PositionsOpenAll[0].OpenVolume * _firstTab.Security.Lot != _secondTab.PositionsOpenAll[0].OpenVolume * _secondTab.Security.Lot)
+                {
+                    _needEqualizePositions = true;
                 }
 
-                else if (_firstTab.PositionsOpenAll.Count != 0 && _secondTab.PositionsOpenAll.Count != 0)
+
+                /*if (_firstTab.PositionsOpenAll.Count != 0 && _secondTab.PositionsOpenAll.Count != 0)
                 {
                     if (_firstTab.PositionsOpenAll[0].OpenVolume * _firstTab.Security.Lot + _maxVolume > _firstLimitVolume ||
                         _secondTab.PositionsOpenAll[0].OpenVolume * _secondTab.Security.Lot + _maxVolume > _secondLimitVolume)
@@ -2068,19 +2709,13 @@ namespace OsEngine.Robots
                             return true;
                         }
                     }
+                }*/
 
-                    if (!CompareSpread())
-                    {
-                        return false;
-                    }
-                }
-
-                return false;
+               
             }
             catch (Exception ex)
             {
-                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
-                return false;
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
             }
         }
 
@@ -2099,7 +2734,7 @@ namespace OsEngine.Robots
                 limitVolume = _firstLimitVolume;
                 tab = _firstTab;
             }
-            
+
             if (pos.Count == 0)
             {
                 if (_maxVolume > limitVolume)
@@ -2109,14 +2744,14 @@ namespace OsEngine.Robots
                 else
                 {
                     volume = _maxVolume;
-                }                    
+                }
             }
             else
             {
                 if (pos[0].OpenVolume * tab.Security.Lot < limitVolume)
                 {
                     if (_maxVolume <= limitVolume - pos[0].OpenVolume * tab.Security.Lot)
-                    {                        
+                    {
                         if ((pos[0].OpenVolume * tab.Security.Lot) % _maxVolume == 0)
                         {
                             volume = _maxVolume;
@@ -2200,7 +2835,7 @@ namespace OsEngine.Robots
             }
 
             if (makerTab.PositionsLast.CloseOrders != null && makerTab.PositionsLast.CloseOrders.Count > 0)
-            {       
+            {
                 if (!_firstCancelOrder || !_secondCancelOrder)
                 {
                     if (takerTab.PositionsLast.CloseOrders != null && takerTab.PositionsLast.CloseOrders.Count > 0)
@@ -2263,14 +2898,14 @@ namespace OsEngine.Robots
                     _setWithdrawFirstTabOrder = false;
                     _setWithdrawSecondTabOrder = false;
 
-                    CloseOrderChangeDepth(makerTab);                   
+                    CloseOrderChangeDepth(makerTab);
                 }
                 else
                 {
                     if (takerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Done &&
                         makerTab.PositionsLast.OpenVolume * makerTab.Security.Lot <= takerTab.PositionsLast.OpenVolume * takerTab.Security.Lot)
                     {
-                        _tryCloseTaker = false; 
+                        _tryCloseTaker = false;
                         _firstCancelOrder = false;
                         _secondCancelOrder = false;
                         _setWithdrawFirstTabOrder = false;
@@ -2298,7 +2933,7 @@ namespace OsEngine.Robots
                 _secondCancelOrder = false;
                 _setWithdrawFirstTabOrder = false;
                 _setWithdrawSecondTabOrder = false;
-            }                
+            }
         }
 
         private void CloseTradeMakerMaker()
@@ -2315,7 +2950,7 @@ namespace OsEngine.Robots
             {
                 if (_firstTab.PositionsLast.CloseOrders.Last().State == OrderStateType.Done &&
                     _secondTab.PositionsLast.CloseOrders.Last().State == OrderStateType.Done)
-                {                    
+                {
                     if (_firstTab.PositionsLast.OpenVolume * _firstTab.Security.Lot == _secondTab.PositionsLast.OpenVolume * _secondTab.Security.Lot)
                     {
                         if (_regime == GetDescription(Regime.Pause))
@@ -2441,7 +3076,7 @@ namespace OsEngine.Robots
         }
 
         private void SetComissionClose(BotTabSimple tab, decimal comiss)
-        {           
+        {
             string openCom = "";
 
             if (tab.PositionsLast.Comment != null && tab.PositionsLast.Comment != "")
@@ -2449,7 +3084,7 @@ namespace OsEngine.Robots
                 openCom = tab.PositionsLast.Comment.Split('/')[1];
             }
 
-            tab.PositionsLast.Comment = "open/" + openCom + "/close/" + comiss;           
+            tab.PositionsLast.Comment = "open/" + openCom + "/close/" + comiss;
         }
 
         private bool CheckClosePosition()
@@ -2490,13 +3125,13 @@ namespace OsEngine.Robots
                         }
 
                         if (_firstTab.PositionsOpenAll[0].CloseOrders[^1].State == OrderStateType.Done ||
-                            _firstTab.PositionsOpenAll[0].CloseOrders[^1].State == OrderStateType.Cancel)                           
+                            _firstTab.PositionsOpenAll[0].CloseOrders[^1].State == OrderStateType.Cancel)
                         {
                             if (_secondTab.PositionsOpenAll[0].CloseOrders[^1].State == OrderStateType.Done ||
                                 _secondTab.PositionsOpenAll[0].CloseOrders[^1].State == OrderStateType.Cancel)
                             {
                                 return true;
-                            }                            
+                            }
                         }
                     }
                 }
@@ -2515,7 +3150,7 @@ namespace OsEngine.Robots
             decimal volume = 0;
 
             List<Position> pos = tab.PositionsOpenAll;
-           
+
             if (pos.Count > 0)
             {
                 if (pos[0].OpenVolume * tab.Security.Lot > 0)
@@ -2741,7 +3376,7 @@ namespace OsEngine.Robots
         }
 
         private void ChangeTradeWithMaker(BotTabSimple tabMaker, BotTabSimple tabTaker)
-        {          
+        {
             if (tabMaker.Equals(_firstTab))
             {
                 if (_firstChangePos) // close
@@ -2838,7 +3473,7 @@ namespace OsEngine.Robots
 
                             RunChange(tabMaker);
                         }
-                    }                    
+                    }
                 }
                 if (!TryCloseTaker(tabMaker, tabTaker))
                 {
@@ -2891,7 +3526,7 @@ namespace OsEngine.Robots
                         {
                             return false;
                         }
-                    }                   
+                    }
 
                     decimal volumeTaker = GetVolumeClose(tabTaker);
 
@@ -2935,7 +3570,7 @@ namespace OsEngine.Robots
                 }
 
                 if (tabTaker.PositionsOpenAll.Count > 0)
-                {                    
+                {
                     if (tabMaker.PositionsLast.OpenVolume > 0)
                     {
                         if (tabTaker.PositionsLast.OpenOrders.Last().State == OrderStateType.Done)
@@ -2958,7 +3593,7 @@ namespace OsEngine.Robots
                                 RunChange(tabMaker);
                             }
                         }
-                    }                    
+                    }
                 }
             }
             else
@@ -3159,7 +3794,7 @@ namespace OsEngine.Robots
         }
 
         private void ChangeTradeMakerMaker()
-        {            
+        {
             if (_firstChangePos) // close
             {
                 if (_firstTab.PositionsLast.CloseOrders != null && _firstTab.PositionsLast.CloseOrders.Count > 0)
@@ -3185,7 +3820,7 @@ namespace OsEngine.Robots
                             {
                                 return;
                             }
-                            
+
                             RunChange(_firstTab);
                             RunChange(_secondTab);
                         }
@@ -3211,7 +3846,7 @@ namespace OsEngine.Robots
 
                     RunChange(_firstTab);
                     RunChange(_secondTab);
-                }                
+                }
             }
             else
             {
@@ -3244,7 +3879,7 @@ namespace OsEngine.Robots
                             RunChange(_secondTab);
                         }
                     }
-                    
+
                     SetOpenTakerOrderChangeTrade(_secondTab, _firstTab);
                     TryCloseTaker(_firstTab, _secondTab);
                 }
@@ -3334,7 +3969,7 @@ namespace OsEngine.Robots
                             _setTakerOrder = true;
 
                             return;
-                        }                        
+                        }
                     }
 
                     if (!CheckTradingConditions())
@@ -3359,7 +3994,7 @@ namespace OsEngine.Robots
                         _setTakerOrder = false;
                     }
                 }
-                                
+
                 if (tabTaker.PositionsOpenAll.Count > 0)
                 {
                     if (tabTaker.PositionsLast.OpenOrders[^1].State == OrderStateType.Done ||
@@ -3376,7 +4011,7 @@ namespace OsEngine.Robots
                             _secondCancelOrder = false;
                         }
                     }
-                }                          
+                }
             }
             else
             {
@@ -3390,7 +4025,7 @@ namespace OsEngine.Robots
 
                 SendOpenOrders(tabMaker);
                 _setTakerOrder = false;
-            }                
+            }
         }
 
         private bool CheckTradingConditions()
@@ -3401,7 +4036,7 @@ namespace OsEngine.Robots
                 {
                     WithdrawOpenOrders();
                 }
-                
+
                 if (_exercise == GetDescription(Exercise.Close))
                 {
                     WithdrawCloseOrders();
@@ -3502,25 +4137,19 @@ namespace OsEngine.Robots
                     {
                         Order order = _firstTab.PositionsLast.OpenOrders[^1];
 
-                        if (order.NumberMarket == "")
-                        {
-                            return;
-                        }
-
-                        if (order.State != OrderStateType.Active)
-                        {
-                            return;
-                        }
+                        if (order.NumberMarket == "") return;
+                        if (order.State != OrderStateType.Active) return;
 
                         if (!_setWithdrawFirstTabOrder)
                         {
-                            SendNewLogMessage("Отменяем открытый ордер на первой вкладке", Logging.LogMessageType.User);
+                            SendNewLogMessage("Отменяем открытый ордер на первой вкладке", LogMessageType.User);
                             _firstTab.CloseOrder(order);
                             _setWithdrawFirstTabOrder = true;
                         }
                     }
                     else
                     {
+                        SendNewLogMessage("Все открытые ордера отменены на первой вкладке", LogMessageType.User);
                         _setWithdrawFirstTabOrder = false;
                     }
                 }
@@ -3531,32 +4160,26 @@ namespace OsEngine.Robots
                     {
                         Order order = _secondTab.PositionsLast.OpenOrders[^1];
 
-                        if (order.NumberMarket == "")
-                        {
-                            return;
-                        }
-
-                        if (order.State != OrderStateType.Active)
-                        {
-                            return;
-                        }
+                        if (order.NumberMarket == "") return;
+                        if (order.State != OrderStateType.Active) return;
 
                         if (!_setWithdrawSecondTabOrder)
                         {
-                            SendNewLogMessage("Отменяем открытый ордер на второй вкладке", Logging.LogMessageType.User);
+                            SendNewLogMessage("Отменяем открытый ордер на второй вкладке", LogMessageType.User);
                             _secondTab.CloseOrder(order);
                             _setWithdrawSecondTabOrder = true;
                         }
                     }
                     else
                     {
+                        SendNewLogMessage("Все открытые ордера отменены на второй вкладке", LogMessageType.User);
                         _setWithdrawSecondTabOrder = false;
                     }
                 }
             }
             catch (Exception ex)
             {
-                SendNewLogMessage(ex.StackTrace, Logging.LogMessageType.Error);
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
             }
         }
 
@@ -3588,12 +4211,12 @@ namespace OsEngine.Robots
             if (tab.Equals(_firstTab))
             {
                 bestDepth = _firstBestBid;
-                side = Side.Buy;                
+                side = Side.Buy;
             }
             if (tab.Equals(_secondTab))
             {
                 bestDepth = _secondBestAsk;
-                side = Side.Sell;                
+                side = Side.Sell;
             }
 
             // ставим первый ордер
@@ -3623,8 +4246,9 @@ namespace OsEngine.Robots
             // ставим последующие ордера
             if (tab.PositionsOpenAll.Count > 0)
             {
-                if (tab.PositionsLast.OpenOrders.Last().State == OrderStateType.Done ||
-                    tab.PositionsLast.OpenOrders.Last().State == OrderStateType.Cancel)
+                if (tab.PositionsLast.OpenOrders[^1].State == OrderStateType.Done ||
+                    tab.PositionsLast.OpenOrders[^1].State == OrderStateType.Cancel ||
+                    tab.PositionsLast.OpenOrders[^1].State == OrderStateType.Fail)
                 {
                     Position pos = tab.PositionsLast;
                     decimal price = bestDepth;
@@ -3643,8 +4267,8 @@ namespace OsEngine.Robots
                         tab.SellAtLimitToPosition(pos, price, volume);
                         SetComissionOpen(tab, _shortСomissionMaker);
                         _secondCancelOrder = false;
-                    }                    
-                }                
+                    }
+                }
             }
         }
 
@@ -3660,7 +4284,7 @@ namespace OsEngine.Robots
             if (_secondTypeStepOrder == GetDescription(TypeStepOrder.Percent))
             {
                 setDiffPrice = _secondStepOrder / 100 * _secondBestAsk;
-            }            
+            }
 
             if (tab.Equals(_firstTab))
             {
@@ -3675,12 +4299,12 @@ namespace OsEngine.Robots
                 }
             }
 
-            Order order = tab.PositionsLast.OpenOrders.Last();
+            Order order = tab.PositionsLast.OpenOrders[^1];
 
             decimal diffPrice = Math.Abs(bestDepth - order.Price);
 
             if (diffPrice >= setDiffPrice)
-            {               
+            {
                 if (order.NumberMarket == "")
                 {
                     return;
@@ -3697,9 +4321,9 @@ namespace OsEngine.Robots
                             tab.CloseOrder(order);
                             _firstCancelOrder = true;
                             return;
-                        }                            
+                        }
                     }
-                    else if(side == Side.Sell)
+                    else if (side == Side.Sell)
                     {
                         if (!_secondCancelOrder)
                         {
@@ -3710,13 +4334,13 @@ namespace OsEngine.Robots
                             return;
                         }
                     }
-                }                         
+                }
 
-                if (order.State == OrderStateType.Cancel)
+                if (order.State == OrderStateType.Cancel || order.State == OrderStateType.Fail)
                 {
                     decimal volume = GetVolumeOpen(side);
 
-                    SendNewLogMessage("Отправляем открывающий ордер на котировании " + side + ", price = " + bestDepth + ", volume = " + volume + 
+                    SendNewLogMessage("Отправляем открывающий ордер на котировании " + side + ", price = " + bestDepth + ", volume = " + volume +
                         " (vol = " + order.Volume + ", volEx = " + order.VolumeExecute + ")", Logging.LogMessageType.User);
 
                     if (side == Side.Buy)
@@ -3732,7 +4356,7 @@ namespace OsEngine.Robots
                         _secondCancelOrder = false;
                     }
                 }
-                
+
                 if (order.State == OrderStateType.Done)
                 {
                     if (side == Side.Buy)
@@ -3753,7 +4377,7 @@ namespace OsEngine.Robots
             {
                 if (_firstTab.PositionsOpenAll[0].OpenVolume * _firstTab.Security.Lot >= _firstLimitVolume &&
                 _secondTab.PositionsOpenAll[0].OpenVolume * _secondTab.Security.Lot >= _secondLimitVolume)
-                {                    
+                {
                     return false;
                 }
             }
@@ -3824,11 +4448,11 @@ namespace OsEngine.Robots
                                 SetComissionOpen(_secondTab, _shortСomissionTaker);
 
                                 return;
-                            }                            
+                            }
                         }
                     }
                 }
-                
+
                 OpenOrderChangeDepth(_firstTab);
 
                 if (_firstTab.PositionsLast.OpenVolume * _firstTab.Security.Lot < _secondTab.PositionsLast.OpenVolume * _secondTab.Security.Lot)
@@ -3855,11 +4479,11 @@ namespace OsEngine.Robots
                                 SetComissionOpen(_firstTab, _longСomissionTaker);
 
                                 return;
-                            }                            
+                            }
                         }
                     }
                 }
-                
+
                 OpenOrderChangeDepth(_secondTab);
             }
             else
@@ -3884,6 +4508,132 @@ namespace OsEngine.Robots
                 _secondCancelOrder = false;
             }
         }
+
+        #endregion
+
+        #region Save/Load Settings
+
+        private void SetSettings(Dictionary<string, dynamic> settings)
+        {
+            try
+            {
+                if (settings == null || settings.Count == 0) return;
+
+                if (MainWindow.GetDispatcher.CheckAccess() == false)
+                {
+                    MainWindow.GetDispatcher.Invoke(new Action<Dictionary<string, dynamic>>(SetSettings), settings);
+                    return;
+                }
+
+                _gridSettingsPosition.Rows[0].Cells[1].Value = _listExercise.Contains(settings["exercise"]) ? _listExercise[_listExercise.IndexOf(settings["exercise"])] : _listExercise[0];
+                _gridSettingsPosition.Rows[5].Cells[1].Value = _listTypelimit.Contains(settings["firstTypeLimit"]) ? _listTypelimit[_listTypelimit.IndexOf(settings["firstTypeLimit"])] : _listTypelimit[0];
+                _gridSettingsPosition.Rows[5].Cells[2].Value = _listTypelimit.Contains(settings["secondTypeLimit"]) ? _listTypelimit[_listTypelimit.IndexOf(settings["secondTypeLimit"])] : _listTypelimit[0];
+                _gridSettingsPosition.Rows[6].Cells[1].Value = settings["firstLimitVolumeTable"];
+                _gridSettingsPosition.Rows[6].Cells[2].Value = settings["secondLimitVolumeTable"];
+                _gridSettingsPosition.Rows[7].Cells[1].Value = _listScheme.Contains(settings["schemeOrderSettings"]) ? _listScheme[_listScheme.IndexOf(settings["schemeOrderSettings"])] : _listScheme[0];
+                _gridSettingsPosition.Rows[8].Cells[1].Value = _listTypeStepOrder.Contains(settings["firstTypeStepOrder"]) ? _listTypeStepOrder[_listTypeStepOrder.IndexOf(settings["firstTypeStepOrder"])] : _listTypeStepOrder[0];
+                _gridSettingsPosition.Rows[8].Cells[2].Value = _listTypeStepOrder.Contains(settings["secondTypeStepOrder"]) ? _listTypeStepOrder[_listTypeStepOrder.IndexOf(settings["secondTypeStepOrder"])] : _listTypeStepOrder[0];
+                _gridSettingsPosition.Rows[9].Cells[1].Value = settings["firstStepOrder"];
+                _gridSettingsPosition.Rows[9].Cells[2].Value = settings["secondStepOrder"];
+                _gridSettingsPosition.Rows[10].Cells[1].Value = settings["maxVolume"];
+                _gridSettingsPosition.Rows[11].Cells[1].Value = _listTypeSpread.Contains(settings["typeSpread"]) ? _listTypeSpread[_listTypeSpread.IndexOf(settings["typeSpread"])] : _listTypeSpread[0];
+                _gridSettingsPosition.Rows[12].Cells[1].Value = settings["setSpread"];
+                _gridSettingsPosition.Rows[12].Cells[2].Value = _listCompareSpread.Contains(settings["compareSpread"]) ? _listCompareSpread[_listCompareSpread.IndexOf(settings["compareSpread"])] : _listCompareSpread[0];
+                _gridSettingsPosition.Rows[13].Cells[1].Value = settings["longСomissionTaker"];
+                _gridSettingsPosition.Rows[13].Cells[2].Value = settings["shortСomissionTaker"];
+                _gridSettingsPosition.Rows[14].Cells[1].Value = settings["longСomissionMaker"];
+                _gridSettingsPosition.Rows[14].Cells[2].Value = settings["shortСomissionMaker"];
+                _gridSettingsPosition.Rows[17].Cells[1].Value = settings["longCountPriceStep"];
+                _gridSettingsPosition.Rows[17].Cells[2].Value = settings["shortCountPriceStep"];
+
+                _firstSecurityName = settings["firstSecurityName"];
+                _secondSecurityName = settings["secondSecurityName"];
+                _exercise = settings["exercise"];
+                _firstTypeLimit = settings["firstTypeLimit"];
+                _secondTypeLimit = settings["secondTypeLimit"];
+                _firstLimitVolumeTable = Convert.ToDecimal(settings["firstLimitVolumeTable"]);
+                _secondLimitVolumeTable = Convert.ToDecimal(settings["secondLimitVolumeTable"]);
+                _schemeOrderSettings = settings["schemeOrderSettings"];
+                _firstTypeStepOrder = settings["firstTypeStepOrder"];
+                _secondTypeStepOrder = settings["secondTypeStepOrder"];
+                _firstStepOrder = Convert.ToDecimal(settings["firstStepOrder"]);
+                _secondStepOrder = Convert.ToDecimal(settings["secondStepOrder"]);
+                _maxVolume = Convert.ToDecimal(settings["maxVolume"]);
+                _typeSpread = settings["typeSpread"];
+                _setSpread = Convert.ToDecimal(settings["setSpread"]);
+                _compareSpread = settings["compareSpread"];
+                _longСomissionTaker = Convert.ToDecimal(settings["longСomissionTaker"]);
+                _shortСomissionTaker = Convert.ToDecimal(settings["shortСomissionTaker"]);
+                _longСomissionMaker = Convert.ToDecimal(settings["longСomissionMaker"]);
+                _shortСomissionMaker = Convert.ToDecimal(settings["shortСomissionMaker"]);
+                _longCountPriceStep = Convert.ToInt32(settings["longCountPriceStep"]);
+                _shortCountPriceStep = Convert.ToInt32(settings["shortCountPriceStep"]);
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void SaveSettings()
+        {
+            try
+            {              
+                Dictionary<string, dynamic> settings = new();
+
+                settings["firstSecurityName"] = _firstSecurityName;
+                settings["secondSecurityName"] = _secondSecurityName;
+                settings["exercise"] = _exercise;
+                settings["firstTypeLimit"] = _firstTypeLimit;
+                settings["secondTypeLimit"] = _secondTypeLimit;
+                settings["firstLimitVolumeTable"] = _firstLimitVolumeTable;
+                settings["secondLimitVolumeTable"] = _secondLimitVolumeTable;
+                settings["schemeOrderSettings"] = _schemeOrderSettings;
+                settings["firstTypeStepOrder"] = _firstTypeStepOrder;
+                settings["secondTypeStepOrder"] = _secondTypeStepOrder;
+                settings["firstStepOrder"] = _firstStepOrder;
+                settings["secondStepOrder"] = _secondStepOrder;
+                settings["maxVolume"] = _maxVolume;
+                settings["typeSpread"] = _typeSpread;
+                settings["setSpread"] = _setSpread;
+                settings["compareSpread"] = _compareSpread;
+                settings["longСomissionTaker"] = _longСomissionTaker;
+                settings["shortСomissionTaker"] = _shortСomissionTaker;
+                settings["longСomissionMaker"] = _longСomissionMaker;
+                settings["shortСomissionMaker"] = _shortСomissionMaker;
+                settings["longCountPriceStep"] = _longCountPriceStep;
+                settings["shortCountPriceStep"] = _shortCountPriceStep;
+
+                if (settings == null) return;
+                if (SaveTabPage == null) return;
+
+                SaveTabPage(_tabPage.Text, settings);
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        public event Action<string, Dictionary<string, dynamic>> SaveTabPage;
+
+        #endregion       
+
+        #region Log
+
+        public void SendNewLogMessage(string message, LogMessageType type)
+        {
+            if (LogMessageEvent != null)
+            {
+                LogMessageEvent(message, type);
+            }
+            else if (type == LogMessageType.Error)
+            {
+                MessageBox.Show(message);
+            }
+        }
+
+        public event Action<string, LogMessageType> LogMessageEvent;
 
         #endregion
 
@@ -3926,7 +4676,7 @@ namespace OsEngine.Robots
             [Description("Maker(taker)/Maker(taker)")]
             MakerMaker,
             [Description("Taker/Taker")]
-            TakerTaker 
+            TakerTaker
         }
         private enum TypeSpread
         {
@@ -3970,112 +4720,9 @@ namespace OsEngine.Robots
         }
 
         #endregion
-
-        #region Save/Load
-
-        private void SaveSettings()
-        {
-            try
-            {
-                using (StreamWriter writer = new StreamWriter(@"Engine\" + NameStrategyUniq + @"TablesParam.txt", false)
-                    )
-                {                  
-                    writer.WriteLine("_exercise|" + _exercise);
-                    writer.WriteLine("_firstTypeLimit|" + _firstTypeLimit);
-                    writer.WriteLine("_secondTypeLimit|" + _secondTypeLimit);
-                    writer.WriteLine("_firstLimitVolume|" + _firstLimitVolumeTable);
-                    writer.WriteLine("_secondLimitVolume|" + _secondLimitVolumeTable);
-                    writer.WriteLine("_schemeOrderSettings|" + _schemeOrderSettings);
-                    writer.WriteLine("_firstTypeStepOrder|" + _firstTypeStepOrder);
-                    writer.WriteLine("_secondTypeStepOrder|" + _secondTypeStepOrder);
-                    writer.WriteLine("_firstStepOrder|" + _firstStepOrder);
-                    writer.WriteLine("_secondStepOrder|" + _secondStepOrder);
-                    writer.WriteLine("_maxVolume|" + _maxVolume);
-                    writer.WriteLine("_typeSpread|" + _typeSpread);
-                    writer.WriteLine("_setSpread|" + _setSpread);
-                    writer.WriteLine("_compareSpread|" + _compareSpread);
-                    writer.WriteLine("_longСomissionTaker|" + _longСomissionTaker);
-                    writer.WriteLine("_shortСomissionTaker|" + _shortСomissionTaker);
-                    writer.WriteLine("_longСomissionMaker|" + _longСomissionMaker);
-                    writer.WriteLine("_shortСomissionMaker|" + _shortСomissionMaker);
-                    writer.WriteLine("_longCountPriceStep|" + _longCountPriceStep);
-                    writer.WriteLine("_shortCountPriceStep|" + _shortCountPriceStep);
-
-                    writer.Close();
-                }
-            }
-            catch (Exception ex)
-            {
-                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
-                Thread.Sleep(5000);
-            }            
-        }
-
-        private void LoadSettings()
-        {
-            if (MainWindow.GetDispatcher.CheckAccess() == false)
-            {
-                MainWindow.GetDispatcher.Invoke(new Action(LoadSettings));
-                return;
-            }
-
-            if (!File.Exists(@"Engine\" + NameStrategyUniq + @"TablesParam.txt"))
-            {
-                return;
-            }
-
-            try
-            {
-                List<string> lines = new List<string>();
-
-                using (StreamReader reader = new StreamReader(@"Engine\" + NameStrategyUniq + @"TablesParam.txt"))
-                {
-                    for(int i = 0; i < 20;  i++) 
-                    {
-                        lines.Add(reader.ReadLine().Split('|')[1]);
-                    }                        
-
-                    reader.Close();
-                }
-
-                if (lines.Count == 0)
-                {
-                    return;
-                }
-
-                _gridSettingsPosition.Rows[0].Cells[1].Value = _listExercise.Contains(lines[0]) ? _listExercise[_listExercise.IndexOf(lines[0])] : _listExercise[0];
-                _gridSettingsPosition.Rows[5].Cells[1].Value = _listTypelimit.Contains(lines[1]) ? _listTypelimit[_listTypelimit.IndexOf(lines[1])] : _listTypelimit[0];
-                _gridSettingsPosition.Rows[5].Cells[2].Value = _listTypelimit.Contains(lines[2]) ? _listTypelimit[_listTypelimit.IndexOf(lines[2])] : _listTypelimit[0];
-                _gridSettingsPosition.Rows[6].Cells[1].Value = lines[3];
-                _gridSettingsPosition.Rows[6].Cells[2].Value = lines[4];
-                _gridSettingsPosition.Rows[7].Cells[1].Value = _listScheme.Contains(lines[5]) ? _listScheme[_listScheme.IndexOf(lines[5])] : _listScheme[0];
-                _gridSettingsPosition.Rows[8].Cells[1].Value = _listTypeStepOrder.Contains(lines[6]) ? _listTypeStepOrder[_listTypeStepOrder.IndexOf(lines[6])] : _listTypeStepOrder[0];
-                _firstTypeStepOrder = _gridSettingsPosition.Rows[8].Cells[1].Value.ToString();
-                _gridSettingsPosition.Rows[8].Cells[2].Value = _listTypeStepOrder.Contains(lines[7]) ? _listTypeStepOrder[_listTypeStepOrder.IndexOf(lines[7])] : _listTypeStepOrder[0];
-                _secondTypeStepOrder = _gridSettingsPosition.Rows[8].Cells[2].Value.ToString();
-                _gridSettingsPosition.Rows[9].Cells[1].Value = lines[8];
-                _gridSettingsPosition.Rows[9].Cells[2].Value = lines[9];
-                _gridSettingsPosition.Rows[10].Cells[1].Value = lines[10];
-                _gridSettingsPosition.Rows[11].Cells[1].Value = _listTypeSpread.Contains(lines[11]) ? _listTypeSpread[_listTypeSpread.IndexOf(lines[11])] : _listTypeSpread[0];
-                _gridSettingsPosition.Rows[12].Cells[1].Value = lines[12];
-                _gridSettingsPosition.Rows[12].Cells[2].Value = _listCompareSpread.Contains(lines[13]) ? _listCompareSpread[_listCompareSpread.IndexOf(lines[13])] : _listCompareSpread[0];
-                _compareSpread = _gridSettingsPosition.Rows[12].Cells[2].Value.ToString();
-                _gridSettingsPosition.Rows[13].Cells[1].Value = lines[14];
-                _gridSettingsPosition.Rows[13].Cells[2].Value = lines[15];
-                _gridSettingsPosition.Rows[14].Cells[1].Value = lines[16];
-                _gridSettingsPosition.Rows[14].Cells[2].Value = lines[17];
-                _gridSettingsPosition.Rows[17].Cells[1].Value = lines[18];
-                _gridSettingsPosition.Rows[17].Cells[2].Value = lines[19];
-            }
-            catch (Exception e)
-            {
-                SendNewLogMessage(e.ToString(), Logging.LogMessageType.Error);
-                Thread.Sleep(5000);
-            }
-        }
-
-        #endregion       
     }
+
+    #endregion
 
     public class ResultPositionsNew
     {

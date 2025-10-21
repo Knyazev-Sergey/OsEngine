@@ -10,7 +10,6 @@ using System.Threading;
 using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
-using OsEngine.Market.Servers.GateIo.GateIoFutures.Entities;
 
 namespace OsEngine.Robots
 {
@@ -135,6 +134,7 @@ namespace OsEngine.Robots
                         _needCheckSendOpenOrders = false;
                         _needQuoteOrdersSecondSecurity = false;
                         _needCheckDeposit = false;
+                        _ratioTakenLastPositions = 0;
 
                         //_listOrders.Clear();
 
@@ -204,7 +204,7 @@ namespace OsEngine.Robots
             dgv.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
 
             dgv.ColumnCount = 3;
-            dgv.RowCount = 5;
+            dgv.RowCount = 6;
 
             foreach (DataGridViewColumn column in dgv.Columns)
             {
@@ -224,7 +224,8 @@ namespace OsEngine.Robots
             dgv[0, 1].Value = "Аск";
             dgv[0, 2].Value = "Кросс-курс (по Бидам | по Аскам)";
             dgv[0, 3].Value = "Объем позиции в USDT";
-            dgv[0, 4].Value = "Кросс-курс набранной позиции";
+            dgv[0, 4].Value = "Кросс-курс последней сделки";
+            dgv[0, 5].Value = "Кросс-курс набранной позиции";
 
             return dgv;
         }
@@ -285,7 +286,8 @@ namespace OsEngine.Robots
             dgv[2, 2].Value = ratioAsk;
             dgv[1, 3].Value = _volumeFirstSecurity;
             dgv[2, 3].Value = _volumeSecondSecurity;
-            dgv[1, 4].Value = _ratioTakenPositions;
+            dgv[1, 4].Value = _ratioTakenLastPositions;
+            dgv[1, 5].Value = _ratioTakenPositions;
         }
 
         #endregion
@@ -422,6 +424,7 @@ namespace OsEngine.Robots
         private List<ListOrders> _listOrders = new List<ListOrders>();
         private decimal _volumeFirstSecurity;
         private decimal _volumeSecondSecurity;
+        private decimal _ratioTakenLastPositions;
         private decimal _ratioTakenPositions;
         private MarketDepth _mdSecond;
         private double _timeUpdateDepth;
@@ -533,6 +536,7 @@ namespace OsEngine.Robots
             else
             {
                 _volumeFirstSecurity = 0;
+                _ratioTakenLastPositions = 0;
                 _ratioTakenPositions = 0;
             }
 
@@ -549,12 +553,12 @@ namespace OsEngine.Robots
         private void TradeLogic()
         {            
             CheckExecuteFirstOrders();
+            CheckStopBot();
             CheckCancelFirstOrder();
             CheckSendSecondOrders();
             CheckDelayCancelOrders();
             CheckCancelSecondOrder();                       
-            CheckExecuteSecondOrders();
-            CheckStopBot();
+            CheckExecuteSecondOrders();            
             SellFirstSecurity();
 
             if (!CheckRegime())
@@ -635,10 +639,7 @@ namespace OsEngine.Robots
             str += "\n_needCheckCancelFirstOrder: " + _needCheckCancelFirstOrder;
             str += "\n_volumeFirstSecurity: " + _volumeFirstSecurity;
             str += "\n_volumeSecondSecurity: " + _volumeSecondSecurity;
-            str += "\n_ratioTakenPositions: " + _ratioTakenPositions;
-            str += "\n_timeUpdateDepth: " + _timeUpdateDepth;
-            str += "\n_mdSecond.Time.TimeOfDay.TotalMilliseconds: " + _mdSecond?.Time.TimeOfDay.TotalMilliseconds;
-            str += "\nDateTime.UtcNow.TimeOfDay.TotalMilliseconds: " + DateTime.UtcNow.TimeOfDay.TotalMilliseconds;
+            str += "\n_ratioTakenPositions: " + _ratioTakenLastPositions;            
 
             SendNewLogMessage(str, _logging);
         }
@@ -822,17 +823,19 @@ namespace OsEngine.Robots
                 return;
             }
 
-            if (_ratioTakenPositions > _setRatioForStop)
+            if (_ratioTakenLastPositions > _setRatioForStop)
             {
                 decimal firstPrice = _tab1.PositionOpenShort[0].EntryPrice;
                 decimal secondPrice = _tab2.PositionOpenLong[0].EntryPrice;
 
                 SendNewLogMessage($"Ср. цена ордера первого инструмента = {firstPrice}, Ср. цена ордера второго инструмента = {secondPrice}, Соотношение активов = {Math.Round(secondPrice/firstPrice, 6)}", _logging);
-                SendNewLogMessage($"Соотношение активов ({_ratioTakenPositions}) превышает установленное значение ({_setRatioForStop.ValueDecimal}). Останавливаем робота.", _logging);
+                SendNewLogMessage($"Соотношение активов ({_ratioTakenLastPositions}) превышает установленное значение ({_setRatioForStop.ValueDecimal}). Останавливаем робота.", _logging);
                 _regime = Regime.Shutdown;
                 return;
             }
         }
+
+        private bool _sendMessage = false;
 
         private void BuyCounterOrders()
         {
@@ -891,10 +894,8 @@ namespace OsEngine.Robots
                 return;
             }
 
-            decimal summOrders = (decimal)_tab2.MarketDepth.Asks[0].Ask * _secondAsk;
+            decimal summOrders = (decimal)_tab2.MarketDepth.Asks[0].Ask * (decimal)_tab2.MarketDepth.Asks[0].Price;
             decimal volume = 0;
-
-            
 
             _listOrders = new List<ListOrders>();
 
@@ -906,13 +907,12 @@ namespace OsEngine.Robots
                 {                   
                     return;
                 }
-
-                
+                                
                 SendNewLogMessage($"Лучшая цена Аск: {_secondAsk}, объем Аск: {_tab2.MarketDepth.Asks[0].Ask}", _logging);
-                SendNewLogMessage($"Депозита хватает на весь Аск, покупаем {volume} лотов, по цене {_secondAsk}", _logging);               
+                SendNewLogMessage($"Депозита хватает на весь Аск, покупаем {volume} лотов, по цене {_secondAsk}, сумма оредра = {Math.Round(volume * _secondAsk, 2)}", _logging);               
             }
             else
-            {
+            {                
                 if (_posToken < 2)
                 {
                     if (!_setTradeOneSecurity)
@@ -920,7 +920,7 @@ namespace OsEngine.Robots
                         if (!_needCheckDeposit)
                         {
                             _needCheckDeposit = true;
-                            SendNewLogMessage($"Не хватает {_tab1.Security.Name} ({_posToken}USDT) на покупку встречных заявок.", _logging);
+                            SendNewLogMessage($"Не хватает {_tab1.Security.Name} ({_posToken}USDT) чтобы приступить к покупке встречных заявок. (нужно эквивалент {summOrders}USDT", _logging);
                             //_regime = Regime.Shutdown;
                         }
                         
@@ -933,7 +933,7 @@ namespace OsEngine.Robots
                     if (!_needCheckDeposit)
                     {
                         _needCheckDeposit = true;
-                        SendNewLogMessage($"Не хватает USDT ({_posToken}USDT) на покупку встречных заявок.", _logging);
+                        SendNewLogMessage($"Не хватает USDT (нужно {summOrders}USDT, а на депозите{_posUsdt}USDT) на покупку встречных заявок.", _logging);
                         //_regime = Regime.Shutdown;
                     }
                     return;
@@ -962,7 +962,7 @@ namespace OsEngine.Robots
                     if (!_needCheckDeposit)
                     {
                         _needCheckDeposit = true;
-                        SendNewLogMessage($"Депозита не хватает на покупку встречных заявок. Выключаем робота", _logging);
+                        SendNewLogMessage($"Депозита не хватает на покупку встречных заявок.", _logging);
                         //_regime = Regime.Shutdown;
                     }
                     return;
@@ -971,6 +971,18 @@ namespace OsEngine.Robots
                 SendNewLogMessage($"Лучшая цена Аск: {_secondAsk}, объем Аск: {_tab2.MarketDepth.Asks[0].Ask}", _logging);
                 SendNewLogMessage($"Депозита не хватает на весь Аск, покупаем на имеющийся депозит {volume} лотов, по цене {_secondAsk}, сумма ордера: {Math.Round(volume * _secondAsk, 2)}", _logging);               
             }
+
+            if (volume * _secondAsk < 2)
+            {
+                if (!_sendMessage)
+                {
+                    _sendMessage = true;
+                    SendNewLogMessage($"Объем в аске ({summOrders}) меньше чем 2 USDT", _logging);
+                }
+                return;
+            }
+
+            _sendMessage = false;
 
             SendNewLogMessage($"FirstBid: {_firstBid}, SecondAsk: {_secondAsk}, Ratio: {ratio}, SetRatio: {_setRatioForCounterOrder.ValueDecimal}", _logging);
             SendNewLogMessage($"Забираем встречные ордера с Аска", _logging);
@@ -1040,7 +1052,7 @@ namespace OsEngine.Robots
 
                                         _listOrders[i].VolumeExecute = openOrders[j].VolumeExecute;
 
-                                        SendNewLogMessage($"Частично исполнился ордер: {openOrders[j].NumberUser}, Price: {openOrders[j].Price}, VolEx: {openOrders[j].VolumeExecute}", _logging);
+                                        SendNewLogMessage($"Частично исполнился ордер: {openOrders[j].NumberUser}, Price: {openOrders[j].Price}, VolEx: {openOrders[j].VolumeExecute}", _logging);                                                                             
                                     }
                                 }
                             }
@@ -1062,6 +1074,7 @@ namespace OsEngine.Robots
                                         }
 
                                         SendNewLogMessage($"Ордер исполнился: {openOrders[j].NumberUser}, Price: {openOrders[j].Price}, VolEx: {openOrders[j].VolumeExecute}", _logging);
+                                    
                                     }
                                 }
                             }
@@ -1074,7 +1087,7 @@ namespace OsEngine.Robots
                 SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
             }
         }
-
+                
         private void CancelAllOpenOrders()
         {
             SendNewLogMessage("Отменяем все открытые ордера", _logging);
@@ -1103,8 +1116,10 @@ namespace OsEngine.Robots
 
             _mdSecond = _tab2.MarketDepth;
 
+            if ((decimal)_mdSecond.Bids[0].Price < _priceZeroLevel) return;
+
             if (_timeUpdateDepth > _mdSecond.Time.TimeOfDay.TotalMilliseconds &&
-                _timeUpdateDepth + 2000 > DateTime.UtcNow.TimeOfDay.TotalMilliseconds) return;
+                _timeUpdateDepth + 5000 > DateTime.UtcNow.TimeOfDay.TotalMilliseconds) return;
 
             if ((decimal)_mdSecond.Bids[^1].Price >= _priceZeroLevel)
             {
@@ -1129,8 +1144,6 @@ namespace OsEngine.Robots
                         {
                             if ((decimal)bid.Price > _priceZeroLevel)
                             {
-                                //PrintMassive();
-
                                 SendNewLogMessage($"Цена из массива ({orderByPrice.Price}) равна цене в уровне бида ({bid.Price})", _logging);
                                 SendNewLogMessage($"Изменился стакан, нулевой ордер можно переставить выше. MD: Price = {Math.Round(bid.Price, _tab2.Security.Decimals)}, Vol = {bid.Bid}, zeroPrice = {_priceZeroLevel}", _logging);
                                 PrintMD();
@@ -1140,17 +1153,15 @@ namespace OsEngine.Robots
 
                             if ((decimal)bid.Price < _priceZeroLevel)
                             {
-                                if (i > 0 && (decimal)_mdSecond.Bids[i - 1].Price != _priceZeroLevel)
+                                if ((decimal)bid.Price < _priceZeroLevel - _tab2.Security.PriceStep)
                                 {
-                                    //PrintMassive();
-
                                     SendNewLogMessage($"Цена из массива ({orderByPrice.Price}) равна цене в уровне бида ({bid.Price})", _logging);
                                     SendNewLogMessage($"Изменился стакан, нулевой ордер можно переставить ниже. MD: Price = {Math.Round(bid.Price, _tab2.Security.Decimals)}, Vol = {bid.Bid}, zeroPrice = {_priceZeroLevel}", _logging);
                                     PrintMD();
                                     CancelAllOpenOrders();
                                     return;
                                 }
-                                else if (i > 0 && (decimal)_mdSecond.Bids[i - 1].Price == _priceZeroLevel)
+                                else if ((decimal)bid.Price == _priceZeroLevel - _tab2.Security.PriceStep)
                                 {
                                     return;
                                 }
@@ -1161,8 +1172,6 @@ namespace OsEngine.Robots
                     {
                         if ((decimal)bid.Price > _priceZeroLevel)
                         {
-                            //PrintMassive();
-
                             SendNewLogMessage($"Изменился стакан, нулевой ордер можно переставить выше. MD: Price = {Math.Round(bid.Price, _tab2.Security.Decimals)}, Vol = {bid.Bid}, zeroPrice = {_priceZeroLevel}", _logging);
                             PrintMD();
                             CancelAllOpenOrders();
@@ -1171,22 +1180,19 @@ namespace OsEngine.Robots
 
                         if ((decimal)bid.Price < _priceZeroLevel)
                         {
-                            if (i > 0 && (decimal)_mdSecond.Bids[i - 1].Price != _priceZeroLevel)
+                            if ((decimal)bid.Price < _priceZeroLevel - _tab2.Security.PriceStep)
                             {
-                                //PrintMassive();
-
                                 SendNewLogMessage($"Изменился стакан, нулевой ордер можно переставить ниже. MD: Price = {Math.Round(bid.Price, _tab2.Security.Decimals)}, Vol = {bid.Bid}, zeroPrice = {_priceZeroLevel}", _logging);
                                 PrintMD();
                                 CancelAllOpenOrders();
                                 return;
                             }
-                            else if (i > 0 && (decimal)_mdSecond.Bids[i - 1].Price == _priceZeroLevel)
+                            else if ((decimal)bid.Price == _priceZeroLevel - _tab2.Security.PriceStep)
                             {
                                 return;
                             }
                         }
-                    }
-                    
+                    }                    
                 }                       
             }
         }
@@ -1213,6 +1219,8 @@ namespace OsEngine.Robots
             {
                 str += $"\nPrice: {Math.Round(bids[i].Price, _tab2.Security.Decimals)}, Vol: {bids[i].Bid}";
             }
+
+            str += $"\n_timeUpdateDepth = {_timeUpdateDepth}, время обновления стакана = {_mdSecond.Time.TimeOfDay.TotalMilliseconds}, текущее время = {DateTime.UtcNow.TimeOfDay.TotalMilliseconds}";
             SendNewLogMessage(str, _logging);
         }
 
@@ -1351,6 +1359,13 @@ namespace OsEngine.Robots
                 decimal price = Math.Round(_listTableGrid[i].DeviationPrice + bestPrice, _tab2.Security.Decimals);
                 decimal volume = _listTableGrid[i].Volume;
 
+                if (price * volume < 2)
+                {
+                    SendNewLogMessage($"Объем позиции меньше 2 USDT, измените объемы. Робот будет остановлен", _logging);
+                    _regime = Regime.Shutdown;
+                    return;
+                }
+
                 if (price >= _secondAsk)
                 {
                     continue;
@@ -1397,6 +1412,13 @@ namespace OsEngine.Robots
 
                     decimal volume = _listTableGrid[i].Volume;
 
+                    if (price * volume < 2)
+                    {
+                        SendNewLogMessage($"Объем позиции меньше 2 USDT, измените объемы. Робот будет остановлен", _logging);
+                        _regime = Regime.Shutdown;
+                        return;
+                    }
+
                     _listOrders.Add(new ListOrders { Price = price, Volume = volume, DeviationPrice = _listTableGrid[i].DeviationPrice });
                 }
             }
@@ -1406,6 +1428,7 @@ namespace OsEngine.Robots
         {
             decimal summOrders = 0;
             _maxPriceInListOrders = 0;
+            _priceZeroLevel = 0;
 
             for (int i = 0; i < _listOrders.Count; i++)
             {
@@ -1450,8 +1473,7 @@ namespace OsEngine.Robots
                     {
                         if (positions[i].SecurityNameCode == _tab1.Security.Name.Split("USDT")[0])
                         {
-                            _posToken = Math.Round(positions[i].ValueCurrent * _tab1.PriceBestBid - 2);
-                            
+                            _posToken = Math.Round(positions[i].ValueCurrent * _tab1.PriceBestBid - 2);                            
                         }
                     }
                 }
@@ -1519,20 +1541,20 @@ namespace OsEngine.Robots
 
             if (_tab2.PositionOpenLong.Count != 0)
             {
-                volumeSecond = _tab2.PositionOpenLong[^1].MaxVolume;
-                priceSecond = _tab2.PositionOpenLong[^1].EntryPrice;
+                volumeSecond = _tab2.PositionOpenLong[0].MaxVolume;
+                priceSecond = _tab2.PositionOpenLong[0].EntryPrice;
                 summSecond = Math.Round(volumeSecond * priceSecond);
             }
 
             if (_tab1.PositionOpenShort.Count != 0)
             {
-                volumeFirst = _tab1.PositionOpenShort[^1].MaxVolume;
-                priceFirst = _tab1.PositionOpenShort[^1].EntryPrice;
+                volumeFirst = _tab1.PositionOpenShort[0].MaxVolume;
+                priceFirst = _tab1.PositionOpenShort[0].EntryPrice;
                 summFirst = Math.Round(volumeFirst * priceFirst);
             }
             
             if (summFirst < summSecond &&
-                summSecond - summFirst > 2)
+                summSecond - summFirst > 1.9m)
             {
                 decimal volume = Math.Round((volumeSecond * priceSecond - volumeFirst * priceFirst) / _firstBid, _tab1.Security.DecimalsVolume, MidpointRounding.ToZero);
                 decimal price = Math.Round(_firstBid - _tab1.Security.PriceStep * 100, _tab1.Security.Decimals);
@@ -1558,9 +1580,9 @@ namespace OsEngine.Robots
             if (_needCheckCancelFirstOrder) return;                      
             if (_tab1.PositionOpenShort.Count == 0) return;
 
-            if (_tab1.PositionOpenShort[^1].OpenOrders?[^1].State == OrderStateType.Done ||
-                _tab1.PositionOpenShort[^1].OpenOrders?[^1].State == OrderStateType.Cancel ||
-                _tab1.PositionOpenShort[^1].OpenOrders?[^1].State == OrderStateType.Fail)
+            if (_tab1.PositionOpenShort[0].OpenOrders?[^1].State == OrderStateType.Done ||
+                _tab1.PositionOpenShort[0].OpenOrders?[^1].State == OrderStateType.Cancel ||
+                _tab1.PositionOpenShort[0].OpenOrders?[^1].State == OrderStateType.Fail)
             {
                 SendNewLogMessage("Ордер на продажу первого инструмента исполнен", _logging);
                 _needCheckSellFirstSecurity = false;
@@ -1568,20 +1590,29 @@ namespace OsEngine.Robots
                 _needDelayExecuteOrders = true;
                 _timeDelayExecuteOrder = DateTime.UtcNow;
 
+                GetRatioTakenPosition();
+
                 return;
             }
 
-            if (_tab1.PositionOpenShort[^1].OpenOrders?[^1].State == OrderStateType.Active ||
-                _tab1.PositionOpenShort[^1].OpenOrders?[^1].State == OrderStateType.Partial)
+            if (_tab1.PositionOpenShort[0].OpenOrders?[^1].State == OrderStateType.Active ||
+                _tab1.PositionOpenShort[0].OpenOrders?[^1].State == OrderStateType.Partial)
             {
-                if (_tab1.PositionOpenShort[^1].OpenOrders?[^1].Price >= _firstBid)
+                if (_tab1.PositionOpenShort[0].OpenOrders?[^1].Price >= _firstBid)
                 {
                     SendNewLogMessage("Ордер на продажу первого инструмента встал в аск, отправляем его на отмену", _logging);
-                    _tab1.CloseOrder(_tab1.PositionOpenShort[^1].OpenOrders?[^1]);
+                    _tab1.CloseOrder(_tab1.PositionOpenShort[0].OpenOrders?[^1]);
                     _needCheckCancelFirstOrder = true;
                 }
             }                      
         }
+
+        private void GetRatioTakenPosition()
+        {
+            _ratioTakenLastPositions = Math.Round(_tab2.PositionOpenLong[0].OpenOrders[^1].Price / _tab1.PositionOpenShort[0].OpenOrders[^1].Price, 6);
+            SendNewLogMessage($"Соотношение купленных и проданных ордеров = {_ratioTakenLastPositions}", _logging);
+        }
+
 
         private void CheckCancelFirstOrder()
         {
@@ -1595,7 +1626,7 @@ namespace OsEngine.Robots
                 return;
             }
 
-            if (_tab1.PositionOpenShort[^1].OpenOrders?.Count  == 0)
+            if (_tab1.PositionOpenShort[0].OpenOrders?.Count == 0)
             {
                 SendNewLogMessage("Ордер на продажу первого инструмента отменен", _logging);
                 _needCheckCancelFirstOrder = false;
@@ -1603,9 +1634,9 @@ namespace OsEngine.Robots
                 return;
             }
 
-            if (_tab1.PositionOpenShort[^1].OpenOrders[^1].State == OrderStateType.Cancel ||
-                _tab1.PositionOpenShort[^1].OpenOrders[^1].State == OrderStateType.Done ||
-                _tab1.PositionOpenShort[^1].OpenOrders[^1].State == OrderStateType.Fail)
+            if (_tab1.PositionOpenShort[0].OpenOrders[^1].State == OrderStateType.Cancel ||
+                _tab1.PositionOpenShort[0].OpenOrders[^1].State == OrderStateType.Done ||
+                _tab1.PositionOpenShort[0].OpenOrders[^1].State == OrderStateType.Fail)
             {
                 SendNewLogMessage("Ордер на продажу первого инструмента отменен", _logging);
                 _needCheckCancelFirstOrder = false;

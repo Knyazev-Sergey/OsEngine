@@ -2167,7 +2167,7 @@ namespace OsEngine.Robots
                 {
                     if (takerTab.PositionsLast.CloseOrders != null && takerTab.PositionsLast.CloseOrders.Count > 0)
                     {
-                        if (makerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Done &&
+                        if ((makerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Done || makerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Fail) &&
                             takerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Done)
                         {
                             if (makerTab.PositionsLast.OpenVolume * makerTab.Security.Lot >= takerTab.PositionsLast.OpenVolume * takerTab.Security.Lot)
@@ -2198,7 +2198,7 @@ namespace OsEngine.Robots
                     }
 
                     if (makerTab.PositionsLast.OpenVolume * makerTab.Security.Lot < takerTab.PositionsLast.OpenVolume * takerTab.Security.Lot &&
-                        makerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Done)
+                        (makerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Done || makerTab.PositionsLast.CloseOrders[^1].State == OrderStateType.Fail))
                     {
                         decimal volumeTaker = GetVolumeClose(takerTab);
 
@@ -3586,7 +3586,8 @@ namespace OsEngine.Robots
             if (tab.PositionsOpenAll.Count > 0)
             {
                 if (tab.PositionsLast.OpenOrders.Last().State == OrderStateType.Done ||
-                    tab.PositionsLast.OpenOrders.Last().State == OrderStateType.Cancel)
+                    tab.PositionsLast.OpenOrders.Last().State == OrderStateType.Cancel ||
+                    tab.PositionsLast.OpenOrders.Last().State == OrderStateType.Fail)
                 {
                     Position pos = tab.PositionsLast;
                     decimal price = bestDepth;
@@ -3674,7 +3675,7 @@ namespace OsEngine.Robots
                     }
                 }                         
 
-                if (order.State == OrderStateType.Cancel)
+                if (order.State == OrderStateType.Cancel || order.State == OrderStateType.Fail)
                 {
                     decimal volume = GetVolumeOpen(side);
 

@@ -899,6 +899,9 @@ namespace OsEngine.Robots
             }
 
             StartCycle();
+
+            CancelTpOrders();
+            _tpOrders.Clear();
         }
 
         private bool CheckParameters()
@@ -959,9 +962,8 @@ namespace OsEngine.Robots
                 }
             }
 
-            /*CancelTpOrders();
-
-            _openOrders.Clear();*/
+            CancelTpOrders();
+            _openOrders.Clear();
         }
 
         private void PushCloseAndStopButton()
