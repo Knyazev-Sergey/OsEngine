@@ -10,6 +10,7 @@ using System.Threading;
 using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
+using Microsoft.IdentityModel.Protocols.WsTrust;
 
 namespace OsEngine.Robots
 {
@@ -780,7 +781,10 @@ namespace OsEngine.Robots
             {
                 for (int j = openOrders.Count - 1; j >= countOpenOrders; j--)
                 {
-                    if (openOrders[j].State == OrderStateType.Active)
+                    if (openOrders[j].State == OrderStateType.Active ||
+                        openOrders[j].State == OrderStateType.Partial ||
+                        openOrders[j].State == OrderStateType.Fail ||
+                        openOrders[j].State == OrderStateType.None)
                     {
                         SendNewLogMessage($"Повторяем аварийную отмену ордера №{openOrders[j].NumberUser}", _logging);
                         _tab2.CloseOrder(_tab2.PositionsLast.OpenOrders[j]);
@@ -798,6 +802,7 @@ namespace OsEngine.Robots
                 _needCheckSendOpenOrders = false;
                 _needBuyCounterOrders = false;
                 _needBuySecondSecurity = true;
+                _listOrders.Clear();
 
                 DateTime utcNow = DateTime.UtcNow;
                 TimeSpan utcTimeSinceMidnight = utcNow - utcNow.Date;
@@ -841,6 +846,8 @@ namespace OsEngine.Robots
         {
             if (_setCounterOrder == "Off") return;            
             if (_needCheckSellFirstSecurity) return;
+            if (_needCancelOrders) return;
+            if (_needCheckSendOpenOrders) return;
 
             if (_needBuyCounterOrders)
             {
@@ -888,16 +895,8 @@ namespace OsEngine.Robots
                 }
             }
 
-            if (_needQuoteOrdersSecondSecurity)
-            {
-                _needCancelOrders = true;
-                return;
-            }
-
             decimal summOrders = (decimal)_tab2.MarketDepth.Asks[0].Ask * (decimal)_tab2.MarketDepth.Asks[0].Price;
             decimal volume = 0;
-
-            _listOrders = new List<ListOrders>();
 
             if (CheckDepositForOrders(summOrders))
             {
@@ -908,8 +907,8 @@ namespace OsEngine.Robots
                     return;
                 }
                                 
-                SendNewLogMessage($"Лучшая цена Аск: {_secondAsk}, объем Аск: {_tab2.MarketDepth.Asks[0].Ask}", _logging);
-                SendNewLogMessage($"Депозита хватает на весь Аск, покупаем {volume} лотов, по цене {_secondAsk}, сумма оредра = {Math.Round(volume * _secondAsk, 2)}", _logging);               
+                //SendNewLogMessage($"Лучшая цена Аск: {_secondAsk}, объем Аск: {_tab2.MarketDepth.Asks[0].Ask}", _logging);
+                //SendNewLogMessage($"Депозита хватает на весь Аск, покупаем {volume} лотов, по цене {_secondAsk}, сумма ордера = {Math.Round(volume * _secondAsk, 2)}", _logging);               
             }
             else
             {                
@@ -920,7 +919,7 @@ namespace OsEngine.Robots
                         if (!_needCheckDeposit)
                         {
                             _needCheckDeposit = true;
-                            SendNewLogMessage($"Не хватает {_tab1.Security.Name} ({_posToken}USDT) чтобы приступить к покупке встречных заявок. (нужно эквивалент {summOrders}USDT", _logging);
+                            SendNewLogMessage($"Не хватает {_tab1.Security.Name} ({_posToken}USDT) чтобы приступить к покупке встречных заявок. (нужно эквивалент {summOrders}USDT)", _logging);
                             //_regime = Regime.Shutdown;
                         }
                         
@@ -968,8 +967,7 @@ namespace OsEngine.Robots
                     return;
                 }
 
-                SendNewLogMessage($"Лучшая цена Аск: {_secondAsk}, объем Аск: {_tab2.MarketDepth.Asks[0].Ask}", _logging);
-                SendNewLogMessage($"Депозита не хватает на весь Аск, покупаем на имеющийся депозит {volume} лотов, по цене {_secondAsk}, сумма ордера: {Math.Round(volume * _secondAsk, 2)}", _logging);               
+                
             }
 
             if (volume * _secondAsk < 2)
@@ -984,13 +982,24 @@ namespace OsEngine.Robots
 
             _sendMessage = false;
 
+            if (_listOrders.Count > 0)
+            {
+                SendNewLogMessage($"Нужно забрать встречный ордер, но есть открытые ордера, нужно их отменить", _logging);
+                PrintMassive();
+                _needCancelOrders = true;
+                return;
+            }
+
+            SendNewLogMessage($"Лучшая цена Аск: {_secondAsk}, объем Аск: {_tab2.MarketDepth.Asks[0].Ask}", _logging);
+            SendNewLogMessage($"Покупаем с Аска {volume} лотов, по цене {_secondAsk}, сумма ордера: {Math.Round(volume * _secondAsk, 2)}", _logging);
+
             SendNewLogMessage($"FirstBid: {_firstBid}, SecondAsk: {_secondAsk}, Ratio: {ratio}, SetRatio: {_setRatioForCounterOrder.ValueDecimal}", _logging);
-            SendNewLogMessage($"Забираем встречные ордера с Аска", _logging);
             SendNewLogMessage($"Deposit USDT = {_posUsdt}", _logging);
             SendNewLogMessage($"Deposit {_tab1.Security.Name} в пересчете на USDT: {_posToken}", _logging);
 
             _needCheckDeposit = false;
             SendOrderBuy(_secondAsk, volume);
+            _listOrders = new List<ListOrders>();
             _listOrders.Add(new ListOrders { Price = _secondAsk, Volume = volume, NumberUser = _tab2.PositionsLast.OpenOrders[^1].NumberUser.ToString() });
 
             _needBuyCounterOrders = true;

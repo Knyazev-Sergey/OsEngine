@@ -65,11 +65,7 @@ namespace OsEngine.Robots
         {
             TabCreate(BotTabType.Screener);
             _screener0 = TabsScreener[0];
-            /*_screener0.ServerType = ServerType.Bybit;
-            _screener0.PortfolioName = "BybitUNIFIED";
-            _screener0.TimeFrame = TimeFrame.Min30;
-            _screener0.NeedToReloadTabs = true;*/
-
+           
             TabCreate(BotTabType.Screener);
             _screener1 = TabsScreener[1];
             TabCreate(BotTabType.Screener);
@@ -154,8 +150,8 @@ namespace OsEngine.Robots
             Thread threadSpotTable = new Thread(ThreadRefreshTableSpot) { IsBackground = true };
             threadSpotTable.Start();
 
-            Thread threadTotalTable = new Thread(ThreadRefreshTableTotal) { IsBackground = true };
-            threadTotalTable.Start();
+            /*Thread threadTotalTable = new Thread(ThreadRefreshTableTotal) { IsBackground = true };
+            threadTotalTable.Start();*/
         }
 
         #endregion
@@ -230,15 +226,16 @@ namespace OsEngine.Robots
                         continue;
                     }
 
-                    if (TabsScreener[i].ServerType == ServerType.Binance ||
+                    /*if (TabsScreener[i].ServerType == ServerType.Binance ||
                         TabsScreener[i].ServerType == ServerType.BitGetSpot ||
                         TabsScreener[i].ServerType == ServerType.HTXSpot ||
                         TabsScreener[i].ServerType == ServerType.BingXSpot ||
                         TabsScreener[i].ServerType == ServerType.KuCoinSpot ||
-                        TabsScreener[i].ServerType == ServerType.GateIoSpot)
+                        TabsScreener[i].ServerType == ServerType.GateIoSpot ||
+                        TabsScreener[i].ServerType == ServerType.MexcSpot)
                     {
                         continue;
-                    }
+                    }*/
 
                     if (!_securityFunding[token].Item.ContainsKey(exchange))
                     {
@@ -251,8 +248,19 @@ namespace OsEngine.Robots
                     if (_securityFunding[token].Item[exchange].Contains('|'))
                     {
                         securityNameFutures = RemoveSecuritySymbol(_securityFunding[token].Item[exchange].Split('|')[1]);
+                        lotFutures = GetLot(securityNameFutures);
 
-                        lotFutures = GetLot(_securityFunding[token].Item[exchange].Split('|')[1]);
+                        if (TabsScreener[i].ServerType == ServerType.Binance ||
+                        TabsScreener[i].ServerType == ServerType.BitGetSpot ||
+                        TabsScreener[i].ServerType == ServerType.HTXSpot ||
+                        TabsScreener[i].ServerType == ServerType.BingXSpot ||
+                        TabsScreener[i].ServerType == ServerType.KuCoinSpot ||
+                        TabsScreener[i].ServerType == ServerType.GateIoSpot ||
+                        TabsScreener[i].ServerType == ServerType.MexcSpot)
+                        {
+                            securityNameFutures = RemoveSecuritySymbol(_securityFunding[token].Item[exchange].Split('|')[0]);
+                            lotFutures = GetLot(securityNameFutures);
+                        }
                     }
 
                     if (!_fundingData.ContainsKey(token))
@@ -3318,6 +3326,13 @@ namespace OsEngine.Robots
                 return settings;
             }
 
+            if (serverType == ServerType.MexcSpot)
+            {
+                settings.SecurityClass = TypeSecurityClass.Spot;
+                settings.SubString = "USDT";
+                return settings;
+            }
+
             return settings;
         }
 
@@ -4064,7 +4079,8 @@ namespace OsEngine.Robots
             ServerType.BingXSpot.ToString(),
             ServerType.GateIoSpot.ToString(),
             ServerType.HTXSpot.ToString(),
-            ServerType.KuCoinSpot.ToString()
+            ServerType.KuCoinSpot.ToString(),
+            ServerType.MexcSpot.ToString()
         }; 
     }
 

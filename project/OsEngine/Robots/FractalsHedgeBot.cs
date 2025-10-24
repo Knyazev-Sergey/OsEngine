@@ -14,6 +14,7 @@ using OsEngine.Charts.CandleChart.Indicators;
 using OsEngine.Charts.CandleChart.Elements;
 using System.Drawing;
 using System.IO;
+using System.Drawing.Printing;
 
 namespace OsEngine.Robots
 {
@@ -846,6 +847,7 @@ namespace OsEngine.Robots
 
             SendNewLogMessage("--------------------------------------------------------------------------------------------------------------------------------", _logType);
             SendNewLogMessage("Включен режим Запуск", _logType);
+            PrintSettings();
 
             if (_tab.PositionOpenLong.Count > 0 && _tab.PositionOpenShort.Count > 0)
             {
@@ -902,6 +904,24 @@ namespace OsEngine.Robots
 
             CancelTpOrders();
             _tpOrders.Clear();
+        }
+
+        private void PrintSettings()
+        {
+            string str = "";
+            str += $"_typeVolume = {_typeVolume.ValueString}\n";
+            str += $"_volume = {_volume.ValueDecimal}\n";
+            str += $"_leverage = {_leverage.ValueDecimal}\n";
+            str += $"_typeMinVolume = {_typeMinVolume.ValueString}\n";
+            str += $"_minVolumeData = {_minVolumeData.ValueDecimal}\n";
+            str += $"_positionIncreaseFactor = {_positionIncreaseFactor.ValueDecimal}\n";
+            str += $"_indentIndicator = {_indentIndicator.ValueString}\n";
+            str += $"_indentationSize = {_indentationSize.ValueDecimal}\n";
+            str += $"_onTakeProfit = {_onTakeProfit.CheckState}\n";
+            str += $"_setTakeProfit = {_setTakeProfit.ValueDecimal}\n";
+            str += $"Security = {_tab.Security.Name}, TimeFrame {_tab.TimeFrame}\n";
+
+            SendNewLogMessage(str, _logType);
         }
 
         private bool CheckParameters()
@@ -1080,6 +1100,11 @@ namespace OsEngine.Robots
                 return;
             }
 
+            if (_upFractal < _downFractal)
+            {
+                return;
+            }
+
             if (_tab.PositionOpenerToStop.Count == 0)
             {
                 //Thread.Sleep(2000); // бывает так, что стоп ордер сработал, но данные с биржи по нему еще не пришли
@@ -1089,11 +1114,6 @@ namespace OsEngine.Robots
                 // запускаем новый цикл, когда нет открытых позиций и открытых стоп ордеров
                 if (_tab.PositionOpenLong.Count == 0 && _tab.PositionOpenShort.Count == 0)
                 {
-                    if (_upFractal < _downFractal)
-                    {
-                        return;
-                    }
-
                     if (_lastPrice < _downFractal || _lastPrice > _upFractal)
                     {
                         return;
@@ -1106,11 +1126,6 @@ namespace OsEngine.Robots
                 // отправляем ордер на покупку, если исполнился шорт, а лонга нет
                 if (_tab.PositionOpenLong.Count == 0 && _tab.PositionOpenShort.Count > 0)
                 {
-                    if (_upFractal < _downFractal)
-                    {
-                        return;
-                    }
-
                     bool isStopOrderActive = GetValueStopOrderActive(_tab.PositionOpenShort); // чтобы не не ставился окрывающий ордер, если есть стоп профит               
 
                     if (!isStopOrderActive)
@@ -1125,11 +1140,6 @@ namespace OsEngine.Robots
                 //отправляем ордер на продажу, если исполнился лонг, а шорта нет
                 if (_tab.PositionOpenLong.Count > 0 && _tab.PositionOpenShort.Count == 0)
                 {
-                    if (_upFractal < _downFractal)
-                    {
-                        return;
-                    }
-
                     bool isStopOrderActive = GetValueStopOrderActive(_tab.PositionOpenLong); // чтобы не не ставился окрывающий ордер, если есть стоп профит               
 
                     if (!isStopOrderActive)
