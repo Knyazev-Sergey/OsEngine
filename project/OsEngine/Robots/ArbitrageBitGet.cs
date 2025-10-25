@@ -10,7 +10,6 @@ using System.Threading;
 using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
-using Microsoft.IdentityModel.Protocols.WsTrust;
 
 namespace OsEngine.Robots
 {
