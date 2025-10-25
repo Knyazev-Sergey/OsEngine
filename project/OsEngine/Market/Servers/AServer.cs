@@ -2110,7 +2110,8 @@ namespace OsEngine.Market.Servers
                         sec.Strike = securities[i].Strike;
                         sec.State = securities[i].State;
                         sec.Expiration = securities[i].Expiration;
-                        sec.Go = securities[i].Go;
+                        sec.MarginBuy = securities[i].MarginBuy;
+                        sec.MarginSell = securities[i].MarginSell;
                         sec.MinTradeAmount = securities[i].MinTradeAmount;
                         sec.PriceLimitHigh = securities[i].PriceLimitHigh;
                         sec.PriceLimitLow = securities[i].PriceLimitLow;
@@ -2184,7 +2185,7 @@ namespace OsEngine.Market.Servers
                             securities[j].VolumeStep = curSaveSec.VolumeStep;
                             securities[j].PriceLimitHigh = curSaveSec.PriceLimitHigh;
                             securities[j].PriceLimitLow = curSaveSec.PriceLimitLow;
-                            securities[j].Go = curSaveSec.Go;
+                            securities[j].MarginBuy = curSaveSec.MarginBuy;
                             securities[j].Strike = curSaveSec.Strike;
 
                             break;

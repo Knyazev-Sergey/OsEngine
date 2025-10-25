@@ -43,6 +43,7 @@ using OsEngine.Market.Servers.BingX.BingXSpot;
 using OsEngine.Market.Servers.BingX.BingXFutures;
 using OsEngine.Market.Servers.Deribit;
 using OsEngine.Market.Servers.XT.XTSpot;
+using OsEngine.Market.Servers.XT.XTFutures;
 using OsEngine.Market.Servers.Pionex;
 using OsEngine.Market.Servers.Woo;
 using OsEngine.Market.Servers.MoexAlgopack;
@@ -84,6 +85,7 @@ using OsEngine.Market.Servers.BybitData;
 using OsEngine.Market.Servers.Entity;
 using OsEngine.Market.Servers.GateIoData;
 using OsEngine.Market.Servers.BitGetData;
+using OsEngine.Market.Servers.MetaTrader5;
 
 namespace OsEngine.Market
 {
@@ -294,11 +296,11 @@ namespace OsEngine.Market
 
                 serverTypes.Add(ServerType.Alor);
                 serverTypes.Add(ServerType.QuikLua);
+                serverTypes.Add(ServerType.MetaTrader5);
                 serverTypes.Add(ServerType.Plaza);
                 serverTypes.Add(ServerType.Transaq);
                 serverTypes.Add(ServerType.TInvest);
                 serverTypes.Add(ServerType.Finam);
-                serverTypes.Add(ServerType.FinamGrpc);
                 serverTypes.Add(ServerType.MoexDataServer);
                 serverTypes.Add(ServerType.MfdWeb);
                 serverTypes.Add(ServerType.MoexAlgopack);
@@ -329,6 +331,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.BingXSpot);
                 serverTypes.Add(ServerType.BingXFutures);
                 serverTypes.Add(ServerType.XTSpot);
+                serverTypes.Add(ServerType.XTFutures);
                 serverTypes.Add(ServerType.PionexSpot);
                 serverTypes.Add(ServerType.Woo);
                 serverTypes.Add(ServerType.BitMartSpot);
@@ -440,12 +443,12 @@ namespace OsEngine.Market
                 List<ServerType> serverTypes = new List<ServerType>();
 
                 serverTypes.Add(ServerType.TInvest);
-                serverTypes.Add(ServerType.XTSpot);
+                serverTypes.Add(ServerType.XTSpot); 
+                serverTypes.Add(ServerType.XTFutures);
                 serverTypes.Add(ServerType.Deribit);
                 serverTypes.Add(ServerType.KuCoinSpot);
                 serverTypes.Add(ServerType.Alor);
                 serverTypes.Add(ServerType.Finam);
-                serverTypes.Add(ServerType.FinamGrpc);
                 serverTypes.Add(ServerType.MoexDataServer);
                 serverTypes.Add(ServerType.MfdWeb);
                 serverTypes.Add(ServerType.MoexAlgopack);
@@ -675,6 +678,10 @@ namespace OsEngine.Market
                     {
                         newServer = new XTServerSpot(uniqueNum);
                     }
+                    else if (type == ServerType.XTFutures)
+                    {
+                        newServer = new XTFuturesServer(uniqueNum);
+                    }
                     else if (type == ServerType.BingXFutures)
                     {
                         newServer = new BingXServerFutures(uniqueNum);
@@ -763,6 +770,10 @@ namespace OsEngine.Market
                     {
                         newServer = new QuikLuaServer();
                     }
+                    else if (type == ServerType.MetaTrader5)
+                    {
+                        newServer = new MetaTrader5Server();
+                    }
                     else if (type == ServerType.InteractiveBrokers)
                     {
                         newServer = new InteractiveBrokersServer();
@@ -782,10 +793,6 @@ namespace OsEngine.Market
                     else if (type == ServerType.Finam)
                     {
                         newServer = new FinamServer();
-                    }
-                    else if (type == ServerType.FinamGrpc)
-                    {
-                        newServer = new FinamGrpcServer(uniqueNum);
                     }
                     else if (type == ServerType.Deribit)
                     {
@@ -931,10 +938,12 @@ namespace OsEngine.Market
 
                                 SendNewLogMessage(OsLocalization.Market.Label245 + ": " + serverCurrent.ServerNameAndPrefix, LogMessageType.System);
 
-                                return;
+                                break;
                             }
                         }
                     }
+
+                    SaveServerInstanceByType(type);
                 }
             }
             catch (Exception ex)
@@ -1429,6 +1438,10 @@ namespace OsEngine.Market
                 {
                     serverPermission = new QuikLuaServerPermission();
                 }
+                else if (type == ServerType.MetaTrader5)
+                {
+                    serverPermission = new MetaTrader5ServerPermission();
+                }
                 else if (type == ServerType.Atp)
                 {
                     serverPermission = new AtpServerPermission();
@@ -1445,9 +1458,13 @@ namespace OsEngine.Market
                 {
                     serverPermission = new MoexFixFastSpotServerPermission();
                 }
-                else if (type == ServerType.XTSpot)
+                else if (type == ServerType.XTSpot) 
                 {
                     serverPermission = new XTSpotServerPermission();
+                }
+                else if (type == ServerType.XTFutures)
+                { 
+                    serverPermission = new XTFuturesServerPermission();
                 }
                 else if (type == ServerType.Transaq)
                 {
@@ -1504,10 +1521,6 @@ namespace OsEngine.Market
                 else if (type == ServerType.Finam)
                 {
                     serverPermission = new FinamServerPermission();
-                }
-                else if (type == ServerType.FinamGrpc)
-                {
-                    serverPermission = new FinamGrpcServerPermission();
                 }
                 else if (type == ServerType.TInvest)
                 {
@@ -2116,6 +2129,12 @@ namespace OsEngine.Market
         TInvest,
 
         /// <summary>
+        /// Connecting to different forex brokers via the MT5 terminal
+        /// Подключение к разным форекс брокерам через терминал МТ5
+        /// </summary>
+        MetaTrader5,
+
+        /// <summary>
         /// cryptocurrency exchange Gate.io
         /// биржа криптовалют Gate.io
         /// </summary>
@@ -2291,7 +2310,12 @@ namespace OsEngine.Market
         /// <summary>
         /// XT Spot exchange
         /// </summary>
-        XTSpot,
+        XTSpot, 
+
+            /// <summary>
+            /// XT Futures exchange
+            /// </summary>
+        XTFutures, 
 
         /// <summary>
         /// Pionex exchange
