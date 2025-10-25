@@ -175,13 +175,13 @@ namespace OsEngine.Market.Servers
                 Task task3 = new Task(MyTradesBeepThread);
                 task3.Start();
 
-                if (ServerPermission != null
+                /*if (ServerPermission != null
                     && ServerPermission.IsSupports_CheckDataFeedLogic)
                 {
                     _checkDataFlowIsOn = true;
                     Task task4 = new Task(CheckDataFlowThread);
                     task4.Start();
-                }
+                }*/
 
                 _serverIsCreated = true;
 
