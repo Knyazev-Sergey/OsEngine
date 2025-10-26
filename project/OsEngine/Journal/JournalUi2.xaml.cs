@@ -26,6 +26,7 @@ using System.Threading;
 using OsEngine.Layout;
 using OsEngine.Market;
 using System.Windows.Media;
+using LiteDB;
 
 namespace OsEngine.Journal
 {
@@ -56,7 +57,7 @@ namespace OsEngine.Journal
 
             ComboBoxBenchmark.Items.Add("Off");
             ComboBoxBenchmark.Items.Add("SnP");
-            ComboBoxBenchmark.Items.Add("MCRTR");
+            ComboBoxBenchmark.Items.Add("MCFTR");
             ComboBoxBenchmark.Items.Add("BTC");
             ComboBoxBenchmark.SelectedItem = "Off";
 
@@ -545,7 +546,7 @@ namespace OsEngine.Journal
         private void ComboBoxBenchmark_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             try
-            {
+            {               
                 RePaint();
                 SaveSettings();
             }
@@ -1043,6 +1044,13 @@ namespace OsEngine.Journal
                 nullLine.ChartArea = "ChartAreaProfit";
                 nullLine.ShadowOffset = 0;
 
+                Series benchmark = new Series("SeriesBenchmark");
+                nullLine.ChartType = SeriesChartType.Line;
+                nullLine.YAxisType = AxisType.Secondary;
+                nullLine.LabelForeColor = Color.Green;
+                nullLine.ChartArea = "ChartAreaProfit";
+                nullLine.ShadowOffset = 0;
+
                 decimal profitSum = 0;
                 decimal profitSumLong = 0;
                 decimal profitSumShort = 0;
@@ -1171,6 +1179,16 @@ namespace OsEngine.Journal
                 _chartEquity.Series.Add(profitBar);
                 _chartEquity.Series.Add(nullLine);
 
+                if (ComboBoxBenchmark.SelectedItem.ToString() != "Off")
+                {
+                    benchmark = GetBenchmarkPoints(nullLine);
+
+                    if (benchmark != null)
+                    {
+                        _chartEquity.Series.Add(benchmark);
+                    }
+                }
+
                 if (minYval != decimal.MaxValue &&
                     maxYVal != decimal.MinValue &&
                     minYval != maxYVal)
@@ -1210,6 +1228,65 @@ namespace OsEngine.Journal
             {
                 SendNewLogMessage(error.ToString(), LogMessageType.Error);
             }
+        }
+
+        private Series GetBenchmarkPoints(Series series)
+        {
+            if (ComboBoxBenchmark.SelectedItem.ToString() == "BTC")
+            {
+                string fileName = @"Data\Set_binance\BTCUSDT\Hour1\BTCUSDT.txt";
+
+                if (!File.Exists(fileName))
+                {
+                    return null;
+                }
+
+                Dictionary<string, decimal> candleData = new();
+
+                try
+                {
+                    string line;
+
+                    using (StreamReader reader = new StreamReader(fileName))
+                    {
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            string[] parts = line.Split(',');
+
+                            if (parts.Length >= 8)
+                            {
+                                string dateStr = parts[0];
+                                string timeStr = parts[1];
+
+                                DateTime date = DateTime.ParseExact(dateStr, "yyyyMMdd", null);
+                                DateTime time = DateTime.ParseExact(timeStr, "HHmmss", null);
+                                string dateTime = (date.Date + time.TimeOfDay).ToString();
+
+                                decimal lastValue = decimal.Parse(parts[5].Replace(".", ","));
+
+                                candleData[dateTime] = lastValue;
+                            }
+                        }
+                    }
+
+                    for (int i = 0; i < series.Points.Count; i++)
+                    {
+                        if (candleData.ContainsKey(series.Points[i].AxisLabel))
+                        {
+
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+                    return null;
+                }
+
+                
+            }
+
+            return null;
         }
 
         private void PaintRectangleEqutyLines()
