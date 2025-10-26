@@ -26,7 +26,6 @@ using System.Threading;
 using OsEngine.Layout;
 using OsEngine.Market;
 using System.Windows.Media;
-using LiteDB;
 
 namespace OsEngine.Journal
 {
@@ -546,7 +545,7 @@ namespace OsEngine.Journal
         private void ComboBoxBenchmark_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             try
-            {               
+            {
                 RePaint();
                 SaveSettings();
             }
@@ -3345,6 +3344,11 @@ namespace OsEngine.Journal
                     if (string.IsNullOrEmpty(profitType) == false)
                     {
                         ComboBoxChartType.SelectedItem = profitType;
+                    }
+
+                    if(reader.EndOfStream == true)
+                    {
+                        return;
                     }
 
                     _visibleEquityLine = Convert.ToBoolean(reader.ReadLine());
