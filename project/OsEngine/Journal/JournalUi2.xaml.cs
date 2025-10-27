@@ -26,6 +26,7 @@ using System.Threading;
 using OsEngine.Layout;
 using OsEngine.Market;
 using System.Windows.Media;
+using Tinkoff.InvestApi.V1;
 
 namespace OsEngine.Journal
 {
@@ -1043,12 +1044,7 @@ namespace OsEngine.Journal
                 nullLine.ChartArea = "ChartAreaProfit";
                 nullLine.ShadowOffset = 0;
 
-                Series benchmark = new Series("SeriesBenchmark");
-                nullLine.ChartType = SeriesChartType.Line;
-                nullLine.YAxisType = AxisType.Secondary;
-                nullLine.LabelForeColor = Color.Green;
-                nullLine.ChartArea = "ChartAreaProfit";
-                nullLine.ShadowOffset = 0;
+                Series benchmark = new();
 
                 decimal profitSum = 0;
                 decimal profitSumLong = 0;
@@ -1180,7 +1176,7 @@ namespace OsEngine.Journal
 
                 if (ComboBoxBenchmark.SelectedItem.ToString() != "Off")
                 {
-                    benchmark = GetBenchmarkPoints(nullLine);
+                    benchmark = GetBenchmarkPoints(nullLine, maxYVal, minYval);
 
                     if (benchmark != null)
                     {
@@ -1229,23 +1225,22 @@ namespace OsEngine.Journal
             }
         }
 
-        private Series GetBenchmarkPoints(Series series)
+        private Series GetBenchmarkPoints(Series series, decimal maxYVal, decimal minYVal)
         {
-            if (ComboBoxBenchmark.SelectedItem.ToString() == "BTC")
+            try
             {
-                string fileName = @"Data\Set_binance\BTCUSDT\Hour1\BTCUSDT.txt";
-
-                if (!File.Exists(fileName))
+                if (ComboBoxBenchmark.SelectedItem.ToString() == "BTC")
                 {
-                    return null;
-                }
+                    string fileName = @"Data\Set_binance\BTCUSDT\Hour1\BTCUSDT.txt";
 
-                Dictionary<string, decimal> candleData = new();
+                    if (!File.Exists(fileName))
+                    {
+                        return null;
+                    }
 
-                try
-                {
+                    Dictionary<DateTime, decimal> candleData = new();
+                
                     string line;
-
                     using (StreamReader reader = new StreamReader(fileName))
                     {
                         while ((line = reader.ReadLine()) != null)
@@ -1259,7 +1254,7 @@ namespace OsEngine.Journal
 
                                 DateTime date = DateTime.ParseExact(dateStr, "yyyyMMdd", null);
                                 DateTime time = DateTime.ParseExact(timeStr, "HHmmss", null);
-                                string dateTime = (date.Date + time.TimeOfDay).ToString();
+                                DateTime dateTime = date.Date + time.TimeOfDay;
 
                                 decimal lastValue = decimal.Parse(parts[5].Replace(".", ","));
 
@@ -1268,24 +1263,95 @@ namespace OsEngine.Journal
                         }
                     }
 
+                    if (candleData == null || candleData.Count == 0) return null;
+
+                    List<decimal> data = new();
+
+                    decimal firstValue = 0;
+
                     for (int i = 0; i < series.Points.Count; i++)
                     {
-                        if (candleData.ContainsKey(series.Points[i].AxisLabel))
-                        {
+                        DateTime dateTime = DateTime.Parse(series.Points[i].AxisLabel);
+                        DateTime roundedDateTime = dateTime.Date + new TimeSpan(dateTime.Hour, 0, 0);
+                        
 
+                        if (candleData.ContainsKey(roundedDateTime))
+                        {
+                            if (ComboBoxChartType.SelectedItem.ToString() == "Absolute")
+                            {
+                                data.Add(candleData[roundedDateTime]);
+                            }
+                            else if (ComboBoxChartType.SelectedItem.ToString() == "Percent 1 contract")
+                            {
+                                if (i == 0)
+                                {
+                                    data.Add(0);
+                                    firstValue = candleData[roundedDateTime];
+                                }
+                                else
+                                {
+                                    if (firstValue == 0) continue;
+
+                                    data.Add(Math.Round((candleData[roundedDateTime] - firstValue) / firstValue * 100, 4));
+                                }
+                            }                                                     
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    SendNewLogMessage(ex.ToString(), LogMessageType.Error);
-                    return null;
+
+                return ScaleDataToChart(data, minYVal, maxYVal);                 
                 }
 
-                
+                return null;
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+                return null;
+            }            
+        }
+
+        private Series ScaleDataToChart(List<decimal> originalData, decimal chartMin, decimal chartMax)
+        {
+            if (originalData == null || originalData.Count == 0)
+                return new Series();
+
+            Series benchmark = new Series("SeriesBenchmark");
+            benchmark.ChartType = SeriesChartType.Line;
+            benchmark.YAxisType = AxisType.Secondary;
+            benchmark.Color = Color.Green;
+            benchmark.LabelForeColor = Color.Green;
+            benchmark.ChartArea = "ChartAreaProfit";
+            benchmark.ShadowOffset = 2;
+            benchmark.BorderWidth = 2;
+
+            decimal startValue = originalData[0];
+
+            decimal maxDeviation = 0;
+            for (int i = 0; i < originalData.Count; i++)
+            {
+                decimal deviation = Math.Abs(originalData[i] - startValue);
+                if (deviation > maxDeviation)
+                {
+                    maxDeviation = deviation;
+                }
             }
 
-            return null;
+            decimal availableRangePositive = Math.Abs(chartMax - 0);    
+            decimal availableRangeNegative = Math.Abs(0 - chartMin);   
+            decimal availableRange = Math.Min(availableRangePositive, availableRangeNegative);
+
+            if (maxDeviation == 0) return null;
+
+            decimal scaleFactor = availableRange / maxDeviation;
+
+            for (int i = 0; i < originalData.Count; i++)
+            {
+                decimal scaledValue = (originalData[i] - startValue) * scaleFactor;
+                benchmark.Points.AddXY(i, scaledValue);
+                benchmark.Points[^1].AxisLabel = originalData[i].ToString();
+            }
+
+            return benchmark;
         }
 
         private void PaintRectangleEqutyLines()
