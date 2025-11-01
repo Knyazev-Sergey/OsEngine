@@ -502,6 +502,12 @@ namespace OsEngine.Robots
                         continue;
                     }
 
+                    if (!_tab2.IsConnected || !_tab2.IsReadyToTrade) 
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
                     GetCurrentVolumes();
 
                     if (_regime == Regime.Off)
@@ -847,7 +853,7 @@ namespace OsEngine.Robots
             if (_needCheckSellFirstSecurity) return;
             if (_needCancelOrders) return;
             if (_needCheckSendOpenOrders) return;
-
+            
             if (_needBuyCounterOrders)
             {
                 if (_listOrders[0].Price <= (decimal)_tab2.MarketDepth.Bids[0].Price)

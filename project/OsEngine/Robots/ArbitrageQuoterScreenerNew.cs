@@ -127,7 +127,12 @@ namespace OsEngine.Robots
         private TabControl GridTabPage()
         {
             var settings = LoadSettings();
-            List<string> settingsTabs = settings.Keys.ToList();
+            List<string> settingsTabs = new();
+
+            if (settings != null)
+            {
+                settingsTabs = settings.Keys.ToList();
+            }
 
             TabControl tabControl = new TabControl();
 
@@ -301,13 +306,13 @@ namespace OsEngine.Robots
 
             if (currentTab == null) return;
 
-            string newName = Microsoft.VisualBasic.Interaction.InputBox(
-                "Введите новое название вкладки:",
+            string newName = ShowSimpleInputDialog(
                 "Переименовать вкладку",
-                currentTab.Text,
-                -1, -1);
+                "Введите новое название вкладки:",
+                currentTab.Text
+            );
 
-            for(int i = 0; i < _tabPage.TabPages.Count; i++)
+            for (int i = 0; i < _tabPage.TabPages.Count; i++)
             {
                 if (_tabPage.TabPages[i].Text == newName)
                 {
@@ -322,6 +327,31 @@ namespace OsEngine.Robots
             }
 
             RenameTabInFileParams(oldName, currentTab.Text);
+        }
+
+        public string ShowSimpleInputDialog(string title, string prompt, string defaultValue)
+        {
+            Form promptForm = new Form()
+            {
+                Width = 300,
+                Height = 150,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                Text = title,
+                StartPosition = FormStartPosition.CenterScreen
+            };
+
+            Label textLabel = new Label() { Left = 20, Top = 20, Text = prompt, AutoSize = true };
+            TextBox textBox = new TextBox() { Left = 20, Top = 45, Width = 240, Text = defaultValue };
+            Button confirmation = new Button() { Text = "OK", Left = 165, Width = 100, Top = 75, DialogResult = DialogResult.OK };
+
+            confirmation.Click += (sender, e) => { promptForm.Close(); };
+
+            promptForm.Controls.Add(textBox);
+            promptForm.Controls.Add(confirmation);
+            promptForm.Controls.Add(textLabel);
+            promptForm.AcceptButton = confirmation;
+
+            return promptForm.ShowDialog() == DialogResult.OK ? textBox.Text : string.Empty;
         }
 
         private void TabControl_DrawItem(object sender, DrawItemEventArgs e)
@@ -1985,12 +2015,16 @@ namespace OsEngine.Robots
         {
             if (str == "first")
             {
+                if (_firstTab == null) return;
+
                 _firstTab.BestBidAskChangeEvent -= First_BestBidAskChangeEvent;
                 _firstBestAsk = 0;
                 _firstBestBid = 0;
             }
             else
             {
+                if (_secondTab == null) return;
+
                 _secondTab.BestBidAskChangeEvent -= Second_BestBidAskChangeEvent;
                 _secondBestBid = 0;
                 _secondBestAsk = 0;
