@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms.DataVisualization.Charting;
 using OsEngine.Logging;
@@ -23,12 +24,12 @@ namespace OsEngine.OsData
         {
             if (benchmark == BenchmarkSecurity.BTC.ToString())
             {
-                _serverType = ServerType.BybitData;
-                _secName = "BTCUSDT";
-                _secId = "BTCUSDT";
-                _secClass = "SPOT-USDT";
-                _secNameFull = "BTCUSDT";
-                _fileSetBenchmark = @"Data\Benchmark\BTCUSDT\Hour1\BTCUSDT.txt";           
+                _serverType = ServerType.Finam;
+                _secName = "BTC/USD";
+                _secId = "1822580";
+                _secClass = "Криптовалюты";
+                _secNameFull = "XXBTZUSD";
+                _fileSetBenchmark = @"Data\Benchmark\BTCUSD\Day\BTCUSD.txt";           
             }
 
             if (benchmark == BenchmarkSecurity.SnP500.ToString())
@@ -38,7 +39,7 @@ namespace OsEngine.OsData
                 _secId = "385008";
                 _secClass = "Индексы мировые";
                 _secNameFull = "SSPX";
-                _fileSetBenchmark = @"Data\Benchmark\S&P 500 Index\Hour1\S&P 500 Index.txt";
+                _fileSetBenchmark = @"Data\Benchmark\S&P 500 Index\Day\S&P 500 Index.txt";
             }
 
             if (benchmark == BenchmarkSecurity.MCFTR.ToString())
@@ -48,7 +49,7 @@ namespace OsEngine.OsData
                 _secId = "465340";
                 _secClass = "Российские индексы";
                 _secNameFull = "MCFTR";
-                _fileSetBenchmark = @"Data\Benchmark\MCFTR\Hour1\MCFTR.txt";
+                _fileSetBenchmark = @"Data\Benchmark\MCFTR\Day\MCFTR.txt";
             }
         }
 
@@ -70,9 +71,6 @@ namespace OsEngine.OsData
                 }
 
                 await Task.Run(async () => await DownloadData());
-
-                
-
             }
             catch (Exception error)
             {
@@ -85,6 +83,8 @@ namespace OsEngine.OsData
         {
             try
             {
+                CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
                 ServerMaster.CreateServer(_serverType, false);
 
                 List<IServer> serversFromServerMaster = ServerMaster.GetServers();
@@ -113,14 +113,14 @@ namespace OsEngine.OsData
 
                 SendNewLogMessage("Started downloading benchmark data.", LogMessageType.System);
 
-                while (true) 
+                while (!cts.Token.IsCancellationRequested) 
                 {
                     if (_server.ServerStatus == ServerConnectStatus.Connect)
                     {
-                        await Task.Delay(6000);
+                        await Task.Delay(6000, cts.Token).ConfigureAwait(false);
 
-                        DateTime timeStart = DateTime.Parse(_series.Points[0].AxisLabel).AddDays(-10);
-                        DateTime timeEnd = DateTime.Parse(_series.Points[^1].AxisLabel).AddDays(10);
+                        DateTime timeStart = DateTime.Parse(_series.Points[0].AxisLabel).AddDays(-5);
+                        DateTime timeEnd = DateTime.Parse(_series.Points[^1].AxisLabel).AddDays(1);
 
                         SettingsToLoadSecurity param = new();
 
@@ -131,9 +131,10 @@ namespace OsEngine.OsData
                         param.Tf10MinuteIsOn = false;
                         param.Tf15MinuteIsOn = false;
                         param.Tf30MinuteIsOn = false;
-                        param.Tf1HourIsOn = true;
+                        param.Tf1HourIsOn = false;
                         param.Tf2HourIsOn = false;
                         param.Tf4HourIsOn = false;
+                        param.TfDayIsOn = true;
                         param.TfTickIsOn = false;
                         param.TfMarketDepthIsOn = false;
                         param.Source = _server.ServerType;
@@ -159,7 +160,12 @@ namespace OsEngine.OsData
                         break;
                     }
 
-                    await Task.Delay(100);                                       
+                    await Task.Delay(100, cts.Token).ConfigureAwait(false);                                       
+                }
+
+                if (cts.Token.IsCancellationRequested)
+                {
+                    SendNewLogMessage("Donwload benchmark cancelled by timeout", LogMessageType.Error);
                 }
 
                 _server.StopServer();
@@ -168,6 +174,10 @@ namespace OsEngine.OsData
                 {
                     DownloadBenchmarkEvent();
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                SendNewLogMessage("Download benchmark cancelled", LogMessageType.Error);
             }
             catch (Exception error)
             {

@@ -1044,8 +1044,6 @@ namespace OsEngine.Journal
                 nullLine.ChartArea = "ChartAreaProfit";
                 nullLine.ShadowOffset = 0;
 
-                Series benchmarkLine = new();
-
                 decimal profitSum = 0;
                 decimal profitSumLong = 0;
                 decimal profitSumShort = 0;
@@ -1176,7 +1174,7 @@ namespace OsEngine.Journal
 
                 if (ComboBoxBenchmark.SelectedItem.ToString() != BenchmarkSecurity.Off.ToString())
                 {
-                    benchmarkLine = GetBenchmarkPoints(nullLine, maxYVal, minYval);
+                    Series benchmarkLine = GetBenchmarkPoints(nullLine, maxYVal, minYval);
 
                     if (benchmarkLine != null)
                     {
@@ -1233,22 +1231,22 @@ namespace OsEngine.Journal
         }
 
         private Benchmark _benchmark;
+        private bool _checkBenchmarkData = false;
 
         private Series GetBenchmarkPoints(Series series, decimal maxYVal, decimal minYVal)
         {
             try
             {
-                if (_benchmark != null) return null;
-
                 _benchmark = new Benchmark(ComboBoxBenchmark.SelectedItem.ToString());
                 _benchmark.NewLogMessageEvent += SendNewLogMessage;
-                _benchmark.DownloadBenchmarkEvent += Benchmark_DownloadBenchmarkEvent;
+                _benchmark.DownloadBenchmarkEvent += Benchmark_DownloadBenchmarkEvent;                
 
                 List <decimal> data = LoadBenchmarkData(series);
 
-                if (data == null)
+                if (data == null && !_checkBenchmarkData)
                 {
                     _benchmark.GetData(series);
+                    _checkBenchmarkData = true;
                 }
                 else
                 {
@@ -1266,14 +1264,23 @@ namespace OsEngine.Journal
 
         private void Benchmark_DownloadBenchmarkEvent()
         {
-            if (_benchmark != null)
+            try
             {
-                _benchmark.NewLogMessageEvent -= SendNewLogMessage;
-                _benchmark.DownloadBenchmarkEvent -= Benchmark_DownloadBenchmarkEvent;
-                _benchmark = null;
-            }
+                if (_benchmark != null)
+                {
+                    _benchmark.NewLogMessageEvent -= SendNewLogMessage;
+                    _benchmark.DownloadBenchmarkEvent -= Benchmark_DownloadBenchmarkEvent;
+                    _benchmark = null;
+                }
 
-            RePaint();
+                _checkBenchmarkData = false;
+
+                RePaint();
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+            }
         }
 
         private List<decimal> LoadBenchmarkData(Series series)
@@ -1298,11 +1305,9 @@ namespace OsEngine.Journal
                         if (parts.Length >= 8)
                         {
                             string dateStr = parts[0];
-                            string timeStr = parts[1];
 
                             DateTime date = DateTime.ParseExact(dateStr, "yyyyMMdd", null);
-                            DateTime time = DateTime.ParseExact(timeStr, "HHmmss", null);
-                            DateTime dateTime = date.Date + time.TimeOfDay;
+                            DateTime dateTime = date.Date;
 
                             listData.Add(dateTime);
 
@@ -1313,11 +1318,8 @@ namespace OsEngine.Journal
                 }
 
                 if (candleData == null || candleData.Count == 0) return null;
-
                 if (DateTime.Parse(series.Points[0].AxisLabel) < listData[0]) return null;
-
-                //if (DateTime.Parse(series.Points[^1].AxisLabel).AddDays(1) > DateTime.UtcNow)
-                if (DateTime.Parse(series.Points[^1].AxisLabel) > listData[^1]) return null;
+                if (DateTime.Parse(series.Points[^1].AxisLabel).AddDays(-1).Date > listData[^1]) return null;
 
                 List<decimal> data = new();
 
@@ -1325,7 +1327,7 @@ namespace OsEngine.Journal
 
                 for (int i = 0; i < series.Points.Count; i++)
                 {
-                    DateTime dateTime = DateTime.Parse(series.Points[i].AxisLabel);
+                    DateTime dateTime = DateTime.Parse(series.Points[i].AxisLabel).Date;
 
                     DateTime roundedDateTime = candleData.Keys
                             .Where(date => date < dateTime)
@@ -1365,46 +1367,79 @@ namespace OsEngine.Journal
 
         private Series ScaleDataToChart(List<decimal> originalData, decimal chartMin, decimal chartMax)
         {
-            if (originalData == null || originalData.Count == 0)
-                return new Series();
-
-            Series benchmark = new Series("SeriesBenchmark");
-            benchmark.ChartType = SeriesChartType.Line;
-            benchmark.YAxisType = AxisType.Secondary;
-            benchmark.Color = Color.Green;
-            benchmark.LabelForeColor = Color.Green;
-            benchmark.ChartArea = "ChartAreaProfit";
-            benchmark.ShadowOffset = 2;
-            benchmark.BorderWidth = 2;
-
-            decimal startValue = originalData[0];
-
-            decimal maxDeviation = 0;
-            for (int i = 0; i < originalData.Count; i++)
+            try
             {
-                decimal deviation = Math.Abs(originalData[i] - startValue);
-                if (deviation > maxDeviation)
+                if (originalData == null || originalData.Count == 0)
+                    return new Series();
+
+                Series benchmark = new Series("SeriesBenchmark");
+                benchmark.ChartType = SeriesChartType.Line;
+                benchmark.YAxisType = AxisType.Secondary;
+                benchmark.Color = Color.Green;
+                benchmark.LabelForeColor = Color.Green;
+                benchmark.ChartArea = "ChartAreaProfit";
+                benchmark.ShadowOffset = 2;
+                benchmark.BorderWidth = 2;
+
+                decimal startValue = originalData[0];
+
+                decimal maxPositiveDeviation = 0;
+                decimal maxNegativeDeviation = 0;
+
+                for (int i = 0; i < originalData.Count; i++)
                 {
-                    maxDeviation = deviation;
+                    decimal deviation = originalData[i] - startValue;
+                    if (deviation > maxPositiveDeviation)
+                    {
+                        maxPositiveDeviation = deviation;
+                    }
+                    if (deviation < maxNegativeDeviation)
+                    {
+                        maxNegativeDeviation = deviation;
+                    }
                 }
+
+                decimal scalePositive = 0;
+                decimal scaleNegative = 0;
+
+                if (maxPositiveDeviation > 0)
+                {
+                    scalePositive = chartMax / maxPositiveDeviation;
+                }
+
+                if (maxNegativeDeviation < 0)
+                {
+                    scaleNegative = Math.Abs(chartMin) / Math.Abs(maxNegativeDeviation);
+                }
+
+                decimal scaleFactor;
+                if (scalePositive > 0 && scaleNegative > 0)
+                {
+                    scaleFactor = Math.Min(scalePositive, scaleNegative);
+                }
+                else if (scalePositive > 0)
+                {
+                    scaleFactor = scalePositive;
+                }
+                else
+                {
+                    scaleFactor = scaleNegative;
+                }
+
+                for (int i = 0; i < originalData.Count; i++)
+                {
+                    decimal scaledValue = (originalData[i] - startValue) * scaleFactor;
+                    benchmark.Points.AddXY(i, scaledValue);
+                    benchmark.Points[^1].AxisLabel = originalData[i].ToString();
+                }
+
+                return benchmark;
             }
-
-            decimal availableRangePositive = Math.Abs(chartMax - 0);    
-            decimal availableRangeNegative = Math.Abs(0 - chartMin);   
-            decimal availableRange = Math.Min(availableRangePositive, availableRangeNegative);
-
-            if (maxDeviation == 0) return null;
-
-            decimal scaleFactor = availableRange / maxDeviation;
-
-            for (int i = 0; i < originalData.Count; i++)
+            catch (Exception ex)
             {
-                decimal scaledValue = (originalData[i] - startValue) * scaleFactor;
-                benchmark.Points.AddXY(i, scaledValue);
-                benchmark.Points[^1].AxisLabel = originalData[i].ToString();
+                SendNewLogMessage(ex.ToString(), LogMessageType.Error);
+                return null;
             }
-
-            return benchmark;
         }
 
         private void PaintRectangleEqutyLines()
