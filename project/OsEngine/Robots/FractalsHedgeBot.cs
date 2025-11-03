@@ -368,6 +368,11 @@ namespace OsEngine.Robots
                 return;
             }
 
+            if (_tab == null)
+            {
+                return;
+            }
+
             if (_tab.Portfolio == null)
             {
                 return;
