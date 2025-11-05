@@ -505,6 +505,7 @@ namespace OsEngine.Robots
                     if (!_tab2.IsConnected || !_tab2.IsReadyToTrade) 
                     {
                         Thread.Sleep(1000);
+                        _needCancelOrders = true;
                         continue;
                     }
 
@@ -1346,6 +1347,12 @@ namespace OsEngine.Robots
             SendNewLogMessage($"Цена соотношения = {_limitPriceRatio}, BestPrice = {bestPrice}", _logging);
 
             string strMsg = "Massive orders: ";
+
+            if (!_tab2.IsConnected || !_tab2.IsReadyToTrade)
+            {
+                SendNewLogMessage($"Нет подключения к бирже.", _logging);
+                return;
+            }
 
             for (int i = 0; i < _listOrders.Count; i++)
             {
