@@ -1634,7 +1634,6 @@ namespace OsEngine.Robots
             SendNewLogMessage($"Соотношение купленных и проданных ордеров = {_ratioTakenLastPositions}", _logging);
         }
 
-
         private void CheckCancelFirstOrder()
         {
             if (!_needCheckCancelFirstOrder) return;
@@ -1656,13 +1655,18 @@ namespace OsEngine.Robots
             }
 
             if (_tab1.PositionOpenShort[0].OpenOrders[^1].State == OrderStateType.Cancel ||
-                _tab1.PositionOpenShort[0].OpenOrders[^1].State == OrderStateType.Done ||
                 _tab1.PositionOpenShort[0].OpenOrders[^1].State == OrderStateType.Fail)
             {
                 SendNewLogMessage("Ордер на продажу первого инструмента отменен", _logging);
                 _needCheckCancelFirstOrder = false;
                 _needCheckSellFirstSecurity = false;
-            }            
+            }
+
+            if (_tab1.PositionOpenShort[0].OpenOrders[^1].State == OrderStateType.Done)
+            {
+                SendNewLogMessage("Ордер на продажу первого инструмента исполнился во время отмены", _logging);
+                _needCheckCancelFirstOrder = false;
+            }
         }
 
         #endregion
