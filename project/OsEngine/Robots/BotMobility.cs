@@ -22,7 +22,7 @@ namespace OsEngine.Robots
             _mobility = (Aindicator)_tab.CreateCandleIndicator(_mobility, "MobilityArea");
             //_mobility.ParametersDigit[0].Value = _indLength.ValueInt;
             //_mobility.ParametersDigit[1].Value = _bollingerDeviation.ValueDecimal;
-            _mobility.Save();
+            //_mobility.Save();
 
             MobilityIndicator mInd = (MobilityIndicator)_mobility;
             mInd.SendTab(_tab);

@@ -8,7 +8,7 @@ namespace OsEngine.Indicators.Samples
     [Indicator("MobilityIndicator")]
     public class MobilityIndicator : Aindicator
     {
-        public IndicatorDataSeries Series1;
+        public IndicatorDataSeries _series;
         private List<double> _price = new();
         private double _priceCandleClose;
         private double _priceBid;
@@ -16,24 +16,31 @@ namespace OsEngine.Indicators.Samples
         private DateTime _timeStart;
         private BotTabSimple _tab;
         private decimal _lastValue;
+        private int _timeCalculatePrice;
+        private int _timeTradeSeccion;
+        private int _dayTrade;
 
         public override void OnStateChange(IndicatorState state)
         {
             if(state == IndicatorState.Configure)
             {
-                Series1 = CreateSeries("Series 1", System.Drawing.Color.AliceBlue, IndicatorChartPaintType.Line, true);
+                _series = CreateSeries("Mobility", System.Drawing.Color.AliceBlue, IndicatorChartPaintType.Line, true);
+
+                _timeCalculatePrice = CreateParameterInt("Время расчета цены в минутах", 2);
+                _timeTradeSeccion = CreateParameterInt("Длительность торговой сессии в минутах", 1440);
+                _dayTrade = CreateParameterInt("Количество торговых дней", 365);
             }
         }
 
         public override void OnProcess(List<Candle> source, int index)
         {
-            if (_timeStart.AddMinutes(2) <= DateTime.UtcNow)
+            if (_timeStart.AddMinutes(_timeCalculatePrice) <= DateTime.UtcNow)
             {
                 _priceCandleClose = (double)source[^1].Close;
                 _timeStart = DateTime.UtcNow;
 
                 decimal value = (decimal)CalculateMobility();
-                Series1.Values[index] = value;
+                _series.Values[index] = value;
                 _lastValue = value;
                 _price = new();
             }
@@ -41,7 +48,7 @@ namespace OsEngine.Indicators.Samples
             {
                 if (_lastValue != 0)
                 {
-                    Series1.Values[index] = _lastValue;
+                    _series.Values[index] = _lastValue;
                 }                
             }
         }
@@ -109,10 +116,10 @@ namespace OsEngine.Indicators.Samples
             }
 
             double dt = totalPrice / (_price.Count - 2);
-            double countPeriods = 1440 / 2;
+            double countPeriods = _timeTradeSeccion / _timeCalculatePrice;
             double mt = Math.Sqrt(dt * countPeriods);
 
-            double m = mt * Math.Sqrt(365) / _priceCandleClose * 100;
+            double m = mt * Math.Sqrt(_dayTrade) / _priceCandleClose * 100;
 
             return m;
         }
