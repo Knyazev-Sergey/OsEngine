@@ -539,7 +539,7 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// </summary>
         public bool IsNonTradePeriodInConnector
         {
-            get
+            get 
             {
                 if (_connector == null)
                 {
@@ -6647,7 +6647,15 @@ namespace OsEngine.OsTrader.Panels.Tab
                     _lastTradeIndex == 0)
                 {
                     _lastTradeIndex = trades.Count;
-                    _lastTradeTime = trades[trades.Count - 1].Time;
+                    try
+                    {
+                        _lastTradeTime = trades[trades.Count - 1].Time;
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                   
                     return;
                 }
             }
