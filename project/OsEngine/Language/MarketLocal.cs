@@ -1199,7 +1199,7 @@ namespace OsEngine.Language
 
         public string Label291 => OsLocalization.ConvertToLocString(
          "Eng:An error occurred while placing an order. Most likely, the error text contains the reason for the error. Error _" +
-         "Ru:Ошибка при выставлении ордера. Скорее всего в тексте ошибки ответ почему. Ошибка ниже _");
+         "Ru:Ошибка при выставлении ордера. _");
 
         public string Label292 => OsLocalization.ConvertToLocString(
          "Eng:Numerous attempts to withdraw the order. _" +
@@ -1207,7 +1207,7 @@ namespace OsEngine.Language
 
         public string Label293 => OsLocalization.ConvertToLocString(
          "Eng:An error occurred while cancel an order. Most likely, the error text contains the reason for the error. Error _" +
-         "Ru:Ошибка при отзыве ордера. Скорее всего в тексте ошибки ответ почему. Ошибка ниже _");
+         "Ru:Ошибка при отзыве ордера. _");
 
         public string Label294 => OsLocalization.ConvertToLocString(
          "Eng:The GRPC API stream has an error. Restart the connection. This will take less than a minute and everything is probably fine. If the error happens again, you should contact support. Stream name _" +
@@ -1228,6 +1228,37 @@ namespace OsEngine.Language
         public string Label298 => OsLocalization.ConvertToLocString(
          "Eng:Security Subscribe error. After three attempts, we still haven't subscribed. We're going to reconnect the connector. Security _" +
          "Ru:Ошибка в подписке бумаги. После трёх попыток всё ещё не подписались. Уходим на переподключение коннектора. Бумага _");
+
+        public string Label299 => OsLocalization.ConvertToLocString(
+         "Eng:Unfortunately, Windows 7 does not support this connector. You need to update your operating system to version 10 or higher. _" +
+         "Ru:К сожалению Windows 7, данный коннектор не поддерживает. Вам надо обновить операционную систему до 10 версии или выше. _");
+
+        public string Label300 => OsLocalization.ConvertToLocString(
+         "Eng:Your connection token does not support trading operations. You need to issue a new token on the T-Investments website. Select the \"Trading\" option. Then connect using the new token. _" +
+         "Ru:Ваш токен подключения не поддерживает торговые операции. Необходимо выписать новый токен на сайте Т-Инвестиции. Указав галочку ТОРГОВЛЯ. И подключаться через него. _");
+
+        public string Label301 => OsLocalization.ConvertToLocString(
+         "Eng:There is not enough money in the portfolio for the operation _" +
+         "Ru:На счёте недостаточно средств для операции. _");
+
+        public string Label302 => OsLocalization.ConvertToLocString(
+         "Eng:The price is too high_" +
+         "Ru:Цена слишком высока _");
+
+        public string Label303 => OsLocalization.ConvertToLocString(
+         "Eng:Price_" +
+         "Ru:Цена_");
+
+        public string Label304 => OsLocalization.ConvertToLocString(
+         "Eng:The price is outside the limits_" +
+         "Ru:Цена за пределами лимита по инструменту_");
+
+        public string Label305 => OsLocalization.ConvertToLocString(
+         "Eng:Unable to download the list of securities. We are reconnecting the connector. This may be a temporary issue due to a lack of internet connection, and the connection will be restored in a few minutes. Or you have blocked requests to the Internet. Try to run the application from the Administrator or disable the antivirus_" +
+         "Ru:Не удаётся скачать список бумаг. Уходим на переподключение коннектора. Это может быть разовая проблема из-за отсутствия интернета, тогда через пару минут связь восстановится. Либо у Вас заблокированы запросы в Интернет. Пробуйте запустить приложение от Администратора или отключить антивирус_");
+
+
+
 
 
 

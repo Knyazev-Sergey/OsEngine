@@ -50,7 +50,6 @@ namespace OsEngine.Market.Servers.TInvest
 
     public class TInvestServerRealization : IServerRealization
     {
-        private const int MaxExceptionLogLength = 50;
         private readonly TimeZoneInfo _mskTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time");
         #region 1 Constructor, Status, Connection
 
@@ -92,6 +91,22 @@ namespace OsEngine.Market.Servers.TInvest
 
             try
             {
+                try
+                {
+                    string osNameAndVersion = System.Runtime.InteropServices.RuntimeInformation.OSDescription;
+
+                    if (osNameAndVersion.StartsWith("Microsoft Windows 7"))
+                    {
+                        SendLogMessage(OsLocalization.Market.Label299, LogMessageType.System);
+                        return;
+                    }
+
+                }
+                catch
+                {
+                    // ignore
+                }
+
                 _streamSubscribedSecurities.Clear();
                 _pollSubscribedSecurities.Clear();
 
@@ -113,7 +128,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception ex)
             {
-                SendLogMessage(OsLocalization.Market.Label289 + Truncate(ex.Message.ToString()), LogMessageType.Error);
+                SendLogMessage(OsLocalization.Market.Label289 + ex.Message.ToString(), LogMessageType.Error);
             }
         }
 
@@ -145,12 +160,6 @@ namespace OsEngine.Market.Servers.TInvest
                         streamsIsLost = true;
                     }
 
-                    //if (_myTradesDataStream != null && _lastMyTradesDataTime.AddMinutes(3) < DateTime.UtcNow)
-                    //{
-                    //    SendLogMessage("My trades data stream timed out", LogMessageType.System);
-                    //    shitHappenedWithStreams = true;
-                    //}
-
                     if (_myOrderStateDataStream != null && _lastMyOrderStateDataTime.AddMinutes(3) < DateTime.UtcNow)
                     {
                         lostStreamName = "Order state data stream";
@@ -160,37 +169,64 @@ namespace OsEngine.Market.Servers.TInvest
 
                     if (streamsIsLost)
                     {
-                        if (lostStreamName == "Market data stream"
-                            && TryReconnectDataStream() == true)
+                        if (_isDisposedNow == true)
                         {
-                            _lastMarketDataTime = DateTime.Now;
-                            SendLogMessage(OsLocalization.Market.Label295 + "\nMarket data. ConnectionCheckThread()", LogMessageType.System);
                             continue;
                         }
 
-                        if (lostStreamName == "Order state data stream"
-                            && TryReconnectOrdersStream() == true)
+                        if (lostStreamName == "Market data stream")
                         {
-                            _lastMyOrderStateDataTime = DateTime.Now;
-                            SendLogMessage(OsLocalization.Market.Label295 + "\nOrders data. ConnectionCheckThread()", LogMessageType.System);
-                            
-                            if(ForceCheckOrdersAfterReconnectEvent != null)
+                            _isReconnectByPingMarketData = true;
+
+                            if (TryReconnectDataStream() == true)
                             {
-                                ForceCheckOrdersAfterReconnectEvent();
+                                _lastMarketDataTime = DateTime.Now;
+                                SendLogMessage(OsLocalization.Market.Label295 + "\nMarket data. ConnectionCheckThread()", LogMessageType.System);
+                                Thread.Sleep(2000);
+                                _isReconnectByPingMarketData = false;
+                                continue;
+
                             }
-                           
-                            continue;
                         }
 
-                        if (lostStreamName == "Portfolio data stream"
-                            && TryReconnectPortfolioStream() == true
-                            && TryReconnectPositionsStream() == true)
+                        if (lostStreamName == "Order state data stream")
                         {
-                            _lastPortfolioDataTime = DateTime.Now;
-                            SendLogMessage(OsLocalization.Market.Label295 + "\nPortfolio and Positions data. ConnectionCheckThread()", LogMessageType.System);
-                            continue;
+                            _isReconnectByOrdersData = true;
+
+                            if (TryReconnectOrdersStream() == true)
+                            {
+                                _lastMyOrderStateDataTime = DateTime.Now;
+                                SendLogMessage(OsLocalization.Market.Label295 + "\nOrders data. ConnectionCheckThread()", LogMessageType.System);
+
+                                if (ForceCheckOrdersAfterReconnectEvent != null)
+                                {
+                                    ForceCheckOrdersAfterReconnectEvent();
+                                }
+                                Thread.Sleep(2000);
+                                _isReconnectByOrdersData = false;
+                                continue;
+
+                            }
                         }
 
+                        if (lostStreamName == "Portfolio data stream")
+                        {
+                            _isReconnectByPingPortfoliosData = true;
+
+                            if (TryReconnectPortfolioStream() == true
+                            && TryReconnectPositionsStream() == true)
+                            {
+                                _lastPortfolioDataTime = DateTime.Now;
+                                SendLogMessage(OsLocalization.Market.Label295 + "\nPortfolio and Positions data. ConnectionCheckThread()", LogMessageType.System);
+                                Thread.Sleep(2000);
+                                _isReconnectByPingPortfoliosData = false;
+                                continue;
+                            }
+                        }
+
+                        _isReconnectByPingMarketData = false;
+                        _isReconnectByOrdersData = false;
+                        _isReconnectByPingPortfoliosData = false;
 
                         if (ServerStatus == ServerConnectStatus.Connect)
                         {
@@ -198,132 +234,143 @@ namespace OsEngine.Market.Servers.TInvest
                             SendMessageOnReconnectInErrorLog();
                             ServerStatus = ServerConnectStatus.Disconnect;
                             DisconnectEvent();
+                            Thread.Sleep(2000);                          
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    SendLogMessage(Truncate(ex.ToString()), LogMessageType.System);
+                    _isReconnectByPingMarketData = false;
+                    _isReconnectByOrdersData = false;
+                    _isReconnectByPingPortfoliosData = false;
+
+                    SendLogMessage(ex.ToString(), LogMessageType.System);
                     Thread.Sleep(5000);
                 }
             }
         }
 
+        private bool _isDisposedNow = false;
+
+        private bool _isReconnectByPingMarketData = false;
+
+        private bool _isReconnectByPingPortfoliosData = false;
+
+        private bool _isReconnectByOrdersData = false;
+
         public void Dispose()
         {
-            // останавливаем чтение всех потоков
-            if (_marketDataStream != null)
+            _isDisposedNow = true;
+
+            try
             {
-                try
+
+                // останавливаем чтение всех потоков
+                if (_marketDataStream != null)
                 {
-                    _marketDataStream.RequestStream.CompleteAsync().Wait();
-                    _marketDataStream.ResponseStream.ReadAllAsync();
-                    _marketDataStream.Dispose();
+                    try
+                    {
+                        _marketDataStream.RequestStream.CompleteAsync().Wait();
+                        _marketDataStream.ResponseStream.ReadAllAsync();
+                        _marketDataStream.Dispose();
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
                 }
-                catch
+
+                if (_cancellationTokenSource != null)
                 {
-                    // ignore
+                    try
+                    {
+                        _cancellationTokenSource.Cancel();
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                }
+
+                if (_portfolioDataStream != null)
+                {
+                    try
+                    {
+                        _portfolioDataStream.ResponseStream.ReadAllAsync();
+                        _portfolioDataStream.Dispose();
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                }
+
+                if (_positionsDataStream != null)
+                {
+                    try
+                    {
+                        _positionsDataStream.ResponseStream.ReadAllAsync();
+                        _positionsDataStream.Dispose();
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                }
+
+                if (_myOrderStateDataStream != null)
+                {
+                    try
+                    {
+                        _myOrderStateDataStream.ResponseStream.ReadAllAsync();
+                        _myOrderStateDataStream.Dispose();
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                }
+
+                if (_channel != null)
+                {
+                    try
+                    {
+                        _channel.Dispose();
+                        _channel = null;
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                }
+
+                _marketDataStream = null;
+                _portfolioDataStream = null;
+                _positionsDataStream = null;
+                _myOrderStateDataStream = null;
+                _marketDataRequestsLastPrice.Clear();
+                _marketDataRequestsOrderBook.Clear();
+                _marketDataRequestsTrades.Clear();
+                _streamSubscribedSecurities.Clear();
+                _pollSubscribedSecurities.Clear();
+                _myPortfolios.Clear();
+                _lastMarketDataTime = DateTime.UtcNow;
+                _lastMdTime = DateTime.UtcNow;
+                _lastPortfolioDataTime = DateTime.UtcNow;
+
+                if (ServerStatus != ServerConnectStatus.Disconnect)
+                {
+                    ServerStatus = ServerConnectStatus.Disconnect;
+                    DisconnectEvent();
                 }
             }
-
-            if (_cancellationTokenSource != null)
+            catch(Exception ex) 
             {
-                try
-                {
-                    _cancellationTokenSource.Cancel();
-                }
-                catch
-                {
-                    // ignore
-                }
+                SendLogMessage("Error in Dispose method. " + ex.ToString(), LogMessageType.System);
             }
 
-            if (_portfolioDataStream != null)
-            {
-                try
-                {
-                    _portfolioDataStream.ResponseStream.ReadAllAsync();
-                    _portfolioDataStream.Dispose();
-                }
-                catch
-                {
-                    // ignore
-                }
-            }
 
-            if (_positionsDataStream != null)
-            {
-                try
-                {
-                    _positionsDataStream.ResponseStream.ReadAllAsync();
-                    _positionsDataStream.Dispose();
-                }
-                catch
-                {
-                    // ignore
-                }
-            }
-
-            if (_myTradesDataStream != null)
-            {
-                try
-                {
-                    _myTradesDataStream.ResponseStream.ReadAllAsync();
-                    _myTradesDataStream.Dispose();
-                }
-                catch
-                {
-                    // ignore
-                }
-            }
-
-            if (_myOrderStateDataStream != null)
-            {
-                try
-                {
-                    _myOrderStateDataStream.ResponseStream.ReadAllAsync();
-                    _myOrderStateDataStream.Dispose();
-                }
-                catch
-                {
-                    // ignore
-                }
-            }
-
-            if (_channel != null)
-            {
-                try
-                {
-                    _channel.Dispose();
-                    _channel = null;
-                }
-                catch
-                {
-                    // ignore
-                }
-            }
-
-            _marketDataStream = null;
-            _portfolioDataStream = null;
-            _positionsDataStream = null;
-            _myTradesDataStream = null;
-            _myOrderStateDataStream = null;
-            _marketDataRequestsLastPrice.Clear();
-            _marketDataRequestsOrderBook.Clear();
-            _marketDataRequestsTrades.Clear();
-            _streamSubscribedSecurities.Clear();
-            _pollSubscribedSecurities.Clear();
-            _myPortfolios.Clear();
-            _lastMarketDataTime = DateTime.UtcNow;
-            _lastMdTime = DateTime.UtcNow;
-            _lastMyTradesDataTime = DateTime.UtcNow;
-            _lastPortfolioDataTime = DateTime.UtcNow;
-
-            if (ServerStatus != ServerConnectStatus.Disconnect)
-            {
-                ServerStatus = ServerConnectStatus.Disconnect;
-                DisconnectEvent();
-            }
+            _isDisposedNow = false;
         }
 
         public DateTime ServerTime { get; set; }
@@ -448,12 +495,22 @@ namespace OsEngine.Market.Servers.TInvest
                         SecurityEvent.Invoke(_securities);
                     }
                 }
+                else
+                {
+                    if (ServerStatus != ServerConnectStatus.Disconnect)
+                    {
+                        SendLogMessage(OsLocalization.Market.Label305, LogMessageType.Error);
+
+                        ServerStatus = ServerConnectStatus.Disconnect;
+                        DisconnectEvent();
+                    }
+                }
             }
             catch (Exception ex)
             {
                 if (ServerStatus != ServerConnectStatus.Disconnect)
                 {
-                    SendLogMessage(OsLocalization.Market.Label288 + Truncate(ex.ToString()), LogMessageType.Error);
+                    SendLogMessage(OsLocalization.Market.Label288 + ex.ToString(), LogMessageType.Error);
 
                     ServerStatus = ServerConnectStatus.Disconnect;
                     DisconnectEvent();
@@ -510,7 +567,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception e)
             {
-                SendLogMessage($"Error loading stocks: {Truncate(e.Message)}", LogMessageType.System);
+                SendLogMessage($"Error loading stocks: {e.Message}", LogMessageType.System);
             }
         }
 
@@ -564,7 +621,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception e)
             {
-                SendLogMessage($"Error loading bonds: {Truncate(e.Message)}", LogMessageType.System);
+                SendLogMessage($"Error loading bonds: {e.Message}", LogMessageType.System);
             }
         }
 
@@ -616,7 +673,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception e)
             {
-                SendLogMessage($"Error loading ETFs: {Truncate(e.Message)}", LogMessageType.System);
+                SendLogMessage($"Error loading ETFs: {e.Message}", LogMessageType.System);
             }
         }
 
@@ -657,7 +714,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception e)
             {
-                SendLogMessage($"Error loading indicatives: {Truncate(e.Message)}", LogMessageType.System);
+                SendLogMessage($"Error loading indicatives: {e.Message}", LogMessageType.System);
             }
         }
 
@@ -712,7 +769,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception e)
             {
-                SendLogMessage($"Error loading currency pairs: {Truncate(e.Message)}", LogMessageType.System);
+                SendLogMessage($"Error loading currency pairs: {e.Message}", LogMessageType.System);
             }
         }
 
@@ -775,7 +832,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception e)
             {
-                SendLogMessage($"Error loading futures: {Truncate(e.Message)}", LogMessageType.System);
+                SendLogMessage($"Error loading futures: {e.Message}", LogMessageType.System);
             }
         }
 
@@ -829,7 +886,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception e)
             {
-                SendLogMessage($"Error loading options: {Truncate(e.Message)}", LogMessageType.System);
+                SendLogMessage($"Error loading options: {e.Message}", LogMessageType.System);
             }
         }
 
@@ -910,13 +967,22 @@ namespace OsEngine.Market.Servers.TInvest
                         PortfolioEvent(_myPortfolios);
                     }
                 }
-
+                else
+                {
+                    // нет портфелей. Токен просмотровый
+                    if (ServerStatus != ServerConnectStatus.Disconnect)
+                    {
+                        SendLogMessage(OsLocalization.Market.Label300, LogMessageType.Error);
+                        ServerStatus = ServerConnectStatus.Disconnect;
+                        DisconnectEvent();
+                    }
+                }
             }
             catch (Exception ex)
             {
                 if (ServerStatus != ServerConnectStatus.Disconnect)
                 {
-                    SendLogMessage(OsLocalization.Market.Label290 + Truncate(ex.ToString()), LogMessageType.Error);
+                    SendLogMessage(OsLocalization.Market.Label290 + ex.ToString(), LogMessageType.Error);
 
                     ServerStatus = ServerConnectStatus.Disconnect;
                     DisconnectEvent();
@@ -992,7 +1058,7 @@ namespace OsEngine.Market.Servers.TInvest
                 }
                 catch (Exception ex)
                 {
-                    SendLogMessage("Error getting instrument data for " + pos.Figi + " " + Truncate(ex.ToString()), LogMessageType.System);
+                    SendLogMessage("Error getting instrument data for " + pos.Figi + " " + ex.ToString(), LogMessageType.System);
                 }
 
                 PositionOnBoard newPos = new PositionOnBoard();
@@ -1033,7 +1099,7 @@ namespace OsEngine.Market.Servers.TInvest
                 }
                 catch (Exception ex)
                 {
-                    SendLogMessage("Error getting instrument data for " + pos.Figi + " " + Truncate(ex.ToString()), LogMessageType.System);
+                    SendLogMessage("Error getting instrument data for " + pos.Figi + " " + ex.ToString(), LogMessageType.System);
                 }
 
                 PositionOnBoard newPos = new PositionOnBoard();
@@ -1074,7 +1140,7 @@ namespace OsEngine.Market.Servers.TInvest
                 }
                 catch (Exception ex)
                 {
-                    SendLogMessage("Error getting instrument data for " + pos.InstrumentUid + " " + Truncate(ex.ToString()), LogMessageType.System);
+                    SendLogMessage("Error getting instrument data for " + pos.InstrumentUid + " " + ex.ToString(), LogMessageType.System);
                 }
 
                 PositionOnBoard newPos = new PositionOnBoard();
@@ -1161,9 +1227,9 @@ namespace OsEngine.Market.Servers.TInvest
         public List<Candle> GetCandleDataToSecurity(Security security, TimeFrameBuilder timeFrameBuilder, DateTime startTime, DateTime endTime,
             DateTime actualTime)
         {
-            startTime = TimeZoneInfo.ConvertTimeToUtc(startTime, _mskTimeZone);
-            endTime = TimeZoneInfo.ConvertTimeToUtc(endTime, _mskTimeZone);
-            actualTime = TimeZoneInfo.ConvertTimeToUtc(actualTime, _mskTimeZone);
+            startTime = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(startTime, DateTimeKind.Unspecified), _mskTimeZone);
+            endTime = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(endTime, DateTimeKind.Unspecified), _mskTimeZone);
+            actualTime = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(actualTime, DateTimeKind.Unspecified), _mskTimeZone);
 
             if (startTime != actualTime)
             {
@@ -1274,7 +1340,7 @@ namespace OsEngine.Market.Servers.TInvest
                         break; // connection broke before we could get candles
                     }
 
-                    SendLogMessage($"Error getting candles for {security.Name}: " + Truncate(ex.ToString()),
+                    SendLogMessage($"Error getting candles for {security.Name}: " + ex.ToString(),
                         LogMessageType.System);
                 }
             }
@@ -1324,7 +1390,7 @@ namespace OsEngine.Market.Servers.TInvest
                 }
                 catch (Exception ex)
                 {
-                    SendLogMessage($"Error fetching trading schedules: {Truncate(ex.ToString())}", LogMessageType.System);
+                    SendLogMessage($"Error fetching trading schedules: {ex.ToString()}", LogMessageType.System);
                 }
 
                 _tradingSchedules[mskDate] = thisDaySchedules;
@@ -1464,7 +1530,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception ex)
             {
-                SendLogMessage(Truncate(ex.ToString()), LogMessageType.System);
+                SendLogMessage(ex.ToString(), LogMessageType.System);
             }
 
             if (response == null)
@@ -1531,12 +1597,12 @@ namespace OsEngine.Market.Servers.TInvest
                 }
                 catch (Exception ex)
                 {
-                    SendLogMessage(Truncate(ex.ToString()), LogMessageType.System);
+                    SendLogMessage(ex.ToString(), LogMessageType.System);
                 }
             }
             catch (Exception exception)
             {
-                SendLogMessage(Truncate(exception.ToString()), LogMessageType.System);
+                SendLogMessage(exception.ToString(), LogMessageType.System);
             }
         }
 
@@ -1566,7 +1632,6 @@ namespace OsEngine.Market.Servers.TInvest
                 _operationsStreamClient.PositionsStream(new PositionsStreamRequest { Accounts = { accountsList } },
                     headers: _gRpcMetadata, cancellationToken: _cancellationTokenSource.Token);
 
-            _lastMyTradesDataTime = DateTime.UtcNow;
             _lastPortfolioDataTime = DateTime.UtcNow;
         }
 
@@ -1701,7 +1766,6 @@ namespace OsEngine.Market.Servers.TInvest
                     Accounts = { accountsList }
                 }, headers: _gRpcMetadata, cancellationToken: _cancellationTokenSource.Token);
 
-                _lastMyTradesDataTime = DateTime.UtcNow;
             }
             catch
             {
@@ -1840,16 +1904,17 @@ namespace OsEngine.Market.Servers.TInvest
         List<Security> _streamSubscribedSecurities = new List<Security>();
         List<Security> _pollSubscribedSecurities = new List<Security>();
 
+
         private bool _useStreamForMarketData = true; // if we are over the limits, then stop using stream and turn to data polling (300+ subscribed secs)
+
         private AsyncDuplexStreamingCall<MarketDataRequest, MarketDataResponse> _marketDataStream;
-        private AsyncServerStreamingCall<TradesStreamResponse> _myTradesDataStream;
+
         private AsyncServerStreamingCall<OrderStateStreamResponse> _myOrderStateDataStream;
         private AsyncServerStreamingCall<PortfolioStreamResponse> _portfolioDataStream;
         private AsyncServerStreamingCall<PositionsStreamResponse> _positionsDataStream;
 
         private DateTime _lastMarketDataTime = DateTime.MinValue;
         private DateTime _lastPortfolioDataTime = DateTime.MinValue;
-        private DateTime _lastMyTradesDataTime = DateTime.MinValue;
         private DateTime _lastMyOrderStateDataTime = DateTime.MinValue;
 
         private List<SubscribeOrderBookRequest> _marketDataRequestsOrderBook = new List<SubscribeOrderBookRequest>();
@@ -1984,7 +2049,7 @@ namespace OsEngine.Market.Servers.TInvest
                 if(tryCount < 3)
                 {
                     SendLogMessage(
-                        OsLocalization.Market.Label297 + tryCount + " " + security.Name + " \n" + Truncate(exception.ToString()), LogMessageType.System);
+                        OsLocalization.Market.Label297 + tryCount + " " + security.Name + " \n" + exception.ToString(), LogMessageType.System);
                    
                     SubscribeLoop(tryCount, security);
                 }
@@ -1993,7 +2058,7 @@ namespace OsEngine.Market.Servers.TInvest
                     if (ServerStatus != ServerConnectStatus.Disconnect)
                     {
                         SendLogMessage(
-                             OsLocalization.Market.Label298 + security.Name + " \n" + Truncate(exception.ToString()), LogMessageType.Error);
+                             OsLocalization.Market.Label298 + security.Name + " \n" + exception.ToString(), LogMessageType.Error);
                         ServerStatus = ServerConnectStatus.Disconnect;
                         DisconnectEvent();
                     }
@@ -2184,19 +2249,20 @@ namespace OsEngine.Market.Servers.TInvest
                         MarketDepthEvent?.Invoke(depth);
                     }
                 }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled)
-                {
-                    // Handle the cancellation gracefully
-                    string message = GetGRPCErrorMessage(ex);
-                    SendLogMessage($"Market data stream was cancelled. ", LogMessageType.System);
-                    Thread.Sleep(5000);
-                }
                 catch (RpcException ex)
                 {
-                    // need to reconnect everything
+                    if(_isDisposedNow == true)
+                    {
+                        continue;
+                    }
+
+                    if(_isReconnectByPingMarketData)
+                    {
+                        continue;
+                    }
+
                     if (ServerStatus != ServerConnectStatus.Disconnect)
                     {
-                       
                         string message = GetGRPCErrorMessage(ex);
 
                         if (message.Contains("limit") == false)
@@ -2225,7 +2291,13 @@ namespace OsEngine.Market.Servers.TInvest
                 }
                 catch (Exception exception)
                 {
-                    SendLogMessage(Truncate(exception.ToString()), LogMessageType.System);
+                    if(exception.ToString().Contains("Cannot access a disposed"))
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
+                    SendLogMessage(exception.ToString(), LogMessageType.System);
                     Thread.Sleep(5000);
                 }
             }
@@ -2270,7 +2342,7 @@ namespace OsEngine.Market.Servers.TInvest
                 }
                 catch (Exception e)
                 {
-                    SendLogMessage(Truncate(e.ToString()), LogMessageType.System);
+                    SendLogMessage(e.ToString(), LogMessageType.System);
                     Thread.Sleep(5000);
                 }
             }
@@ -2317,11 +2389,11 @@ namespace OsEngine.Market.Servers.TInvest
             catch (RpcException ex)
             {
                 string message = GetGRPCErrorMessage(ex);
-                SendLogMessage($"Error getting last prices. Status: {ex.StatusCode}, Message: {message}, Details: {Truncate(ex.ToString())}", LogMessageType.System);
+                SendLogMessage($"Error getting last prices. Status: {ex.StatusCode}, Message: {message}, Details: {ex.ToString()}", LogMessageType.System);
             }
             catch (Exception ex)
             {
-                SendLogMessage(Truncate(ex.ToString()), LogMessageType.System);
+                SendLogMessage(ex.ToString(), LogMessageType.System);
             }
 
             if (priceResp == null)
@@ -2522,15 +2594,18 @@ namespace OsEngine.Market.Servers.TInvest
                         PortfolioEvent!(_myPortfolios);
                     }
                 }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled)
-                {
-                    // Handle the cancellation gracefully
-                    string message = GetGRPCErrorMessage(ex);
-                    SendLogMessage($"Portfolio data stream was cancelled. ", LogMessageType.System);
-                    Thread.Sleep(5000);
-                }
                 catch (RpcException exception)
                 {
+                    if (_isDisposedNow == true)
+                    {
+                        continue;
+                    }
+
+                    if(_isReconnectByPingPortfoliosData == true)
+                    {
+                        continue;
+                    }
+
                     string message = GetGRPCErrorMessage(exception);
                     
                     if (message.Contains("limit") == false)
@@ -2557,7 +2632,13 @@ namespace OsEngine.Market.Servers.TInvest
                 }
                 catch (Exception exception)
                 {
-                    SendLogMessage(Truncate(exception.ToString()), LogMessageType.System);
+                    if (exception.ToString().Contains("Cannot access a disposed"))
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
+                    SendLogMessage(exception.ToString(), LogMessageType.System);
                     Thread.Sleep(5000);
                 }
             }
@@ -2643,7 +2724,7 @@ namespace OsEngine.Market.Servers.TInvest
                             }
                             catch (Exception ex)
                             {
-                                SendLogMessage("Error getting instrument data for " + pos.Figi + " " + Truncate(ex.ToString()), LogMessageType.System);
+                                SendLogMessage("Error getting instrument data for " + pos.Figi + " " + ex.ToString(), LogMessageType.System);
                             }
 
                             PositionOnBoard newPos = new PositionOnBoard();
@@ -2683,7 +2764,7 @@ namespace OsEngine.Market.Servers.TInvest
                             }
                             catch (Exception ex)
                             {
-                                SendLogMessage("Error getting instrument data for " + pos.Figi + " " + Truncate(ex.ToString()), LogMessageType.System);
+                                SendLogMessage("Error getting instrument data for " + pos.Figi + " " + ex.ToString(), LogMessageType.System);
                             }
 
                             PositionOnBoard newPos = new PositionOnBoard();
@@ -2717,7 +2798,7 @@ namespace OsEngine.Market.Servers.TInvest
                             }
                             catch (Exception ex)
                             {
-                                SendLogMessage("Error getting instrument data for " + pos.InstrumentUid + " " + Truncate(ex.ToString()), LogMessageType.System);
+                                SendLogMessage("Error getting instrument data for " + pos.InstrumentUid + " " + ex.ToString(), LogMessageType.System);
                             }
 
                             PositionOnBoard newPos = new PositionOnBoard();
@@ -2750,15 +2831,18 @@ namespace OsEngine.Market.Servers.TInvest
                         }
                     }
                 }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled)
-                {
-                    // Handle the cancellation gracefully
-                    string message = GetGRPCErrorMessage(ex);
-                    SendLogMessage($"Positions data stream was cancelled.", LogMessageType.System);
-                    Thread.Sleep(5000);
-                }
                 catch (RpcException exception)
                 {
+                    if (_isDisposedNow == true)
+                    {
+                        continue;
+                    }
+
+                    if (_isReconnectByPingPortfoliosData == true)
+                    {
+                        continue;
+                    }
+
                     string message = GetGRPCErrorMessage(exception);
 
                     if (message.Contains("limit") == false)
@@ -2785,126 +2869,13 @@ namespace OsEngine.Market.Servers.TInvest
                 }
                 catch (Exception exception)
                 {
-                    SendLogMessage(Truncate(exception.ToString()), LogMessageType.System);
-                    Thread.Sleep(5000);
-                }
-            }
-        }
-
-        private async void MyTradesMessageReader()
-        {
-            Thread.Sleep(1000);
-
-            while (true)
-            {
-                try
-                {
-                    if (ServerStatus == ServerConnectStatus.Disconnect)
+                    if (exception.ToString().Contains("Cannot access a disposed"))
                     {
-                        Thread.Sleep(1);
+                        Thread.Sleep(1000);
                         continue;
                     }
 
-
-                    if (_myTradesDataStream == null)
-                    {
-                        Thread.Sleep(1);
-                        continue;
-                    }
-
-                    if (await _myTradesDataStream.ResponseStream.MoveNext() == false)
-                    {
-                        Thread.Sleep(1);
-                        continue;
-                    }
-
-                    if (_myTradesDataStream == null)
-                    {
-                        Thread.Sleep(1);
-                        continue;
-                    }
-
-                    TradesStreamResponse tradesResponse = _myTradesDataStream.ResponseStream.Current;
-                    if (tradesResponse == null)
-                    {
-                        Thread.Sleep(1);
-                        continue;
-                    }
-
-                    _lastMyTradesDataTime = DateTime.UtcNow;
-
-                    if (tradesResponse.Ping != null)
-                    {
-                        Thread.Sleep(1);
-                        continue;
-                    }
-
-                    if (tradesResponse.OrderTrades != null)
-                    {
-                        Security security = GetSecurity(tradesResponse.OrderTrades.InstrumentUid);
-
-                        if (security == null)
-                        {
-                            Thread.Sleep(1);
-                            continue;
-                        }
-
-                        HashSet<string> ordersToCheck = new HashSet<string>();
-
-                        for (int i = 0; i < tradesResponse.OrderTrades.Trades.Count; i++)
-                        {
-                            MyTrade trade = new MyTrade();
-
-                            ordersToCheck.Add(tradesResponse.OrderTrades.OrderId); // save for checking status later
-
-                            trade.SecurityNameCode = security.Name;
-                            trade.Price = GetValue(tradesResponse.OrderTrades.Trades[i].Price);
-                            trade.Volume = tradesResponse.OrderTrades.Trades[i].Quantity / security.Lot;
-                            trade.NumberOrderParent = tradesResponse.OrderTrades.OrderId;
-                            trade.NumberTrade = tradesResponse.OrderTrades.Trades[i].TradeId;
-                            trade.Time = TimeZoneInfo.ConvertTimeFromUtc(tradesResponse.OrderTrades.Trades[i].DateTime.ToDateTime(), _mskTimeZone);// convert to MSK
-                            trade.Side = tradesResponse.OrderTrades.Direction == OrderDirection.Buy
-                                ? Side.Buy
-                                : Side.Sell;
-
-                            MyTradeEvent?.Invoke(trade);
-                        }
-
-                        // sometimes order status gets lost so lets query it implicitly
-                        string[] orderIds = ordersToCheck.ToArray();
-                        for (int i = 0; i < orderIds.Length; i++)
-                        {
-                            Order order = new Order();
-                            order.NumberMarket = orderIds[i];
-                            order.PortfolioNumber = tradesResponse.OrderTrades.AccountId;
-
-                            GetOrderStatusWithTrades(order, false); // no need to resend trades
-                        }
-                    }
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled)
-                {
-                    // Handle the cancellation gracefully
-                    string message = GetGRPCErrorMessage(ex);
-                    SendLogMessage($"My trades data stream was cancelled: {message}", LogMessageType.System);
-                    Thread.Sleep(5000);
-                }
-                catch (RpcException ex)
-                {
-                    string message = GetGRPCErrorMessage(ex);
-                    SendLogMessage($"My trades data stream was disconnected: {message}", LogMessageType.System);
-
-                    // need to reconnect everything
-                    if (ServerStatus != ServerConnectStatus.Disconnect)
-                    {
-                        ServerStatus = ServerConnectStatus.Disconnect;
-                        DisconnectEvent();
-                    }
-                    Thread.Sleep(5000);
-                }
-                catch (Exception exception)
-                {
-                    SendLogMessage(Truncate(exception.ToString()), LogMessageType.System);
+                    SendLogMessage(exception.ToString(), LogMessageType.System);
                     Thread.Sleep(5000);
                 }
             }
@@ -3084,15 +3055,18 @@ namespace OsEngine.Market.Servers.TInvest
                         MyOrderEvent?.Invoke(order);
                     }
                 }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled)
-                {
-                    // Handle the cancellation gracefully
-                    string message = GetGRPCErrorMessage(ex);
-                    SendLogMessage($"Order state data stream was cancelled.", LogMessageType.System);
-                    Thread.Sleep(5000);
-                }
                 catch (RpcException ex)
                 {
+                    if (_isDisposedNow == true)
+                    {
+                        continue;
+                    }
+
+                    if(_isReconnectByOrdersData == true)
+                    {
+                        continue;
+                    }
+
                     string message = GetGRPCErrorMessage(ex);
 
                     if (message.Contains("limit") == false)
@@ -3125,7 +3099,13 @@ namespace OsEngine.Market.Servers.TInvest
                 }
                 catch (Exception exception)
                 {
-                    SendLogMessage(Truncate(exception.ToString()), LogMessageType.System);
+                    if (exception.ToString().Contains("Cannot access a disposed"))
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
+                    SendLogMessage(exception.ToString(), LogMessageType.System);
                     Thread.Sleep(5000);
                 }
             }
@@ -3222,7 +3202,26 @@ namespace OsEngine.Market.Servers.TInvest
                 catch (RpcException ex)
                 {
                     string message = GetGRPCErrorMessage(ex);
-                    SendLogMessage(OsLocalization.Market.Label291 + "\n" + message, LogMessageType.Error);
+
+                    if(message.Contains("Not enough assets"))
+                    {
+                        message = OsLocalization.Market.Label301;
+                    }
+                    else if (message.Contains("The price is too high"))
+                    {
+                        message = OsLocalization.Market.Label302;
+                    }
+                    else if (message.Contains("The price is outside the limits for"))
+                    {
+                        message = OsLocalization.Market.Label304;
+                    }
+
+                    SendLogMessage(OsLocalization.Market.Label291 +
+                            "\n" + message +
+                            "\n" + order.SecurityNameCode 
+                            + ", " + OsLocalization.Market.Message21 + order.Volume
+                            + ", " + OsLocalization.Market.Label303 + " " + order.Price
+                            , LogMessageType.Error);
 
                     order.State = OrderStateType.Fail;
                     MyOrderEvent!(order);
@@ -3370,7 +3369,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception error)
             {
-                SendLogMessage(Truncate(error.ToString()), LogMessageType.System);
+                SendLogMessage(error.ToString(), LogMessageType.System);
             }
         }
 
@@ -3455,7 +3454,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception exception)
             {
-                SendLogMessage(OsLocalization.Market.Label293 + "\n" + Truncate(exception.ToString()), LogMessageType.System);
+                SendLogMessage(OsLocalization.Market.Label293 + "\n" + exception.ToString(), LogMessageType.System);
             }
             return false;
         }
@@ -3547,7 +3546,7 @@ namespace OsEngine.Market.Servers.TInvest
                 }
                 catch (Exception ex)
                 {
-                    SendLogMessage("Error getting order state " + order.SecurityNameCode + " exception: " + Truncate(ex.ToString()), LogMessageType.System);
+                    SendLogMessage("Error getting order state " + order.SecurityNameCode + " exception: " + ex.ToString(), LogMessageType.System);
                     SendLogMessage("Server data was: " + state.ToString(), LogMessageType.System);
 
                     Thread.Sleep(1);
@@ -3651,7 +3650,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception exception)
             {
-                SendLogMessage("Get order state request error. " + Truncate(exception.ToString()), LogMessageType.System);
+                SendLogMessage("Get order state request error. " + exception.ToString(), LogMessageType.System);
             }
 
             return OrderStateType.None;
@@ -3805,7 +3804,7 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception exception)
             {
-                SendLogMessage("Get all orders request error. " + Truncate(exception.ToString()), LogMessageType.System);
+                SendLogMessage("Get all orders request error. " + exception.ToString(), LogMessageType.System);
             }
 
             return null;
@@ -3929,15 +3928,6 @@ namespace OsEngine.Market.Servers.TInvest
         #endregion
 
         #region 10 Helpers
-
-        private string Truncate(string message)
-        {
-            if (message.Length > MaxExceptionLogLength)
-            {
-                return message.Substring(0, MaxExceptionLogLength);
-            }
-            return message;
-        }
 
         private string GetGRPCErrorMessage(RpcException exception)
         {
