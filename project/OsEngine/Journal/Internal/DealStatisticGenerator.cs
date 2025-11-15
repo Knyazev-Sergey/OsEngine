@@ -68,7 +68,7 @@ namespace OsEngine.Journal.Internal
             report.Add(Math.Round(GetAllProfitPercent(deals), 6).ToString(new CultureInfo("ru-RU")));//Net profti %
             report.Add(deals.Length.ToString(new CultureInfo("ru-RU")));// Number of transactions
             report.Add(GetAverageTimeOnPoses(deals));
-            report.Add(GetSharpRatio(deals, 7).ToString());
+            report.Add(GetSharpRatio(deals, 0).ToString());
 
             report.Add(Math.Round(GetProfitFactor(deals), 6).ToString(new CultureInfo("ru-RU")));   //Profit Factor
             report.Add(Math.Round(GetRecovery(deals), 6).ToString(new CultureInfo("ru-RU")));   // Recovery
