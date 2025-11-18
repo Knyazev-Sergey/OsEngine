@@ -101,12 +101,12 @@ namespace OsEngine.Robots
         // Logic open position
         private void LogicOpenPosition(List<Candle> candles)
         {
-            if (_lastClose > _lastSma && _regime != "OnlyShort") // If the mode is not only short, then we enter long
+            if (_lastClose >= _lastSma && _regime != "OnlyShort") // If the mode is not only short, then we enter long
             {
                 _tab.BuyAtLimit(GetVolume(_tab), _lastClose + _slippage * _tab.Security.PriceStep);
             }
 
-            if (_lastClose < _lastSma && _regime != "OnlyLong") // If the mode is not only long, then we enter short
+            if (_lastClose <= _lastSma && _regime != "OnlyLong") // If the mode is not only long, then we enter short
             {
                 _tab.SellAtLimit(GetVolume(_tab), _lastClose - _slippage * _tab.Security.PriceStep);
             }
@@ -122,7 +122,7 @@ namespace OsEngine.Robots
 
             if (position.Direction == Side.Buy) // If the direction of the position is long
             {
-                if (_lastClose < _lastSma)
+                if (_lastClose <= _lastSma)
                 {
                     _tab.CloseAtLimit(position, _lastClose - _slippage * _tab.Security.PriceStep, position.OpenVolume);
 
@@ -137,7 +137,7 @@ namespace OsEngine.Robots
 
             if (position.Direction == Side.Sell) // If the direction of the position is short
             {
-                if (_lastClose > _lastSma)
+                if (_lastClose >= _lastSma)
                 {
                     _tab.CloseAtLimit(position, _lastClose + _slippage * _tab.Security.PriceStep, position.OpenVolume);
 
