@@ -928,7 +928,7 @@ namespace OsEngine.Journal.Internal
             }
 
             decimal profit = GetAllProfitInAbsolute(deals);
-            if (profit != 0 && maxDownAbs != 0) recovery = Math.Abs(profit / maxDownAbs);
+            if (profit != 0 && maxDownAbs != 0) recovery = profit / Math.Abs(maxDownAbs);
 
             return Round(recovery);
         }
