@@ -828,8 +828,6 @@ namespace OsEngine.Robots
             }
         }
 
-        
-
         private void PushStartButton()
         {
             if (!CheckParameters())
