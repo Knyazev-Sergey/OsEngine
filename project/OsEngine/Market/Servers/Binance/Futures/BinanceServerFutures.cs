@@ -234,6 +234,8 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
         private bool _extendedMarketData;
 
+        private string _brokerId = "x-PPY5PYpN";
+
         public bool HedgeMode
         {
             get { return _hedgeMode; }
@@ -2138,7 +2140,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
             try
             {
-                orderNumUser = Convert.ToInt32(order.c.ToString().Replace("x-gnrPHWyE", ""));
+                orderNumUser = Convert.ToInt32(order.c.ToString().Replace(_brokerId, ""));
             }
             catch (Exception)
             {
@@ -2543,7 +2545,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 }
                 param.Add("&type=", order.TypeOrder == OrderPriceType.Limit ? "LIMIT" : "MARKET");
                 //param.Add("&timeInForce=", "GTC");
-                param.Add("&newClientOrderId=", "x-gnrPHWyE" + order.NumberUser.ToString());
+                param.Add("&newClientOrderId=", _brokerId + order.NumberUser.ToString());
                 param.Add("&quantity=",
                     order.Volume.ToString(CultureInfo.InvariantCulture)
                         .Replace(CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator, "."));
@@ -2881,7 +2883,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                         try
                         {
                             newOrder.NumberUser =
-                                Convert.ToInt32(orderOnBoardResp.clientOrderId.Replace("x-gnrPHWyE", ""));
+                                Convert.ToInt32(orderOnBoardResp.clientOrderId.Replace(_brokerId, ""));
                         }
                         catch
                         {
@@ -2978,7 +2980,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     continue;
                 }
 
-                if (allOrders[i].clientOrderId.Replace("x-gnrPHWyE", "") == oldOrder.NumberUser.ToString())
+                if (allOrders[i].clientOrderId.Replace(_brokerId, "") == oldOrder.NumberUser.ToString())
                 {
                     orderOnBoard = allOrders[i];
                     break;

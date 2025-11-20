@@ -263,6 +263,8 @@ namespace OsEngine.Market.Servers.HTX.Swap
 
         private string _leverage;
 
+        private string _brokerId = "AA7f7d2895";
+
         public bool HedgeMode
         {
             get { return _hedgeMode; }
@@ -2624,7 +2626,7 @@ namespace OsEngine.Market.Servers.HTX.Swap
                     }
                 }
 
-                jsonContent.Add("channel_code", "AAe2ccbd47");
+                jsonContent.Add("channel_code", _brokerId);
 
                 string url = null;
 

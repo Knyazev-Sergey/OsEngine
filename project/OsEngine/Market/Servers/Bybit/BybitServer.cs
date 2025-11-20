@@ -1892,7 +1892,7 @@ namespace OsEngine.Market.Servers.Bybit
                         WebSocket webSocketPublicSpot = _webSocketPublicSpot[i];
                         if (webSocketPublicSpot != null && webSocketPublicSpot?.ReadyState == WebSocketState.Open)
                         {
-                            webSocketPublicSpot?.SendAsync("{\"req_id\": \"OsEngine\", \"op\": \"ping\"}");
+                            webSocketPublicSpot?.SendAsync("{\"req_id\": \"Fh000919\", \"op\": \"ping\"}");
                         }
                     }
 
@@ -1902,7 +1902,7 @@ namespace OsEngine.Market.Servers.Bybit
 
                         if (webSocketPublicLinear != null && webSocketPublicLinear?.ReadyState == WebSocketState.Open)
                         {
-                            webSocketPublicLinear?.SendAsync("{\"req_id\": \"OsEngine\", \"op\": \"ping\"}");
+                            webSocketPublicLinear?.SendAsync("{\"req_id\": \"Fh000919\", \"op\": \"ping\"}");
                         }
                     }
 
@@ -1912,7 +1912,7 @@ namespace OsEngine.Market.Servers.Bybit
 
                         if (webSocketPublicInverse != null && webSocketPublicInverse?.ReadyState == WebSocketState.Open)
                         {
-                            webSocketPublicInverse?.SendAsync("{\"req_id\": \"OsEngine\", \"op\": \"ping\"}");
+                            webSocketPublicInverse?.SendAsync("{\"req_id\": \"Fh000919\", \"op\": \"ping\"}");
                         }
                     }
 
@@ -1922,13 +1922,13 @@ namespace OsEngine.Market.Servers.Bybit
 
                         if (webSocketPublicOption != null && webSocketPublicOption?.ReadyState == WebSocketState.Open)
                         {
-                            webSocketPublicOption?.SendAsync("{\"req_id\": \"OsEngine\", \"op\": \"ping\"}");
+                            webSocketPublicOption?.SendAsync("{\"req_id\": \"Fh000919\", \"op\": \"ping\"}");
                         }
                     }
 
                     if (webSocketPrivate != null && webSocketPrivate?.ReadyState == WebSocketState.Open)
                     {
-                        webSocketPrivate?.SendAsync("{\"req_id\": \"OsEngine\", \"op\": \"ping\"}");
+                        webSocketPrivate?.SendAsync("{\"req_id\": \"Fh000919\", \"op\": \"ping\"}");
                     }
                 }
                 catch (Exception ex)
@@ -4620,7 +4620,7 @@ namespace OsEngine.Market.Servers.Bybit
                 request.Headers.Add("X-BAPI-SIGN-TYPE", "2");
                 request.Headers.Add("X-BAPI-TIMESTAMP", timestamp);
                 request.Headers.Add("X-BAPI-RECV-WINDOW", RecvWindow);
-                request.Headers.Add("referer", "OsEngine");
+                request.Headers.Add("Referer", "Fh000919");
 
                 HttpResponseMessage response = httpClient?.SendAsync(request).Result;
 

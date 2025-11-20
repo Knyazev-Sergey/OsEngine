@@ -173,6 +173,8 @@ namespace OsEngine.Market.Servers.Binance.Spot
 
         private bool _extendedMarketData;
 
+        private string _brokerId = "x-E3SRQEJB";
+
         #endregion
 
         #region 3 Securities
@@ -1703,12 +1705,12 @@ namespace OsEngine.Market.Servers.Binance.Spot
         {
             var order = JsonConvert.DeserializeAnonymousType(mes, new ExecutionReport());
 
-            string orderNumUserInString = order.C.Replace("x-RKXTQ2AK", "");
+            string orderNumUserInString = order.C.Replace(_brokerId, "");
 
             if (string.IsNullOrEmpty(orderNumUserInString) ||
                 orderNumUserInString == "null")
             {
-                orderNumUserInString = order.c.Replace("x-RKXTQ2AK", "");
+                orderNumUserInString = order.c.Replace(_brokerId, "");
             }
 
             int orderNumUser = 0;
@@ -2188,7 +2190,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
                     {
                         param.Add("&timeInForce=", "GTC");
                     }
-                    param.Add("&newClientOrderId=", "x-RKXTQ2AK" + order.NumberUser.ToString());
+                    param.Add("&newClientOrderId=", _brokerId + order.NumberUser.ToString());
 
                     if (order.PositionConditionType == OrderPositionConditionType.Open)
                     {
@@ -2249,7 +2251,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
                     {
                         param.Add("&timeInForce=", "GTC");
                     }
-                    param.Add("&newClientOrderId=", "x-RKXTQ2AK" + order.NumberUser.ToString());
+                    param.Add("&newClientOrderId=", _brokerId + order.NumberUser.ToString());
                     param.Add("&quantity=",
                         order.Volume.ToString(CultureInfo.InvariantCulture)
                             .Replace(CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator, "."));
@@ -2397,7 +2399,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
                 }
 
                 HistoryOrderReport orderOnBoard =
-                    allOrders.Find(ord => ord.clientOrderId.Replace("x-RKXTQ2AK", "") == oldOrder.NumberUser.ToString());
+                    allOrders.Find(ord => ord.clientOrderId.Replace(_brokerId, "") == oldOrder.NumberUser.ToString());
 
                 if (orderOnBoard == null)
                 {
@@ -2656,7 +2658,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
 
                     if (orders[i].clientOrderId != null)
                     {
-                        string id = orders[i].clientOrderId.Replace("x-RKXTQ2AK", "");
+                        string id = orders[i].clientOrderId.Replace(_brokerId, "");
                         try
                         {
                             newOrder.NumberUser = Convert.ToInt32(id);
@@ -2766,7 +2768,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
 
                     if (orders[i].clientOrderId != null)
                     {
-                        string id = orders[i].clientOrderId.Replace("x-RKXTQ2AK", "");
+                        string id = orders[i].clientOrderId.Replace(_brokerId, "");
                         try
                         {
                             newOrder.NumberUser = Convert.ToInt32(id);

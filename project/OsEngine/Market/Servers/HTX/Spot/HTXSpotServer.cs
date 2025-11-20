@@ -189,6 +189,8 @@ namespace OsEngine.Market.Servers.HTX.Spot
 
         private bool _extendedMarketData;
 
+        private string _brokerId = "AA7f7d2895";
+
         #endregion
 
         #region 3 Securities
@@ -1886,7 +1888,7 @@ namespace OsEngine.Market.Servers.HTX.Spot
                         try
                         {
                             string numberFull = item.clientOrderId;
-                            string numUser = numberFull.Replace("AAe2ccbd47", "");
+                            string numUser = numberFull.Replace(_brokerId, "");
                             newOrder.NumberUser = Convert.ToInt32(numUser);
                         }
                         catch
@@ -2028,7 +2030,7 @@ namespace OsEngine.Market.Servers.HTX.Spot
                 }
 
                 jsonContent.Add("source", source_portfolio);
-                jsonContent.Add("client-order-id", "AAe2ccbd47" + order.NumberUser.ToString());
+                jsonContent.Add("client-order-id", _brokerId + order.NumberUser.ToString());
 
                 string url = _privateUriBuilder.Build("POST", $"/v1/order/orders/place");
 
@@ -2237,7 +2239,7 @@ namespace OsEngine.Market.Servers.HTX.Spot
                                 try
                                 {
                                     string numberFull = item[i].client_order_id;
-                                    string numUser = numberFull.Replace("AAe2ccbd47", "");
+                                    string numUser = numberFull.Replace(_brokerId, "");
                                     newOrder.NumberUser = Convert.ToInt32(numUser);
                                 }
                                 catch
@@ -2442,7 +2444,7 @@ namespace OsEngine.Market.Servers.HTX.Spot
                         try
                         {
                             string numberFull = item.client_order_id;
-                            string numUser = numberFull.Replace("AAe2ccbd47", "");
+                            string numUser = numberFull.Replace(_brokerId, "");
                             newOrder.NumberUser = Convert.ToInt32(numUser);
                         }
                         catch
@@ -2692,7 +2694,7 @@ namespace OsEngine.Market.Servers.HTX.Spot
                                 try
                                 {
                                     string numberFull = item[i].client_order_id;
-                                    string numUser = numberFull.Replace("AAe2ccbd47", "");
+                                    string numUser = numberFull.Replace(_brokerId, "");
                                     newOrder.NumberUser = Convert.ToInt32(numUser);
                                 }
                                 catch
