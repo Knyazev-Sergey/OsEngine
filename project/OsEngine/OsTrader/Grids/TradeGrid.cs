@@ -21,9 +21,10 @@ namespace OsEngine.OsTrader.Grids
     {
         #region Service
 
-        public TradeGrid(StartProgram startProgram, BotTabSimple tab)
+        public TradeGrid(StartProgram startProgram, BotTabSimple tab, int number)
         {
             Tab = tab;
+            Number = number;
 
             if(Tab.ManualPositionSupport != null)
             {
@@ -41,11 +42,8 @@ namespace OsEngine.OsTrader.Grids
 
             StartProgram = startProgram;
 
-            NonTradePeriods = new TradeGridNonTradePeriods();
+            NonTradePeriods = new TradeGridNonTradePeriods(tab.TabName+"Grid"+number);
             NonTradePeriods.LogMessageEvent += SendNewLogMessage;
-
-            NonTradeDays = new TradeGridNonTradeDays();
-            NonTradeDays.LogMessageEvent += SendNewLogMessage;
 
             StopBy = new TradeGridStopBy();
             StopBy.LogMessageEvent += SendNewLogMessage;
@@ -88,8 +86,6 @@ namespace OsEngine.OsTrader.Grids
 
         public TradeGridNonTradePeriods NonTradePeriods;
 
-        public TradeGridNonTradeDays NonTradeDays;
-
         public TradeGridStopBy StopBy;
 
         public TradeGridStopAndProfit StopAndProfit;
@@ -131,7 +127,7 @@ namespace OsEngine.OsTrader.Grids
             result += "%";
 
             // trade days
-            result += NonTradeDays.GetSaveString();
+            result += "";
             result += "%";
 
             // stop grid by event
@@ -207,7 +203,7 @@ namespace OsEngine.OsTrader.Grids
                 NonTradePeriods.LoadFromString(array[1]);
 
                 // trade days
-                NonTradeDays.LoadFromString(array[2]);
+                // removed
 
                 // stop grid by event
                 StopBy.LoadFromString(array[3]);
@@ -253,13 +249,8 @@ namespace OsEngine.OsTrader.Grids
             if (NonTradePeriods != null)
             {
                 NonTradePeriods.LogMessageEvent -= SendNewLogMessage;
+                NonTradePeriods.Delete();
                 NonTradePeriods = null;
-            }
-
-            if (NonTradeDays != null)
-            {
-                NonTradeDays.LogMessageEvent -= SendNewLogMessage;
-                NonTradeDays = null;
             }
 
             if (StopBy != null)
@@ -860,11 +851,9 @@ namespace OsEngine.OsTrader.Grids
 
                 DateTime serverTime = Tab.TimeServerCurrent;
 
-                TradeGridRegime tradeDaysRegime = NonTradeDays.GetNonTradeDaysRegime(serverTime);
                 TradeGridRegime nonTradePeriodsRegime = NonTradePeriods.GetNonTradePeriodsRegime(serverTime);
 
-                if(tradeDaysRegime != TradeGridRegime.On 
-                    || nonTradePeriodsRegime != TradeGridRegime.On)
+                if(nonTradePeriodsRegime != TradeGridRegime.On)
                 { // авто-старт не может быть включен, если сейчас не торговый период
                     return;
                 }
@@ -943,23 +932,11 @@ namespace OsEngine.OsTrader.Grids
             {
                 DateTime serverTime = Tab.TimeServerCurrent;
 
-                TradeGridRegime tradeDaysRegime = NonTradeDays.GetNonTradeDaysRegime(serverTime);
                 TradeGridRegime nonTradePeriodsRegime = NonTradePeriods.GetNonTradePeriodsRegime(serverTime);
 
                 if(nonTradePeriodsRegime != TradeGridRegime.On)
                 {
                     baseRegime = nonTradePeriodsRegime;
-
-                    if (baseRegime == TradeGridRegime.CloseForced)
-                    {
-                        Regime = baseRegime;
-                        Save();
-                        RePaintGrid();
-                    }
-                }
-                if(tradeDaysRegime != TradeGridRegime.On)
-                {
-                    baseRegime = tradeDaysRegime;
 
                     if (baseRegime == TradeGridRegime.CloseForced)
                     {
@@ -1566,6 +1543,8 @@ namespace OsEngine.OsTrader.Grids
 
         private void TrySetClosingOrders(decimal lastPrice)
         {
+            CheckWrongCloseOrders();
+
             List<TradeGridLine> linesOpenPoses = GetLinesWithOpenPosition();
 
             int startIndex = linesOpenPoses.Count - MaxCloseOrdersInMarket;
@@ -1617,7 +1596,43 @@ namespace OsEngine.OsTrader.Grids
                     }
                 }
 
-                Tab.CloseAtLimit(pos, line.PriceExit, volume);
+                Tab.CloseAtLimitUnsafe(pos, line.PriceExit, volume);
+            }
+        }
+
+
+        private void CheckWrongCloseOrders()
+        {
+            if(Tab.StartProgram != StartProgram.IsOsTrader)
+            {
+                return;
+            }
+
+            List<TradeGridLine> linesAll = GridCreator.Lines;
+
+            for (int i = 0; i < linesAll.Count; i++)
+            {
+                TradeGridLine curLine = linesAll[i];
+                Position pos = curLine.Position;
+                
+                if (pos == null)
+                {
+                    continue;
+                }
+
+                decimal volumePosOpen = pos.OpenVolume;
+
+                if (pos.CloseActive == true)
+                {
+                    Order orderToClose = pos.CloseOrders[^1];
+                    decimal volumeCloseOrder = orderToClose.Volume;
+                    decimal volumeExecuteCloseOrder = orderToClose.VolumeExecute;
+
+                    if (volumePosOpen != (volumeCloseOrder - volumeExecuteCloseOrder))
+                    {
+                        Tab.CloseOrder(orderToClose);
+                    }
+                }
             }
         }
 
@@ -1959,6 +1974,7 @@ namespace OsEngine.OsTrader.Grids
                 SendNewLogMessage(message, LogMessageType.Signal);
                 Regime = TradeGridRegime.Off;
                 RePaintGrid();
+                _needToSave = true;
             }
         }
 
@@ -2272,7 +2288,8 @@ namespace OsEngine.OsTrader.Grids
                     Position position = curLine.Position;
 
                     if(position != null 
-                        && position.OpenVolume > 0)
+                        && position.OpenVolume > 0
+                        && position.OpenActive == false)
                     {
                         continue;
                     }
@@ -2317,7 +2334,8 @@ namespace OsEngine.OsTrader.Grids
                     Position position = curLine.Position;
 
                     if (position != null
-                        && position.OpenVolume > 0)
+                        && position.OpenVolume > 0
+                        && position.OpenActive == false)
                     {
                         continue;
                     }

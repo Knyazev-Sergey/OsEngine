@@ -3478,25 +3478,6 @@ namespace OsEngine.Market.Servers.Tester
 
             for (int i = 0; i < files.Length; i++)
             {
-                security.Add(new SecurityTester());
-                security[security.Count - 1].FileAddress = files[i];
-                security[security.Count - 1].NewCandleEvent += TesterServer_NewCandleEvent;
-                security[security.Count - 1].NewTradesEvent += TesterServer_NewTradesEvent;
-                security[security.Count - 1].LogMessageEvent += TesterServer_LogMessageEvent;
-                security[security.Count - 1].NewMarketDepthEvent += TesterServer_NewMarketDepthEvent;
-                security[security.Count - 1].NeedToCheckOrders += TesterServer_NeedToCheckOrders;
-
-                string name = files[i].Split('\\')[files[i].Split('\\').Length - 1].Split('.')[0];
-
-                security[security.Count - 1].Security = new Security();
-                security[security.Count - 1].Security.Name = name;
-                security[security.Count - 1].Security.Lot = 1;
-                security[security.Count - 1].Security.NameClass = "TestClass";
-                security[security.Count - 1].Security.MarginBuy = 1;
-                security[security.Count - 1].Security.MarginSell = 1;
-                security[security.Count - 1].Security.PriceStepCost = 1;
-                security[security.Count - 1].Security.PriceStep = 1;
-
                 // timeframe / тф
                 // price step / шаг цены
                 // begin / начало
@@ -3510,9 +3491,28 @@ namespace OsEngine.Market.Servers.Tester
 
                         if (stream == null)
                         {
-                            ServerMaster.SendNewLogMessage("Incorrect file format", LogMessageType.Error);
                             continue;
                         }
+
+                        security.Add(new SecurityTester());
+                        security[security.Count - 1].FileAddress = files[i];
+                        security[security.Count - 1].NewCandleEvent += TesterServer_NewCandleEvent;
+                        security[security.Count - 1].NewTradesEvent += TesterServer_NewTradesEvent;
+                        security[security.Count - 1].LogMessageEvent += TesterServer_LogMessageEvent;
+                        security[security.Count - 1].NewMarketDepthEvent += TesterServer_NewMarketDepthEvent;
+                        security[security.Count - 1].NeedToCheckOrders += TesterServer_NeedToCheckOrders;
+
+                        string fileName = files[i].Split('\\')[files[i].Split('\\').Length - 1];
+                        string name = string.Join(".", fileName.Split('.').Reverse().Skip(3).Reverse());
+
+                        security[security.Count - 1].Security = new Security();
+                        security[security.Count - 1].Security.Name = name;
+                        security[security.Count - 1].Security.Lot = 1;
+                        security[security.Count - 1].Security.NameClass = "TestClass";
+                        security[security.Count - 1].Security.MarginBuy = 1;
+                        security[security.Count - 1].Security.MarginSell = 1;
+                        security[security.Count - 1].Security.PriceStepCost = 1;
+                        security[security.Count - 1].Security.PriceStep = 1;
 
                         DataBinaryReader dataReader = new DataBinaryReader(stream);
 
@@ -3530,13 +3530,17 @@ namespace OsEngine.Market.Servers.Tester
                                 {
                                     string[] volumeSplit = comment.Split(':');
 
-                                    double volumeStep = 1;
+                                    decimal volumeStep = 1;
 
                                     if (volumeSplit.Length == 2)
                                     {
-                                        if (volumeSplit[0] == "VolumeStep" && double.TryParse(volumeSplit[1].Replace(',', '.'), NumberStyles.Float, NumberFormatInfo.InvariantInfo, out volumeStep))
+                                        if (volumeSplit[0] == "VolumeStep")
                                         {
-                                            security[security.Count - 1].Security.VolumeStep = (decimal)volumeStep;
+                                            string normalized = volumeSplit[1].Replace(',', '.');
+                                            if (decimal.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out volumeStep))
+                                            {
+                                                security[security.Count - 1].Security.VolumeStep = volumeStep;
+                                            }
                                         }
                                     }
                                 }
@@ -3831,23 +3835,29 @@ namespace OsEngine.Market.Servers.Tester
                         }
                     }
                 }
-                else if (TypeTesterData != TesterDataType.Candle &&
-                         timeFrameBuilder.CandleMarketDataType == CandleMarketDataType.MarketDepth)
+                else if (TypeTesterData != TesterDataType.Candle && timeFrameBuilder.CandleMarketDataType == CandleMarketDataType.MarketDepth)
                 {
-                    if (_candleSeriesTesterActivate.Find(tester => tester.Security.Name == securityName &&
-                                                                   tester.DataType == SecurityTesterDataType.MarketDepth) == null)
+                    if (_candleSeriesTesterActivate == null) return null;
+
+                    for (int i = 0; i < _candleSeriesTesterActivate.Count; i++)
                     {
-                        if (SecuritiesTester != null
-                            && SecuritiesTester.Find(tester => tester.Security.Name == securityName &&
-                                                            tester.DataType == SecurityTesterDataType.MarketDepth) != null)
+                        SecurityTester securityTester = _candleSeriesTesterActivate[i];
+
+                        if (securityTester.Security.Name == securityName && securityTester.DataType == SecurityTesterDataType.MarketDepth)
                         {
-                            _candleSeriesTesterActivate.Add(
-                                    SecuritiesTester.Find(tester => tester.Security.Name == securityName &&
-                                           tester.DataType == SecurityTesterDataType.MarketDepth));
-                        }
-                        else
-                        { // there is nothing to run the series / нечем запускать серию
                             return null;
+                        }
+                    }
+
+                    if (SecuritiesTester == null) return null;
+
+                    for (int i = 0; i < SecuritiesTester.Count; i++)
+                    {
+                        SecurityTester securityTester = SecuritiesTester[i];
+
+                        if (securityTester.Security.Name == securityName && securityTester.DataType == SecurityTesterDataType.MarketDepth)
+                        {
+                            _candleSeriesTesterActivate.Add(securityTester);
                         }
                     }
                 }
@@ -4688,6 +4698,8 @@ namespace OsEngine.Market.Servers.Tester
         {
             try
             {
+                OffStream();
+
                 _reader = new StreamReader(FileAddress);
                 LastCandle = null;
                 LastTrade = null;
@@ -5002,20 +5014,23 @@ namespace OsEngine.Market.Servers.Tester
 
         private long _lastMilliseconds = 0;
 
-
         private void CheckMarketDepth(DateTime now)
         {
-            if (_dataBinaryReader == null)
+            if (now > TimeEnd || now < TimeStart)
             {
+                OffStream();
+
+                return;
+            }
+
+            if (_stream == null)
+            {
+                OffStream();
+
                 byte[] prefix = Encoding.UTF8.GetBytes("QScalp History Data");
                 FileStream fs = File.OpenRead(FileAddress);
                 _stream = GetDataStream(fs, prefix);
                 _dataBinaryReader = new DataBinaryReader(_stream);
-            }
-
-            if (now > TimeEnd || now < TimeStart)
-            {
-                return;
             }
 
             if (LastMarketDepth != null && LastMarketDepth.Time > now)
@@ -5051,9 +5066,13 @@ namespace OsEngine.Market.Servers.Tester
                             decimal volumeStep = 1;
                             if (volumeSplit.Length == 2)
                             {
-                                if (volumeSplit[0] == "VolumeStep" && decimal.TryParse(volumeSplit[1], NumberStyles.Float, NumberFormatInfo.InvariantInfo, out volumeStep))
+                                if (volumeSplit[0] == "VolumeStep")
                                 {
-                                    Security.VolumeStep = volumeStep;
+                                    string normalized = volumeSplit[1].Replace(',', '.');
+                                    if (decimal.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out volumeStep))
+                                    {
+                                        Security.VolumeStep = volumeStep;
+                                    }
                                 }
                             }
                         }
@@ -5095,29 +5114,40 @@ namespace OsEngine.Market.Servers.Tester
                     LastMarketDepth.SetMarketDepthFromBinaryFile(_dataBinaryReader, Security.PriceStep, (double)Security.VolumeStep, _lastMilliseconds);
                     _lastMilliseconds = TimeManager.GetTimeStampMillisecondsFromStartTime(LastMarketDepth.Time);
                     LastMarketDepth.SecurityNameCode = Security.Name;
+
+                    if (LastMarketDepth.Time != now)
+                    {
+                        return;
+                    }
+
+                    if (NewMarketDepthEvent != null)
+                    {
+                        NewMarketDepthEvent(LastMarketDepth);
+                    }
+
                     break;
                 }
             }
             catch (EndOfStreamException)
             {
+                OffStream();
+            }
+        }
+
+        private void OffStream()
+        {
+            if (_stream != null)
+            {
                 _stream.Dispose();
                 _stream.Close();
+                _stream = null;
+            }
 
+            if (_dataBinaryReader != null)
+            {
                 _dataBinaryReader.Dispose();
                 _dataBinaryReader.Close();
-
-                _stream = null;
                 _dataBinaryReader = null;
-            }
-
-            if (LastMarketDepth.Time != now)
-            {
-                return;
-            }
-
-            if (NewMarketDepthEvent != null)
-            {
-                NewMarketDepthEvent(LastMarketDepth);
             }
         }
 

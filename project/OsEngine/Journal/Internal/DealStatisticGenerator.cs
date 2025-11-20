@@ -290,7 +290,7 @@ namespace OsEngine.Journal.Internal
 
             //decimal ahpr = GetAllProfitPercent(deals);
 
-            decimal ahpr = tradeReturns.Average();
+            //decimal ahpr = tradeReturns.Average();
 
             DateTime timeFirstDeal = DateTime.MaxValue;
             DateTime timeEndDeal = DateTime.MinValue;
@@ -323,8 +323,8 @@ namespace OsEngine.Journal.Internal
                 return 0;
             }
                 
-            //decimal sharp = (ahpr - rfr) / sd;
-            decimal sharp = (ahpr - rfr) / sd * (decimal)Math.Sqrt(365);
+            decimal sharp = (ahpr - rfr) / sd;
+            //decimal sharp = (ahpr - rfr) / sd * (decimal)Math.Sqrt(365);
 
             return Math.Round(sharp, 4);
         }
@@ -354,8 +354,8 @@ namespace OsEngine.Journal.Internal
 
             // Sample standard deviation (divide by n-1)
             decimal variance = sumSquaredDifferences / (length);
-            //decimal sd = (decimal)Math.Sqrt((double)variance) / 100;
-            decimal sd = (decimal)Math.Sqrt((double)variance);
+            decimal sd = (decimal)Math.Sqrt((double)variance) / 100;
+            //decimal sd = (decimal)Math.Sqrt((double)variance);
 
             return Math.Round(sd, 5);
         }
