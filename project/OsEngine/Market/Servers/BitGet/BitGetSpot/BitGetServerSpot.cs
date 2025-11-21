@@ -2595,7 +2595,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetSpot
                 requestRest.AddHeader("ACCESS-SIGN", signature);
                 requestRest.AddHeader("ACCESS-TIMESTAMP", timestamp);
                 requestRest.AddHeader("ACCESS-PASSPHRASE", Passphrase);
-                requestRest.AddHeader("X-CHANNEL-API-CODE", "6yq7w");
+                requestRest.AddHeader("X-CHANNEL-API-CODE", "9mdwy");
 
                 RestClient client = new RestClient(BaseUrl);
 
@@ -2636,7 +2636,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetSpot
                 requestRest.AddHeader("ACCESS-SIGN", signature);
                 requestRest.AddHeader("ACCESS-TIMESTAMP", timestamp);
                 requestRest.AddHeader("ACCESS-PASSPHRASE", Passphrase);
-                requestRest.AddHeader("X-CHANNEL-API-CODE", "6yq7w");
+                requestRest.AddHeader("X-CHANNEL-API-CODE", "9mdwy");
 
                 if (method.ToString().Equals("POST"))
                 {
