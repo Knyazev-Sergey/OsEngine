@@ -768,7 +768,7 @@ namespace OsEngine.Journal
 
         #region Equity chart
 
-        Chart _chartEquity;
+        private Chart _chartEquity;
 
         private void CreateChartProfit()
         {
@@ -2067,11 +2067,11 @@ namespace OsEngine.Journal
 
         #region Volume to Portfolio
 
-        Chart _chartPortfolio;
+        private Chart _chartPortfolio;
 
-        DataGridView _gridLeveragePortfolio;
+        private DataGridView _gridLeveragePortfolio;
 
-        TableLayoutPanel _layoutPanelPortfolio;
+        private TableLayoutPanel _layoutPanelPortfolio;
 
         private void CreateChartPortfolio()
         {
@@ -2618,7 +2618,7 @@ namespace OsEngine.Journal
 
         #region Max DD Chart
 
-        Chart _chartDd;
+        private Chart _chartDd;
 
         private void CreateChartDrawDown()
         {
