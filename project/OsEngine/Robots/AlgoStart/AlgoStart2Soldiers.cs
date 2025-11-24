@@ -455,7 +455,7 @@ namespace OsEngine.Robots.AlgoStart
         // Close position logic
         private void LogicClosePosition(List<Candle> candles, BotTabSimple tab)
         {
-            decimal _lastPrice = candles[candles.Count - 1].Close;
+            
 
             List<Position> openPositions = tab.PositionsOpenAll;
 
@@ -467,22 +467,33 @@ namespace OsEngine.Robots.AlgoStart
                 {
                     continue;
                 }
-
-                decimal heightPattern =
-                    Math.Abs(tab.CandlesAll[tab.CandlesAll.Count - 4].Open - tab.CandlesAll[tab.CandlesAll.Count - 2].Close);
-
-                decimal priceStop = _lastPrice - (heightPattern * _procHeightStop.ValueDecimal) / 100;
-                decimal priceTake = _lastPrice + (heightPattern * _procHeightTake.ValueDecimal) / 100;
-
-                if(pos.StopOrderPrice == 0)
+                if (pos.StopOrderPrice == 0)
                 {
+                    int firstPatternIndex = tab.CandlesAll.Count;
+
+                    for (int i2 = candles.Count - 1; i2 >= 0; i2--)
+                    {
+                        Candle candle = candles[i2];
+
+                        if(candle.TimeStart <= pos.TimeOpen)
+                        {
+                            firstPatternIndex = i2 + 1;
+                            break;
+                        }
+                    }
+
+                    decimal lastPrice = candles[firstPatternIndex - 1].Close;
+
+                    decimal heightPattern =
+                    Math.Abs(tab.CandlesAll[firstPatternIndex - 4].Open - tab.CandlesAll[firstPatternIndex - 2].Close);
+
+                    decimal priceStop = lastPrice - (heightPattern * _procHeightStop.ValueDecimal) / 100;
+                    decimal priceTake = lastPrice + (heightPattern * _procHeightTake.ValueDecimal) / 100;
+
                     pos.StopOrderPrice = priceStop;
-                }
-                if(pos.ProfitOrderPrice == 0)
-                {
                     pos.ProfitOrderPrice = priceTake;
-                    
-                    if(StartProgram == StartProgram.IsOsTrader)
+
+                    if (StartProgram == StartProgram.IsOsTrader)
                     {
                         tab._journal.Save();
                     }

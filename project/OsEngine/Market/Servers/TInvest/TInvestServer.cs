@@ -1211,15 +1211,29 @@ namespace OsEngine.Market.Servers.TInvest
 
         public List<Candle> GetLastCandleHistory(Security security, TimeFrameBuilder timeFrameBuilder, int candleCount)
         {
-            if(ServerStatus == ServerConnectStatus.Disconnect)
+            if(ServerStatus == ServerConnectStatus.Disconnect
+                || candleCount <= 0)
             {
                 return null;
             }
 
+            if(candleCount > 5000)
+            {
+                candleCount = 5000;
+            }
+
             DateTime timeEnd = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _mskTimeZone); // to MSK
-            DateTime timeStart = timeEnd - TimeSpan.FromMinutes(timeFrameBuilder.TimeFrameTimeSpan.TotalMinutes * candleCount);
+            DateTime timeStart = timeEnd - TimeSpan.FromMinutes(timeFrameBuilder.TimeFrameTimeSpan.TotalMinutes * (candleCount * 1.5));
 
             List<Candle> candles = GetCandleDataToSecurity(security, timeFrameBuilder, timeStart, timeEnd, timeStart);
+
+            if(candles != null)
+            {
+                while (candles.Count > candleCount)
+                {
+                    candles.RemoveAt(0);
+                }
+            }
 
             return candles;
         }
@@ -1241,15 +1255,30 @@ namespace OsEngine.Market.Servers.TInvest
 
             int days = 1; // период, за который запрашивать свечи 
 
-            if (tf == TimeFrame.Hour1 ||
-                tf == TimeFrame.Hour2 ||
-                tf == TimeFrame.Hour4)
+            if (tf == TimeFrame.Day)
             {
-                days = 7; // Tinkoff api позволяет запрашивать большие интервалы данных для таймфреймов более 1 часа
+                days = 500;
             }
-            else if (tf == TimeFrame.Day)
+            else if (tf == TimeFrame.Hour2 ||
+                     tf == TimeFrame.Hour4)
             {
-                days = 35;
+                days = 60;
+            }
+            else if (tf == TimeFrame.Hour1)
+            {
+                days = 30;
+            }
+
+            else if(tf == TimeFrame.Min30)
+            {
+                days = 14;
+            }
+            else if (tf == TimeFrame.Min5
+                || tf == TimeFrame.Min10
+                || tf == TimeFrame.Min15
+                || tf == TimeFrame.Min20)
+            {
+                days = 5;
             }
 
             while (startTime < endTime)
@@ -1286,8 +1315,10 @@ namespace OsEngine.Market.Servers.TInvest
                 Candle prevCandle = candles[i - 1];
 
                 if (curCandle.TimeStart == prevCandle.TimeStart)
+                {
                     continue;
-
+                }
+                    
                 filtered.Add(curCandle);
             }
 
@@ -3220,7 +3251,7 @@ namespace OsEngine.Market.Servers.TInvest
                             "\n" + message +
                             "\n" + order.SecurityNameCode 
                             + ", " + OsLocalization.Market.Message21 + order.Volume
-                            + ", " + OsLocalization.Market.Label303 + " " + order.Price
+                            + ", " + OsLocalization.Market.Label303 + " " + order.Price + " " + order.Side
                             , LogMessageType.Error);
 
                     order.State = OrderStateType.Fail;

@@ -109,7 +109,7 @@ namespace OsEngine.OsTrader.Grids
             TextBoxMaxDistanceToOrdersPercent.Text = tradeGrid.MaxDistanceToOrdersPercent.ToString();
             TextBoxMaxDistanceToOrdersPercent.TextChanged += TextBoxMaxDistanceToOrdersPercent_TextChanged;
 
-            // non trade periods
+            // other settings
 
             ComboBoxNonTradePeriod1Regime.Items.Add(TradeGridRegime.Off.ToString());
             ComboBoxNonTradePeriod1Regime.Items.Add(TradeGridRegime.OffAndCancelOrders.ToString());
@@ -117,6 +117,12 @@ namespace OsEngine.OsTrader.Grids
             ComboBoxNonTradePeriod1Regime.Items.Add(TradeGridRegime.CloseForced.ToString());
             ComboBoxNonTradePeriod1Regime.SelectedItem = tradeGrid.NonTradePeriods.NonTradePeriod1Regime.ToString();
             ComboBoxNonTradePeriod1Regime.SelectionChanged += ComboBoxNonTradePeriod1Regime_SelectionChanged;
+
+            ComboBoxOpenOrdersMakerOnly.Items.Add(true.ToString());
+            ComboBoxOpenOrdersMakerOnly.Items.Add(false.ToString());
+            ComboBoxOpenOrdersMakerOnly.SelectedItem = tradeGrid.OpenOrdersMakerOnly.ToString();
+            ComboBoxOpenOrdersMakerOnly.SelectionChanged += ComboBoxOpenOrdersMakerOnly_SelectionChanged;
+
 
             // stop grid by event
 
@@ -293,6 +299,16 @@ namespace OsEngine.OsTrader.Grids
             TextBoxShiftFirstPrice.Text = tradeGrid.AutoStarter.ShiftFirstPrice.ToString();
             TextBoxShiftFirstPrice.TextChanged += TextBoxShiftFirstPrice_TextChanged;
 
+            CheckBoxStartGridByTimeOfDayIsOn.IsChecked = tradeGrid.AutoStarter.StartGridByTimeOfDayIsOn;
+            CheckBoxStartGridByTimeOfDayIsOn.Checked += CheckBoxStartGridByTimeOfDayIsOn_Checked;
+            CheckBoxStartGridByTimeOfDayIsOn.Unchecked += CheckBoxStartGridByTimeOfDayIsOn_Checked;
+            TextBoxStartGridByTimeOfDayHour.Text = tradeGrid.AutoStarter.StartGridByTimeOfDayHour.ToString();
+            TextBoxStartGridByTimeOfDayHour.TextChanged += TextBoxStartGridByTimeOfDayHour_TextChanged;
+            TextBoxStartGridByTimeOfDayMinute.Text = tradeGrid.AutoStarter.StartGridByTimeOfDayMinute.ToString();
+            TextBoxStartGridByTimeOfDayMinute.TextChanged += TextBoxStartGridByTimeOfDayMinute_TextChanged;
+            TextBoxStartGridByTimeOfDaySecond.Text = tradeGrid.AutoStarter.StartGridByTimeOfDaySecond.ToString();
+            TextBoxStartGridByTimeOfDaySecond.TextChanged += TextBoxStartGridByTimeOfDaySecond_TextChanged;
+
             // error reaction
 
             CheckBoxFailOpenOrdersReactionIsOn.IsChecked = tradeGrid.ErrorsReaction.FailOpenOrdersReactionIsOn;
@@ -410,6 +426,7 @@ namespace OsEngine.OsTrader.Grids
             // trade days 
             LabelNoTradePeriod1Regime.Content = OsLocalization.Trader.Label506;
             ButtonSetNonTradePeriods.Content = OsLocalization.Trader.Label632;
+            LabelOpenOrdersMakerOnly.Content = OsLocalization.Trader.Label635;
 
             // stop grid by event
             CheckBoxStopGridByMoveUpIsOn.Content = OsLocalization.Trader.Label481;
@@ -466,6 +483,10 @@ namespace OsEngine.OsTrader.Grids
             LabelRebuildGridRegime.Content = OsLocalization.Trader.Label535;
             LabelShiftFirstPrice.Content = OsLocalization.Trader.Label536;
 
+            CheckBoxStartGridByTimeOfDayIsOn.Content = OsLocalization.Trader.Label634;
+            LabelStartGridByTimeOfDayHour.Content = OsLocalization.Trader.Label527 + ":";
+            LabelStartGridByTimeOfDayMinute.Content = OsLocalization.Trader.Label528 + ":";
+            LabelStartGridByTimeOfDaySecond.Content = OsLocalization.Trader.Label529 + ":";
             // errors
 
             CheckBoxFailOpenOrdersReactionIsOn.Content = OsLocalization.Trader.Label538; 
@@ -2262,6 +2283,73 @@ namespace OsEngine.OsTrader.Grids
             }
         }
 
+        private void CheckBoxStartGridByTimeOfDayIsOn_Checked(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                TradeGrid.AutoStarter.StartGridByTimeOfDayIsOn = CheckBoxStartGridByTimeOfDayIsOn.IsChecked.Value;
+                TradeGrid.Save();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        private void TextBoxStartGridByTimeOfDayHour_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(TextBoxStartGridByTimeOfDayHour.Text))
+                {
+                    return;
+                }
+
+                TradeGrid.AutoStarter.StartGridByTimeOfDayHour = Convert.ToInt32(TextBoxStartGridByTimeOfDayHour.Text);
+                TradeGrid.Save();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        private void TextBoxStartGridByTimeOfDayMinute_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(TextBoxStartGridByTimeOfDayMinute.Text))
+                {
+                    return;
+                }
+
+                TradeGrid.AutoStarter.StartGridByTimeOfDayMinute = Convert.ToInt32(TextBoxStartGridByTimeOfDayMinute.Text);
+                TradeGrid.Save();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        private void TextBoxStartGridByTimeOfDaySecond_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(TextBoxStartGridByTimeOfDaySecond.Text))
+                {
+                    return;
+                }
+
+                TradeGrid.AutoStarter.StartGridByTimeOfDaySecond = Convert.ToInt32(TextBoxStartGridByTimeOfDaySecond.Text);
+                TradeGrid.Save();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
         #endregion
 
         #region Non trade periods
@@ -2276,6 +2364,19 @@ namespace OsEngine.OsTrader.Grids
             try
             {
                 Enum.TryParse(ComboBoxNonTradePeriod1Regime.SelectedItem.ToString(), out TradeGrid.NonTradePeriods.NonTradePeriod1Regime);
+                TradeGrid.Save();
+            }
+            catch (Exception ex)
+            {
+                TradeGrid.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+            }
+        }
+
+        private void ComboBoxOpenOrdersMakerOnly_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                TradeGrid.OpenOrdersMakerOnly = Convert.ToBoolean(ComboBoxOpenOrdersMakerOnly.SelectedItem.ToString());
                 TradeGrid.Save();
             }
             catch (Exception ex)

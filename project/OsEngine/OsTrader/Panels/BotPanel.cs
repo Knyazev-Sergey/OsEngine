@@ -2455,6 +2455,11 @@ position => position.State != PositionStateType.OpeningFail
 
         public void SendNewLogMessage(string message, LogMessageType type)
         {
+            if(type  == LogMessageType.Error)
+            {
+                message = NameStrategyUniq + " " + this.GetNameStrategyType() + "\n" + message;
+            }
+
             if (LogMessageEvent != null)
             {
                 LogMessageEvent(message, type);
