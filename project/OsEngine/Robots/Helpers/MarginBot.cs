@@ -27,6 +27,7 @@ using System.Globalization;
 using OsEngine.Market.Servers.Tester;
 using OsEngine.Market.Servers;
 using OsEngine.Market;
+using System.ComponentModel.Design;
 
 /* Description
 Робот работает только в Тестере.
@@ -90,6 +91,10 @@ namespace OsEngine.Robots.Helpers
                     server.TestingStartEvent += Server_TestingStartEvent;
                 }
             }
+
+            Description = OsLocalization.ConvertToLocString(
+                "En:The bot only works in the Tester. The bot is designed to charge a margin commission daily if the total amount of accepted orders exceeds the deposit amount._" +
+                "Ru:Робот работает только в Тестере. Робот предназначен для ежедневного списания маржинальной комиссии, если сумма взятых ордеров превышает размеры депозита._");
         }
 
         private void Server_TestingStartEvent()
