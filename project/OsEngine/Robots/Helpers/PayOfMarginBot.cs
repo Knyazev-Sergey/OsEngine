@@ -39,15 +39,15 @@ The bot is designed to charge a margin commission daily if the total amount of a
 
 namespace OsEngine.Robots.Helpers
 {
-    [Bot("MarginBot")]
-    public class MarginBot : BotPanel
+    [Bot("PayOfMarginBot")]
+    public class PayOfMarginBot : BotPanel
     {
         private BotTabSimple _tab;
         private StrategyParameterString _regime;
         private StartProgram _startProgram;
         List<BotPanel> _bots;
 
-        public MarginBot(string name, StartProgram startProgram) : base(name, startProgram)
+        public PayOfMarginBot(string name, StartProgram startProgram) : base(name, startProgram)
         {
             if (startProgram != StartProgram.IsTester)
             {
