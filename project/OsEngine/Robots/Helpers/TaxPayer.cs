@@ -5,7 +5,6 @@
 
 using Newtonsoft.Json;
 using OsEngine.Entity;
-using OsEngine.Logging;
 using OsEngine.OsTrader.Panels;
 using OsEngine.OsTrader.Panels.Attributes;
 using OsEngine.OsTrader.Panels.Tab;
@@ -13,12 +12,8 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
-using OsEngine.Journal;
 using OsEngine.OsTrader;
 using OsEngine.OsTrader.Panels.Tab.Internal;
 using OsEngine.Market.Connectors;
@@ -39,7 +34,7 @@ namespace OsEngine.Robots.Helpers
     {
         private BotTabSimple _tab;
         private StrategyParameterString _regime;
-        private StartProgram _startProgram;
+        private StrategyParameterBool _fullLogIsOn;
 
         public TaxPayer(string name, StartProgram startProgram) : base(name, startProgram)
         {
@@ -51,8 +46,6 @@ namespace OsEngine.Robots.Helpers
                 return;
             }
 
-            _startProgram = startProgram;
-
             TabCreate(BotTabType.Simple);
             _tab = TabsSimple[0];
 
@@ -60,14 +53,28 @@ namespace OsEngine.Robots.Helpers
 
             _regime = CreateParameter("Regime", "Off", new string[] { "Off", "On" }, tabName);
 
-            CustomTabToParametersUi customTab = ParamGuiSettings.CreateCustomTab(" Periods ");
+            _fullLogIsOn = CreateParameter("Full log is on", false, tabName);
 
-            CreateTable();
-            customTab.AddChildren(_host);
+            try
+            {
+                CustomTabToParametersUi customTab = ParamGuiSettings.CreateCustomTab(" Periods ");
 
-            LoadTable();
+                CreateTable();
+
+                if (_dgv != null)
+                {
+                    customTab.AddChildren(_host);
+                    LoadTable();
+                }
+            }
+            catch
+            {
+                // ignore
+            }
 
             _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;
+
+            Description = OsLocalization.Description.DescriptionLabel327;
         }
 
         #region Table Periods
@@ -122,7 +129,7 @@ namespace OsEngine.Robots.Helpers
             }
             catch (Exception ex)
             {
-                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+                //SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
             }
         }
 
@@ -344,7 +351,7 @@ namespace OsEngine.Robots.Helpers
         {
             try
             {
-                if (_startProgram != StartProgram.IsTester)
+                if (StartProgram != StartProgram.IsTester)
                 {
                     return;
                 }
@@ -378,6 +385,11 @@ namespace OsEngine.Robots.Helpers
 
         private void MainLogic(int year)
         {
+            if(_fullLogIsOn.ValueBool == true)
+            {
+                SendNewLogMessage("Logic entry. Year: " + year, Logging.LogMessageType.System);
+            }
+
             decimal profit = 0;
 
             List<BotPanel> bots = OsTraderMaster.Master.PanelsArray;
@@ -397,24 +409,39 @@ namespace OsEngine.Robots.Helpers
                     continue;
                 }
 
-                List<Journal.Journal> journal = bots[i].GetJournals();
+                List<Journal.Journal> journals = bots[i].GetJournals();
 
                 decimal profitBot = 0;
 
-                for (int i2 = 0; i2 < journal[0].CloseAllPositions.Count; i2++)
+                for(int j = 0; j < journals.Count;j++)
                 {
-                    if (journal[0].CloseAllPositions[i2].TimeClose.Year != year)
-                    {
-                        continue;
-                    }
+                    Journal.Journal curJournal = journals[j];
 
-                    profitBot += journal[0].CloseAllPositions[i2].ProfitPortfolioAbs;
+                    for (int i2 = 0; i2 < curJournal.CloseAllPositions.Count; i2++)
+                    {
+                        if (curJournal.CloseAllPositions[i2].TimeClose.Year != year)
+                        {
+                            continue;
+                        }
+
+                        profitBot += curJournal.CloseAllPositions[i2].ProfitPortfolioAbs;
+                    }
                 }
 
                 profit += profitBot;
             }
 
-            TaxDeal(taxBot, year, profit);
+            if(profit > 0)
+            {
+                TaxDeal(taxBot, year, profit);
+            }
+            else
+            {
+                if (_fullLogIsOn.ValueBool == true)
+                {
+                    SendNewLogMessage("No profit . Year: " + year + " Profit: " + profit, Logging.LogMessageType.System);
+                }
+            }
         }
 
         private void TaxDeal(BotPanel taxBot, int year, decimal profit)
@@ -436,10 +463,24 @@ namespace OsEngine.Robots.Helpers
 
             if (rate <= 0)
             {
+                if (_fullLogIsOn.ValueBool == true)
+                {
+                    SendNewLogMessage("No Rate. Year: " + year + " Rate: " + rate, Logging.LogMessageType.System);
+                }
                 return;
             }
 
             decimal tax = Math.Round(profit * rate / 100, 2);
+
+            if (_fullLogIsOn.ValueBool == true)
+            {
+                SendNewLogMessage("Pay tax. Year: " + year +
+                    "\nProfit: " + profit +
+                    "\nRate: " + rate +
+                    "\nTax: " + tax 
+                    , 
+                    Logging.LogMessageType.System);
+            }
 
             if (tax > 0)
             {
@@ -457,7 +498,7 @@ namespace OsEngine.Robots.Helpers
                 Position newDeal = _dealCreator.CreatePosition(
                    taxBot.NameStrategyUniq, Side.Buy, 2, tax,
                    OrderPriceType.Limit, manualPositionSupport.SecondToOpen,
-                   security, portfolio, _startProgram,
+                   security, portfolio, StartProgram,
                    manualPositionSupport.OrderTypeTime,
                    manualPositionSupport.LimitsMakerOnly);
 
