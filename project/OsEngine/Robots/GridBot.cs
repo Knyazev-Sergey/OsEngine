@@ -13,6 +13,8 @@ using System.Threading;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using System.Globalization;
+using OsEngine.Candles.Series;
+using OsEngine.Charts.CandleChart.Indicators;
 
 namespace OsEngine.Robots
 {
@@ -40,6 +42,8 @@ namespace OsEngine.Robots
         private StrategyParameterString _tag;
         private List<string> _tableListSide = new List<string> { "Buy", "Sell" };
         private Status _status = Status.NoWork;
+        private StrategyParameterDecimal _minVolumeForTicker;
+        private StrategyParameterBool _autoCalcMartingaleAmountOrders;
 
         Aindicator _rsi;
         Aindicator _rsiBTC;
@@ -51,12 +55,11 @@ namespace OsEngine.Robots
         private decimal _lastRsi;
         private decimal _lastRsiSecond;
 
-
         public GridBot(string name, StartProgram startProgram) : base(name, startProgram)
         {
-			CultureInfo.CurrentCulture = CultureInfo.InstalledUICulture;
+            CultureInfo.CurrentCulture = new CultureInfo("ru-RU");
 
-			TabCreate(BotTabType.Simple);
+            TabCreate(BotTabType.Simple);
             _tab = TabsSimple[0];
             TabCreate(BotTabType.Simple);
             _tabRSI = TabsSimple[1];
@@ -77,6 +80,7 @@ namespace OsEngine.Robots
             _сoveringPriceChanges = CreateParameter("Перекрытие изменения цены, %", 0m, 0m, 0m, 0m, tabNameParameters);
             _countOrdersGrid = CreateParameter("Сетка ордеров", 0, 0, 0, 0, tabNameParameters);
             _percentMartingale = CreateParameter("Процент мартингейла, %", 0m, 0m, 0m, 0m, tabNameParameters);
+            _autoCalcMartingaleAmountOrders = CreateParameter("Автоматический расчет ордеров по Мартингейлу", false, tabNameParameters);
             _firstOrderIndent = CreateParameter("Отступ первого ордера, %", 0m, 0m, 0m, 0m, tabNameParameters);
             _profit = CreateParameter("Профит, %", 0m, 0m, 0m, 0m, tabNameParameters);
             _rearrangeGrid = CreateParameter("Подтяжка сетки ордеров, %", 0m, 0m, 0m, 0m, tabNameParameters);
@@ -85,6 +89,7 @@ namespace OsEngine.Robots
             _delayAfterCycle = CreateParameter("Задержка после завершения цикла, мин", 0m, 0m, 0m, 0m, tabNameParameters);
             _logPriceLevels = CreateParameter("Логарифмическое распределение уровней цен", 0m, 0m, 0m, 0m, tabNameParameters);
             _tag = CreateParameter("Тэг", "", tabNameParameters);
+            _minVolumeForTicker = CreateParameter("Минимальный объем по инструменту", 0m, 0m, 0m, 0m, tabNameParameters);
 
             _rsiOnOff = CreateParameter("Фильтр RSI", RsiRegime.Off.ToString(), new string[] { RsiRegime.Off.ToString(), RsiRegime.On.ToString() }, tabNameRsi);
             _periodRsi = CreateParameter("Период RSI", 14, 0, 0, 0, tabNameRsi);
@@ -286,89 +291,112 @@ namespace OsEngine.Robots
         }
 
         private void NewButtonGrid_CellClick(object sender, DataGridViewCellEventArgs e)
-        {          
-            if (e.ColumnIndex == 0) // сохранить шаблон
+        {
+            try
             {
-                SaveGridTable();
-            }
-
-            if (e.ColumnIndex == 2) // загрузить шаблон
-            {
-                LoadGridTable();
-            }
-
-            if (e.ColumnIndex == 4) //рассчитать сетку
-            {               
-                if (_lastPrice == 0)
+                if (e.ColumnIndex == 0) // сохранить шаблон
                 {
-					SendNewLogMessage("Нет данных по цене инструмента", Logging.LogMessageType.Error);
-					return;
+                    SaveGridTable();
                 }
 
-                if (_сoveringPriceChanges.ValueDecimal == 0 ||
-                _firstOrderIndent.ValueDecimal == 0 ||
-                _volume.ValueDecimal == 0 ||
-                _leverage.ValueDecimal == 0 ||
-                _countOrdersGrid.ValueInt == 0 ||
-                _logPriceLevels.ValueDecimal == 0)
+                if (e.ColumnIndex == 2) // загрузить шаблон
                 {
-                    SendNewLogMessage("Не введены необходимые данные для работы робота", Logging.LogMessageType.Error);                    
-                    return;
+                    LoadGridTable();
                 }
 
-                for (int i = 0; i < _gridTableGrid.Rows.Count; i++)
+                if (e.ColumnIndex == 4) //рассчитать сетку
                 {
-                    _gridTableGrid.Rows.RemoveAt(i);
-                    i--;
-                }
-
-                List<ListOrders> listBuy = new List<ListOrders>();
-				List<ListOrders> listSell = new List<ListOrders>();
-
-				if (_regime.ValueString == GetDescription(Regime.OnlyLong))
-                {
-					listBuy = CalculateGrid(Side.Buy);
-                }
-                else if (_regime.ValueString == GetDescription(Regime.OnlyShort))
-                {
-					listSell = CalculateGrid(Side.Sell);
-                }
-                else
-                {
-					listBuy = CalculateGrid(Side.Buy);
-					listSell = CalculateGrid(Side.Sell);
-                }
-
-                for (int i = listSell.Count - 1; i >= 0; i--)
-                {
-                    DataGridViewRow newRow = new DataGridViewRow();
-
-                    newRow.Cells.Add(new DataGridViewTextBoxCell());
-                    newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = Math.Round((listSell[i].Price / _lastPrice - 1) * 100, 4) });
-                    newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = Math.Round(listSell[i].Price, _tab.Security.Decimals) });
-                    newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = listSell[i].Volume });
-                    newRow.Cells.Add(new DataGridViewComboBoxCell()
-
+                    if (_lastPrice == 0)
                     {
-                        DataSource = _tableListSide,
-                        Value = _tableListSide[1],
+                        SendNewLogMessage("Нет данных по цене инструмента", Logging.LogMessageType.Error);
+                        return;
                     }
-                    );
 
-                    _gridTableGrid.Rows.Add(newRow);
+                    if (_сoveringPriceChanges.ValueDecimal == 0 ||
+                    _firstOrderIndent.ValueDecimal == 0 ||
+                    _volume.ValueDecimal == 0 ||
+                    _leverage.ValueDecimal == 0 ||
+                    _countOrdersGrid.ValueInt == 0 ||
+                    _logPriceLevels.ValueDecimal == 0)
+                    {
+                        SendNewLogMessage("Не введены необходимые данные для работы робота", Logging.LogMessageType.Error);
+                        return;
+                    }
 
-                    _gridTableGrid.Rows[_gridTableGrid.Rows.Count - 1].Cells[0].Value = _gridTableGrid.Rows.Count;
+                    for (int i = 0; i < _gridTableGrid.Rows.Count; i++)
+                    {
+                        _gridTableGrid.Rows.RemoveAt(i);
+                        i--;
+                    }
+
+                    List<ListOrders> listBuy = new List<ListOrders>();
+                    List<ListOrders> listSell = new List<ListOrders>();
+
+                    if (_regime.ValueString == GetDescription(Regime.OnlyLong))
+                    {
+                        listBuy = CalculateGrid(Side.Buy);
+                    }
+                    else if (_regime.ValueString == GetDescription(Regime.OnlyShort))
+                    {
+                        listSell = CalculateGrid(Side.Sell);
+                    }
+                    else
+                    {
+                        listBuy = CalculateGrid(Side.Buy);
+                        listSell = CalculateGrid(Side.Sell);
+                    }
+
+                    for (int i = listSell.Count - 1; i >= 0; i--)
+                    {
+                        DataGridViewRow newRow = new DataGridViewRow();
+
+                        newRow.Cells.Add(new DataGridViewTextBoxCell());
+                        newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = Math.Round((listSell[i].Price / _lastPrice - 1) * 100, 4) });
+                        newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = Math.Round(listSell[i].Price, _tab.Security.Decimals) });
+                        newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = listSell[i].Volume });
+                        newRow.Cells.Add(new DataGridViewComboBoxCell()
+
+                        {
+                            DataSource = _tableListSide,
+                            Value = _tableListSide[1],
+                        }
+                        );
+
+                        _gridTableGrid.Rows.Add(newRow);
+
+                        _gridTableGrid.Rows[_gridTableGrid.Rows.Count - 1].Cells[0].Value = _gridTableGrid.Rows.Count;
+                    }
+                    for (int i = 0; i < listBuy.Count; i++)
+                    {
+                        DataGridViewRow newRow = new DataGridViewRow();
+
+                        newRow.Cells.Add(new DataGridViewTextBoxCell());
+                        newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = Math.Round((listBuy[i].Price / _lastPrice - 1) * 100, 4) });
+                        newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = Math.Round(listBuy[i].Price, _tab.Security.Decimals) });
+                        newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = listBuy[i].Volume });
+                        newRow.Cells.Add(new DataGridViewComboBoxCell()
+
+                        {
+                            DataSource = _tableListSide,
+                            Value = _tableListSide[0],
+                        }
+                        );
+
+                        _gridTableGrid.Rows.Add(newRow);
+
+                        _gridTableGrid.Rows[_gridTableGrid.Rows.Count - 1].Cells[0].Value = _gridTableGrid.Rows.Count;
+                    }
                 }
-                for (int i = 0; i < listBuy.Count; i++)
+
+                if (e.ColumnIndex == 6) // добавить строку
                 {
                     DataGridViewRow newRow = new DataGridViewRow();
 
                     newRow.Cells.Add(new DataGridViewTextBoxCell());
-                    newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = Math.Round((listBuy[i].Price / _lastPrice - 1) * 100, 4) });
-                    newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = Math.Round(listBuy[i].Price, _tab.Security.Decimals) });
-                    newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = listBuy[i].Volume });
+                    newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = 0 });
+                    newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = 0 });
+                    newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = 0 });
                     newRow.Cells.Add(new DataGridViewComboBoxCell()
-
                     {
                         DataSource = _tableListSide,
                         Value = _tableListSide[0],
@@ -380,63 +408,59 @@ namespace OsEngine.Robots
                     _gridTableGrid.Rows[_gridTableGrid.Rows.Count - 1].Cells[0].Value = _gridTableGrid.Rows.Count;
                 }
             }
-
-            if (e.ColumnIndex == 6) // добавить строку
+            catch (Exception ex)
             {
-                DataGridViewRow newRow = new DataGridViewRow();
-
-                newRow.Cells.Add(new DataGridViewTextBoxCell());
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = 0});
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = 0 });
-                newRow.Cells.Add(new DataGridViewTextBoxCell() { Value = 0 });
-                newRow.Cells.Add(new DataGridViewComboBoxCell()
-                {
-                    DataSource = _tableListSide,
-                    Value = _tableListSide[0],
-                }
-                );
-
-                _gridTableGrid.Rows.Add(newRow);
-
-                _gridTableGrid.Rows[_gridTableGrid.Rows.Count - 1].Cells[0].Value = _gridTableGrid.Rows.Count;
+                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
             }
         }
 
         private void GridTableGrid_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
-            if (e.ColumnIndex == 1)
+            try
             {
-                decimal value;
-                if (!decimal.TryParse(_gridTableGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value.ToString(), out value))
+                if (e.ColumnIndex == 1)
                 {
-                    _gridTableGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = 0;
-                }
-               
-                _gridTableGrid.Rows[e.RowIndex].Cells[2].Value = Math.Round(value / 100 * _lastPrice + _lastPrice, 4);
-            }
+                    decimal value;
+                    if (!decimal.TryParse(_gridTableGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value.ToString(), out value))
+                    {
+                        _gridTableGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = 0;
+                    }
 
-            if (e.ColumnIndex == 3)
-            {
-                decimal value;
-                if (!decimal.TryParse(_gridTableGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value.ToString(), out value))
-                {
-                    _gridTableGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = 0;
+                    _gridTableGrid.Rows[e.RowIndex].Cells[2].Value = Math.Round(value / 100 * _lastPrice + _lastPrice, 4);
                 }
+
+                if (e.ColumnIndex == 3)
+                {
+                    decimal value;
+                    if (!decimal.TryParse(_gridTableGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value.ToString(), out value))
+                    {
+                        _gridTableGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
             }
         }
 
         private void GridTableGrid_CellClick(object sender, DataGridViewCellEventArgs e)
         {
-            
-
-            if (e.ColumnIndex == 5)
+            try
             {
-                _gridTableGrid.Rows.RemoveAt(e.RowIndex);
-
-                for (int i = 0; i < _gridTableGrid.Rows.Count; i++)
+                if (e.ColumnIndex == 5)
                 {
-                    _gridTableGrid.Rows[i].Cells[0].Value = i + 1;
+                    _gridTableGrid.Rows.RemoveAt(e.RowIndex);
+
+                    for (int i = 0; i < _gridTableGrid.Rows.Count; i++)
+                    {
+                        _gridTableGrid.Rows[i].Cells[0].Value = i + 1;
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
             }
         }
 
@@ -571,19 +595,19 @@ namespace OsEngine.Robots
 
         private void ThreadRefreshTable()
         {
-            try
+            while (true)
             {
-                while (true)
+                try
                 {
                     Thread.Sleep(1000);
                     OrdersMonitoring();
                     AddDataToGrid();
                 }
-            }
-            catch (Exception ex)
-            {
-                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
-            }
+                catch (Exception ex)
+                {
+                    SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+                }
+            }           
         }
 
         private void CreateTableMonitoring()
@@ -756,7 +780,7 @@ namespace OsEngine.Robots
 
             if (_typeVolume.ValueString == GetDescription(TypeVolume.Percent))
             {
-                wallet = Math.Round(freeMoney * _volume.ValueDecimal / 100 * _leverage.ValueDecimal, 4);
+                wallet = Math.Round(_tab.Portfolio.ValueCurrent * _volume.ValueDecimal / 100 * _leverage.ValueDecimal, 4);
             }
 
             if (_status != _statusValue)
@@ -787,142 +811,41 @@ namespace OsEngine.Robots
 
         private void _gridMonitoringButton_CellClick(object sender, DataGridViewCellEventArgs e)
         {
-            if (e.ColumnIndex == 0 && e.RowIndex == 0)
+            try
             {
-                PushStartButton();
-            }
-            if (e.ColumnIndex == 1 && e.RowIndex == 0)
-            {
-                PushStopButton();
-            }
-            if (e.ColumnIndex == 2 && e.RowIndex == 0)
-            {
-                PushPauseButton();
-            }
-            if (e.ColumnIndex == 3 && e.RowIndex == 0)
-            {
-                _status = Status.CancelAllOrders;
-                CancelAllOrders();
-            }            
-            if (e.ColumnIndex == 4 && e.RowIndex == 0)
-            {
-                PushForcedStop();
-            }
-            if (e.ColumnIndex == 5 && e.RowIndex == 0)
-            {
-                _status = Status.CloseOrdersOnMarket;
-                CloseOrdersOnMarket();
-            }
-        }
-
-        private void CancelAllOrders()
-        {            
-            DialogResult result = MessageBox.Show("Остановить бота?", "Сообщение", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1);
-
-            _checkExecuteOpenBuy = false;
-            _checkExecuteOpenSell = false;
-            _needRearrangeBuy = false;
-            _needRearrangeSell = false;
-            _workCycle = false;
-
-            for (int i = 0; i < _tab.PositionsOpenAll.Count; i++)
-            {
-               
-                for ( int j = 0; j < _tab.PositionsOpenAll[i].OpenOrders.Count; j++)
+                if (e.ColumnIndex == 0 && e.RowIndex == 0)
                 {
-                    if (_tab.PositionsOpenAll[i].OpenOrders[j].State == OrderStateType.Active ||
-                        _tab.PositionsOpenAll[i].OpenOrders[j].State == OrderStateType.Activ)
-                    {
-                        _tab.CloseOrder(_tab.PositionsOpenAll[i].OpenOrders[j]);                        
-                    }
-                }               
-            }
-
-            switch (result)
-            {
-                case DialogResult.Yes:
-                    _checkCloseOrderBuy = false;
-                    _checkCloseOrderSell = false;                    
-                    _status = Status.NoWork;
-                    break;
-
-                case DialogResult.No:
-                    _status = Status.Work;
-                    _workCycle = true;
-					_checkCloseOrderBuy = true;
-					_checkCloseOrderSell = true;
-					break;
-
-                default:
-
-                    break;
-            }            
-        }
-
-        private void CloseOrdersOnMarket()
-        {
-            DialogResult result = MessageBox.Show("Остановить бота?", "Сообщение", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1);
-
-            for (int i = 0; i < _tab.PositionsOpenAll.Count; i++)
-            {
-                if (_tab.PositionsOpenAll[i].CloseOrders != null &&
-                    _tab.PositionsOpenAll[i].CloseOrders.Count > 0)
+                    PushStartButton();
+                }
+                if (e.ColumnIndex == 1 && e.RowIndex == 0)
                 {
-                    _tab.CloseOrder(_tab.PositionsOpenAll[i].CloseOrders.Last());
-
-                    decimal price = _lastPrice + _tab.Security.PriceStep * 100;
-
-                    if (_tab.PositionsOpenAll[i].Direction == Side.Buy)
-                    {
-                        price = _lastPrice - _tab.Security.PriceStep * 100;
-                        _checkCloseOrderBuy = true;
-                    }
-                    else
-                    {
-                        _checkCloseOrderSell = true;
-                    }
-
-					_tab.CloseAtLimitUnsafe(_tab.PositionsOpenAll[i], price, _tab.PositionsOpenAll[i].OpenVolume);
+                    PushStopButton();
+                }
+                if (e.ColumnIndex == 2 && e.RowIndex == 0)
+                {
+                    PushPauseButton();
+                }
+                if (e.ColumnIndex == 3 && e.RowIndex == 0)
+                {
+                    _status = Status.CancelAllOrders;
+                    CancelAllOrders();
+                }
+                if (e.ColumnIndex == 4 && e.RowIndex == 0)
+                {
+                    PushForcedStop();
+                }
+                if (e.ColumnIndex == 5 && e.RowIndex == 0)
+                {
+                    _status = Status.CloseOrdersOnMarket;
+                    CloseOrdersOnMarket();
                 }
             }
-
-            switch (result)
+            catch (Exception ex)
             {
-                case DialogResult.Yes:
-                    _checkCloseOrderBuy = false;
-                    _checkCloseOrderSell = false;
-                    _workCycle = false;
-                    _checkExecuteOpenBuy = false;
-                    _checkExecuteOpenSell = false;
-                    _tryOpenOrderBuy = false;
-                    _tryOpenOrderSell = false;
-                    _status = Status.NoWork;
-
-                    _needRearrangeBuy = false;
-                    _needRearrangeSell = false;
-
-                    for (int i = 0; i < _tab.PositionsOpenAll.Count; i++)
-                    {
-                        _tab.CloseAllOrderToPosition(_tab.PositionsOpenAll[i]);
-                    }
-
-                    break;
-
-                case DialogResult.No:
-					_checkExecuteOpenBuy = true;
-					_checkExecuteOpenSell = true;				                    
-					_tryOpenOrderBuy = false;
-					_tryOpenOrderSell = false;
-					_status = Status.Work;
-					_workCycle = true;
-					break;
-
-                default:
-
-                    break;
+                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
             }
         }
-
+        
         private void OrdersMonitoring()
         {
             try
@@ -1015,9 +938,9 @@ namespace OsEngine.Robots
 
         private void MainThread()
         {
-            try
+            while (true)
             {
-                while (true)
+                try
                 {
                     if (_rsi.DataSeries != null || _rsiBTC.DataSeries != null)
                     {
@@ -1033,11 +956,38 @@ namespace OsEngine.Robots
 
                     Thread.Sleep(1000);
                 }
-            }
-            catch (Exception ex)
+                catch (Exception ex)
+                {
+                    SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+                }
+            }    
+        }
+
+        private void RefreshGrid()
+        {
+            if (_regime.ValueString == GetDescription(Regime.OnlyLong))
             {
-                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+                CheckExecuteOpenOrder(Side.Buy);
+                CheckExecuteCloseOrders(Side.Buy);
+                PlaceOpenOrders(Side.Buy);
             }
+            else if (_regime.ValueString == GetDescription(Regime.OnlyShort))
+            {
+                CheckExecuteOpenOrder(Side.Sell);
+                CheckExecuteCloseOrders(Side.Sell);
+                PlaceOpenOrders(Side.Sell);
+            }
+            else
+            {
+                CheckExecuteOpenOrder(Side.Buy);
+                CheckExecuteCloseOrders(Side.Buy);
+                PlaceOpenOrders(Side.Buy);
+                CheckExecuteOpenOrder(Side.Sell);
+                CheckExecuteCloseOrders(Side.Sell);
+                PlaceOpenOrders(Side.Sell);
+            }
+
+            TryRearrangeGrid();
         }
 
         private void PushPauseButton()
@@ -1152,7 +1102,9 @@ namespace OsEngine.Robots
 					{
 						if (!string.IsNullOrEmpty(line))
 						{
-							string[] split = line.Split(' ');
+                            string newLine = line.Replace('.', ',');
+
+							string[] split = newLine.Split(' ');
 
 							decimal price = 0;
 
@@ -1317,12 +1269,6 @@ namespace OsEngine.Robots
 						}                        
 					}
 
-                    if (!CheckRSI())
-                    {
-                        _status = Status.NoWork;
-                        return;
-                    }
-
                     _status = Status.Work;
                     _workCycle = true;
                     StartGrid();
@@ -1344,14 +1290,18 @@ namespace OsEngine.Robots
             _status = Status.Work;
             if (_regime.ValueString == GetDescription(Regime.OnlyLong))
             {
+                _checkExecuteOpenBuy = true;                
                 RecoveryGrid(Side.Buy);
             }
             else if (_regime.ValueString == GetDescription(Regime.OnlyShort))
             {
+                _checkExecuteOpenSell = true;
                 RecoveryGrid(Side.Sell);
             }
             else
             {
+                _checkExecuteOpenBuy = true;
+                _checkExecuteOpenSell = true;
                 RecoveryGrid(Side.Buy);
                 RecoveryGrid(Side.Sell);
             }
@@ -1364,7 +1314,44 @@ namespace OsEngine.Robots
             _workCycle = true;
         }
 
-		private void CheckCloseOrders(List<Position> pos)
+        private void RecoveryGrid(Side side)
+        {
+            SendNewLogMessage("Восстанавливаем сетку после приостановки торговли " + side + ", Текущая цена: " + _lastPrice, Logging.LogMessageType.User);
+
+            List<Position> pos = new List<Position>();
+
+            if (side == Side.Buy)
+            {
+                pos = _tab.PositionOpenLong;
+            }
+            else
+            {
+                pos = _tab.PositionOpenShort;
+            }
+
+            if (pos.Count > 0)
+            {
+                if (pos[0].OpenOrders != null && pos[0].OpenOrders.Count > 0)
+                {
+                    CheckCloseOrders(pos);
+                }
+            }
+            else
+            {
+                if (side == Side.Buy)
+                {
+                    _tryOpenOrderBuy = true;
+                }
+                else
+                {
+                    _tryOpenOrderSell = true;
+                }
+            }
+
+            SendNewLogMessage("Восстановление сетки закончено", Logging.LogMessageType.User);
+        }
+
+        private void CheckCloseOrders(List<Position> pos)
         {
             if (pos[0].CloseOrders != null)
             {
@@ -1473,43 +1460,6 @@ namespace OsEngine.Robots
             }           
         }
 
-        private void RecoveryGrid(Side side)
-        {
-            SendNewLogMessage("Восстанавливаем сетку после приостановки торговли " + side + ", Текущая цена: " + _lastPrice, Logging.LogMessageType.User);
-
-            List<Position> pos = new List<Position>();
-
-            if (side == Side.Buy)
-            {
-                pos = _tab.PositionOpenLong;
-            }
-            else
-            {
-                pos = _tab.PositionOpenShort;
-            }
-
-            if (pos.Count > 0)
-            {
-                if (pos[0].OpenOrders != null && pos[0].OpenOrders.Count > 0)
-                {
-                    CheckCloseOrders(pos);
-                }            
-            }
-            else
-            {
-                if (side == Side.Buy)
-                {
-                    _tryOpenOrderBuy = true;
-                }
-                else
-                {
-                    _tryOpenOrderSell = true;
-                }                                              
-            }
-
-            SendNewLogMessage("Восстановление сетки закончено", Logging.LogMessageType.User);            
-        }
-
         private void StartGrid()
         {
             if (_lastPrice == 0)
@@ -1525,7 +1475,8 @@ namespace OsEngine.Robots
                 _profit.ValueDecimal == 0 ||
                 _rearrangeGrid.ValueDecimal == 0 ||
                 _countOrdersOnExchange.ValueInt == 0 ||
-                _logPriceLevels.ValueDecimal == 0)
+                _logPriceLevels.ValueDecimal == 0 ||
+                _minVolumeForTicker.ValueDecimal == 0)
             {
                 SendNewLogMessage("Не введены необходимые данные для работы робота", Logging.LogMessageType.Error);
                 _status = Status.NoWork;
@@ -1533,8 +1484,12 @@ namespace OsEngine.Robots
                 return;
             }
 
-            _checkExecuteOpenBuy = true;
-            _checkExecuteOpenSell = true;
+            if (!CheckRSI())
+            {
+                return;
+            }
+
+            SendNewLogMessage("Значение RSI при первом размещении сетки: " + _lastRsi, Logging.LogMessageType.User);
 
             _listOrdersBuy.Clear();
             _listOrdersSell.Clear();
@@ -1576,15 +1531,19 @@ namespace OsEngine.Robots
 
             if (_regime.ValueString == GetDescription(Regime.LongShort))
             {
-                PlacingOrders(Side.None);
+                _checkExecuteOpenBuy = true;
+                _checkExecuteOpenSell = true;
+                PlacingOrders(Side.None);                
             }
             else if (_regime.ValueString == GetDescription(Regime.OnlyLong))
             {
+                _checkExecuteOpenBuy = true;
                 PlacingOrders(Side.Buy);
             }
             else
             {
-                PlacingOrders(Side.Sell);
+                _checkExecuteOpenSell = true;
+                PlacingOrders(Side.Sell);                
             }
         }
 
@@ -1624,33 +1583,6 @@ namespace OsEngine.Robots
                     break;                                        
             }
             return false;
-        }
-
-        private void RefreshGrid()
-        {
-            if (_regime.ValueString == GetDescription(Regime.OnlyLong))
-            {
-                CheckExecuteOpenOrder(Side.Buy);
-                CheckExecuteCloseOrders(Side.Buy);
-                PlaceOpenOrders(Side.Buy);
-            }
-            else if (_regime.ValueString == GetDescription(Regime.OnlyLong))
-            {
-                CheckExecuteOpenOrder(Side.Sell);
-                CheckExecuteCloseOrders(Side.Sell);
-                PlaceOpenOrders(Side.Sell);
-            }
-            else
-            {
-                CheckExecuteOpenOrder(Side.Buy);
-                CheckExecuteCloseOrders(Side.Buy);
-                PlaceOpenOrders(Side.Buy);
-                CheckExecuteOpenOrder(Side.Sell);
-                CheckExecuteCloseOrders(Side.Sell);
-                PlaceOpenOrders(Side.Sell);
-            }
-
-			TryRearrangeGrid();
         }
 
         private void CheckExecuteOpenOrder(Side side)
@@ -1743,6 +1675,69 @@ namespace OsEngine.Robots
 
                 _checkCloseOrderSell = true;
             }    
+        }
+
+        private void PlaceNewOrderFromGrid(Side side)
+        {
+            if (side == Side.Buy)
+            {
+                if (_listOrdersBuy.Count == 0)
+                {
+                    return;
+                }
+
+                int count = 0;
+                for (int i = 0; i < _tab.PositionOpenLong[0].OpenOrders.Count; i++)
+                {
+                    if (_tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Activ ||
+                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Active ||
+                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.None ||
+                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Pending ||
+                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Patrial ||
+                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Partial
+                        )
+                    {
+                        count++;
+                    }
+                }
+
+                if (count < _countOrdersOnExchange.ValueInt)
+                {
+                    SendNewLogMessage("Добавляем ордер на биржу из сетки: " + side + " " + _listOrdersBuy[0].Price + " - " + _listOrdersBuy[0].Volume, Logging.LogMessageType.User);
+                    _tab.BuyAtLimitToPositionUnsafe(_tab.PositionOpenLong.Last(), _listOrdersBuy[0].Price, _listOrdersBuy[0].Volume);
+                    _listOrdersBuy.RemoveAt(0);
+                }
+            }
+            else
+            {
+                if (_listOrdersSell.Count == 0)
+                {
+                    return;
+                }
+
+                int count = 0;
+                for (int i = 0; i < _tab.PositionOpenShort[0].OpenOrders.Count; i++)
+                {
+                    if (_tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Activ ||
+                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Active ||
+                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.None ||
+                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Pending ||
+                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Patrial ||
+                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Partial)
+                    {
+                        count++;
+                    }
+                }
+
+                if (count < _countOrdersOnExchange.ValueInt)
+                {
+                    SendNewLogMessage("Добавляем ордер на биржу из сетки: " + side + " " + _listOrdersSell[0].Price + " - " + _listOrdersSell[0].Volume, Logging.LogMessageType.User);
+                    _tab.SellAtLimitToPositionUnsafe(_tab.PositionOpenShort.Last(), _listOrdersSell[0].Price, _listOrdersSell[0].Volume);
+                    _listOrdersSell.RemoveAt(0);
+                }
+            }
+
+            SaveRecoveryGrid();
         }
 
         private void CheckExecuteCloseOrders(Side side)
@@ -1846,33 +1841,62 @@ namespace OsEngine.Robots
 
         private void PlaceOpenOrders(Side side)
         {
-
             if (!_workCycle)
             {
                 return;
             }
 
-            List<Position> pos;
-
-            if (side == Side.Buy)
-            {
-                if (!_tryOpenOrderBuy) return;
-                if (_tryCloseRearrangeBuy) return;
-
-                pos = _tab.PositionOpenLong;
-            }
-            else
-            {
-                if (!_tryOpenOrderSell) return;
-                if (_tryCloseRearrangeSell) return;
-
-                pos = _tab.PositionOpenShort;
-            }
-
-            if (pos.Count != 0)
+            if (!CheckRSI())
             {
                 return;
             }
+
+            List<Position> pos;
+                       
+            if (side == Side.Buy)
+            {
+                if (_tryCloseRearrangeBuy) return;
+
+                pos = _tab.PositionOpenLong;
+
+                if (pos.Count != 0)
+                {
+                    return;
+                }
+
+                if (pos.Count == 0)
+                {
+                    _checkCloseOrderBuy = false;
+                    _timeCycleBuy = DateTime.Now.AddMinutes((double)_delayAfterCycle.ValueDecimal);
+                    _tryOpenOrderBuy = true;
+                    _unrealizPnLBuy = 0;
+                    _averagePriceBuy = 0;
+                    _priceTPBuy = 0;
+                }                    
+            }
+            else
+            {
+                if (_tryCloseRearrangeSell) return;
+
+                pos = _tab.PositionOpenShort;
+
+                if (pos.Count != 0)
+                {
+                    return;
+                }
+
+                if (pos.Count == 0)
+                {
+                    _checkCloseOrderSell = false;
+                    _timeCycleSell = DateTime.Now.AddMinutes((double)_delayAfterCycle.ValueDecimal);
+                    _tryOpenOrderSell = true;
+                    _unrealizPnLSell = 0;
+                    _averagePriceSell = 0;
+                    _priceTPSell = 0;
+                }
+            }
+
+            SendNewLogMessage("Значение RSI при размещении новой сетки: " + _lastRsi, Logging.LogMessageType.User);
 
             if (side == Side.Buy && 
                 !_checkCloseOrderBuy &&
@@ -2043,11 +2067,6 @@ namespace OsEngine.Robots
         {            
             List<Position> pos = new List<Position>();
 
-            if (!CheckRSI())
-            {
-                return;
-            }
-
             if (side == Side.Buy)
             {                
                 if (!_needRearrangeBuy) return;
@@ -2095,6 +2114,11 @@ namespace OsEngine.Robots
 
         private void PlaceNewOrderRearrangeGrid(Side side)
         {
+            if (!CheckRSI())
+            {
+                return;
+            }
+
             List<Position> pos = new List<Position>();
 
             if (side == Side.Buy)
@@ -2110,8 +2134,10 @@ namespace OsEngine.Robots
                 pos = _tab.PositionOpenShort;
             }
 
-            if (pos.Count > 0) return; 
-                        
+            if (pos.Count > 0) return;
+
+            SendNewLogMessage("Значение RSI при подтяжки сетки: " + _lastRsi, Logging.LogMessageType.User);
+
             SendNewLogMessage("Подтяжка сетки: " + side, Logging.LogMessageType.User);
 
             if (side == Side.Buy)
@@ -2157,70 +2183,7 @@ namespace OsEngine.Robots
         private double _priceTPBuy = 0;
         private double _averagePriceSell = 0;
         private double _priceTPSell = 0;
-
-        private void PlaceNewOrderFromGrid(Side side)
-        {
-            if (side == Side.Buy)
-            {
-                if (_listOrdersBuy.Count == 0)
-                {
-                    return;
-                }
-
-                int count = 0;
-                for (int i = 0; i < _tab.PositionOpenLong[0].OpenOrders.Count; i++)
-                {
-                    if (_tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Activ ||
-                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Active ||
-                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.None ||
-                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Pending ||
-                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Patrial ||
-                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Partial
-                        )
-                    {
-                        count++;
-                    }
-                }
                 
-                if (count < _countOrdersOnExchange.ValueInt)
-                {
-                    SendNewLogMessage("Добавляем ордер на биржу из сетки: " + side + " " + _listOrdersBuy[0].Price + " - " + _listOrdersBuy[0].Volume, Logging.LogMessageType.User);
-                    _tab.BuyAtLimitToPositionUnsafe(_tab.PositionOpenLong.Last(), _listOrdersBuy[0].Price, _listOrdersBuy[0].Volume);
-                    _listOrdersBuy.RemoveAt(0);
-                }               
-            }
-            else
-            {
-                if (_listOrdersSell.Count == 0)
-                {
-                    return;
-                }
-
-                int count = 0;
-                for (int i = 0; i < _tab.PositionOpenShort[0].OpenOrders.Count; i++)
-                {
-                    if (_tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Activ ||
-                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Active ||
-                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.None ||
-                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Pending ||
-                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Patrial ||
-                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Partial)
-                    {
-                        count++;
-                    }
-                }
-
-                if (count < _countOrdersOnExchange.ValueInt)
-                {
-                    SendNewLogMessage("Добавляем ордер на биржу из сетки: " + side + " " + _listOrdersSell[0].Price + " - " + _listOrdersSell[0].Volume, Logging.LogMessageType.User);
-                    _tab.SellAtLimitToPositionUnsafe(_tab.PositionOpenShort.Last(), _listOrdersSell[0].Price, _listOrdersSell[0].Volume);
-                    _listOrdersSell.RemoveAt(0);
-                }
-            } 
-            
-            SaveRecoveryGrid();
-        }
-
         private double GetAveragePricePositions(Side side)
         {
             try
@@ -2276,9 +2239,12 @@ namespace OsEngine.Robots
             List<ListOrders> list = new List<ListOrders>();
 
             if (_сoveringPriceChanges.ValueDecimal == 0 ||
-                _firstOrderIndent.ValueDecimal == 0)
+                _firstOrderIndent.ValueDecimal == 0 ||
+                _minVolumeForTicker == 0 ||
+                _volume.ValueDecimal == 0 ||
+                _leverage.ValueDecimal == 0)
             {
-                SendNewLogMessage("Не введены необходимые данные для расчета сетки", Logging.LogMessageType.User);
+                SendNewLogMessage("Не введены необходимые данные для расчета сетки", Logging.LogMessageType.Error);
                 _status = Status.NoWork;
                 return list;
             }
@@ -2299,21 +2265,50 @@ namespace OsEngine.Robots
                 minimumPrice = _lastPrice + indentMinPrice;
                 maximumPrice = _lastPrice + indentMaxPrice;     
             }
+            List<decimal> listOrders = new();
+            List<decimal> listVolume = new();
 
-            List<decimal> listOrders = GenerateLevels((double)(minimumPrice), (double)(maximumPrice), _countOrdersGrid.ValueInt, (double)_logPriceLevels.ValueDecimal);
-            List<decimal> listVolume = GenerateVolume(listOrders);
-                       
+            if (_autoCalcMartingaleAmountOrders)
+            {
+                List<decimal> oldListOrders = new();
+                List<decimal> oldListVolume = new();
+
+                for (int i = 2; i < 10000; i++)
+                {
+                    listOrders = GenerateLevels((double)(minimumPrice), (double)(maximumPrice), i, (double)_logPriceLevels.ValueDecimal);
+                    listVolume = TryGenerateVolume(listOrders);
+                                        
+                    if (CheckSumDepositMartingale(listOrders, listVolume))
+                    {
+                        listOrders = oldListOrders;
+                        listVolume = oldListVolume;
+
+                        break;
+                    }
+                    else
+                    {
+                        oldListOrders = listOrders;
+                        oldListVolume = listVolume;
+                    }
+                }
+            }
+            else
+            {
+                listOrders = GenerateLevels((double)(minimumPrice), (double)(maximumPrice), _countOrdersGrid.ValueInt, (double)_logPriceLevels.ValueDecimal);
+                listVolume = GenerateVolume(listOrders);
+            }
+
             if (listOrders == null ||
             listVolume == null)
             {
-                SendNewLogMessage("Не введены необходимые данные для расчета сетки", Logging.LogMessageType.User);
+                SendNewLogMessage("Не введены необходимые данные для расчета сетки", Logging.LogMessageType.Error);
                 _status = Status.NoWork;
                 return list;
             }
 
             if (listOrders.Count != listVolume.Count)
             {
-                SendNewLogMessage("Ошибка в расчетах сетки. Количество уровней цен несоответствует количеству уровней объемов", Logging.LogMessageType.User);
+                SendNewLogMessage("Ошибка в расчетах сетки. Количество уровней цен несоответствует количеству уровней объемов", Logging.LogMessageType.Error);
                 _status = Status.NoWork;
                 return list;
             }
@@ -2323,7 +2318,7 @@ namespace OsEngine.Robots
                 ListOrders item = new ListOrders();
                 item.Price = listOrders[i];
                 item.Volume = listVolume[i];
-                if (listVolume[i] < _tab.Security.MinTradeAmount)
+                if (listVolume[i] < _minVolumeForTicker)
                 {
                     SendNewLogMessage("Рассчитанный объем меньше минимального торгуемого объема. Измените настройки сетки.", Logging.LogMessageType.Error);
                     _status = Status.NoWork;
@@ -2333,6 +2328,58 @@ namespace OsEngine.Robots
             }
             
             return list;
+        }
+
+        private bool CheckSumDepositMartingale(List<decimal> listOrders, List<decimal> listVolume)
+        {
+            decimal generalVolume;
+
+            if (_typeVolume.ValueString == GetDescription(TypeVolume.Fix))
+            {
+                generalVolume = _volume.ValueDecimal * _leverage.ValueDecimal;
+            }
+            else
+            {
+                generalVolume = _tab.Portfolio.ValueCurrent * _volume.ValueDecimal / 100 * _leverage.ValueDecimal;
+            }
+
+            if (_regime.ValueString == GetDescription(Regime.LongShort))
+            {
+                generalVolume = generalVolume / 2;
+            }
+
+            decimal sum = 0;
+
+            for (int i = 0; i < listOrders.Count; i++)
+            {
+                sum += listOrders[i] * listVolume[i];
+            }
+
+            if (generalVolume < sum)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private List<decimal> TryGenerateVolume(List<decimal> listOrders)
+        { 
+            List<decimal> firstListVolume = new List<decimal>();
+
+            for (int i = 0; i < listOrders.Count; i++)
+            {
+                if (i == 0)
+                {
+                    firstListVolume.Add(_minVolumeForTicker);
+                }
+                else
+                {
+                    decimal calc = firstListVolume[0] * (decimal)Math.Pow((double)_percentMartingale.ValueDecimal / 100 + 1, i);
+                    firstListVolume.Add(Math.Round(calc, _tab.Security.Decimals, MidpointRounding.ToNegativeInfinity));
+                }
+            }
+            return firstListVolume;
         }
 
         private List<ListOrders> LoadSampleToGrid(Side side)
@@ -2402,82 +2449,71 @@ namespace OsEngine.Robots
 
         private List<decimal> GenerateVolume(List<decimal> listOrders)
         {
-            try
+            if (_volume.ValueDecimal == 0 ||
+                _leverage.ValueDecimal == 0)
             {
-                if (_volume.ValueDecimal == 0 ||
-                    _leverage.ValueDecimal == 0)
-                {
-                    return null;
-                }
+                return null;
+            }
 
-                decimal generalVolume;
+            decimal generalVolume;
 
-                // вычисляем размер депозита для торговли
-                if (_typeVolume.ValueString == GetDescription(TypeVolume.Fix))
+            // вычисляем размер депозита для торговли
+            if (_typeVolume.ValueString == GetDescription(TypeVolume.Fix))
+            {
+                generalVolume = _volume.ValueDecimal * _leverage.ValueDecimal;
+            }
+            else
+            {
+                generalVolume= _tab.Portfolio.ValueCurrent * _volume.ValueDecimal / 100 * _leverage.ValueDecimal;
+            }
+
+            if (_regime.ValueString == GetDescription(Regime.LongShort))
+            {
+                generalVolume = generalVolume / 2;
+            }
+
+            // рассчитываем объем исходя из минимального лота
+            List<decimal> firstListVolume = new List<decimal>();
+
+            decimal sum = 0;
+
+            for (int i = 0; i < listOrders.Count; i++)
+            {
+                if (i == 0)
                 {
-                    generalVolume = _volume.ValueDecimal * _leverage.ValueDecimal;
+                    firstListVolume.Add(_minVolumeForTicker);
                 }
                 else
                 {
-                    generalVolume = _tab.Portfolio.ValueCurrent * _volume.ValueDecimal / 100 * _leverage.ValueDecimal;
+                    decimal calc = firstListVolume[firstListVolume.Count - 1] + firstListVolume[firstListVolume.Count - 1] * _percentMartingale.ValueDecimal / 100;
+                    firstListVolume.Add(calc);
                 }
 
-                if (_regime.ValueString == GetDescription(Regime.LongShort))
-                {
-                    generalVolume = generalVolume / 2;
-                }
-
-                // рассчитываем объем исходя из минимального лота
-                List<decimal> firstListVolume = new List<decimal>();
-
-                decimal sum = 0;
-
-                for (int i = 0; i < listOrders.Count; i++)
-                {
-                    if (i == 0)
-                    {
-                        firstListVolume.Add(_tab.Security.MinTradeAmount);
-                    }
-                    else
-                    {
-                        decimal calc = firstListVolume[firstListVolume.Count - 1] + firstListVolume[firstListVolume.Count - 1] * _percentMartingale.ValueDecimal / 100;
-                        firstListVolume.Add(calc);
-                    }
-
-                    sum += listOrders[i] * firstListVolume[i];
-                }
-
-                if (sum == 0)
-                {
-                    return null;
-                }
-
-                // пересчитываем объем с учетом величины депозита
-                decimal scale = generalVolume / sum;
-
-                List<decimal> secondListVolume = new List<decimal>();
-
-                for (int i = 0; i < firstListVolume.Count; i++)
-                {
-                    secondListVolume.Add(Math.Floor(firstListVolume[i] * scale / _tab.Security.MinTradeAmount) * _tab.Security.MinTradeAmount);
-                }
-
-                return secondListVolume;
+                sum += listOrders[i] * firstListVolume[i];
             }
-            catch (Exception ex)
+
+            // пересчитываем объем с учетом величины депозита
+            decimal scale = generalVolume / sum;
+
+            SendNewLogMessage($"Размер депозита для торговли: {generalVolume}, сумма для сетки из расчета минимального ордера: {sum}, множитель сетки: {scale}", Logging.LogMessageType.User);
+
+            List<decimal> secondListVolume = new List<decimal>();
+
+            for (int i = 0; i < firstListVolume.Count; i++)
             {
-                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
-                return null;
+                secondListVolume.Add(Math.Round(firstListVolume[i] * scale / _tab.Security.Lot, _tab.Security.Decimals, MidpointRounding.ToNegativeInfinity) * _tab.Security.Lot);
             }
+
+            return secondListVolume;
         }
 
         private List<decimal> GenerateLevels(double min, double max, int levels, double K)
         {
-            if (levels < 2)
+            if (levels < 2) //|| K <= 0
             {
                 return null;
             }
-            
+
             double logK = K;//Math.Log(K);
             List<decimal> result = new List<decimal>();
 
@@ -2494,7 +2530,6 @@ namespace OsEngine.Robots
                 {
                     value = Math.Round((min + (max - min) * (Math.Exp(t * logK) - 1) / (Math.Exp(logK) - 1)) / (double)_tab.Security.PriceStep, MidpointRounding.AwayFromZero) * (double)_tab.Security.PriceStep;
                 }
-
 
                 result.Add((decimal)value);
             }
@@ -2609,6 +2644,114 @@ namespace OsEngine.Robots
                 }
 				SaveRecoveryGrid();
 				_checkExecuteOpenBuy = true;
+            }
+        }
+
+        private void CancelAllOrders()
+        {
+            DialogResult result = MessageBox.Show("Остановить бота?", "Сообщение", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1);
+
+            _checkExecuteOpenBuy = false;
+            _checkExecuteOpenSell = false;
+            _needRearrangeBuy = false;
+            _needRearrangeSell = false;
+            _workCycle = false;
+
+            for (int i = 0; i < _tab.PositionsOpenAll.Count; i++)
+            {
+
+                for (int j = 0; j < _tab.PositionsOpenAll[i].OpenOrders.Count; j++)
+                {
+                    if (_tab.PositionsOpenAll[i].OpenOrders[j].State == OrderStateType.Active ||
+                        _tab.PositionsOpenAll[i].OpenOrders[j].State == OrderStateType.Activ)
+                    {
+                        _tab.CloseOrder(_tab.PositionsOpenAll[i].OpenOrders[j]);
+                    }
+                }
+            }
+
+            switch (result)
+            {
+                case DialogResult.Yes:
+                    _checkCloseOrderBuy = false;
+                    _checkCloseOrderSell = false;
+                    _status = Status.NoWork;
+                    break;
+
+                case DialogResult.No:
+                    _status = Status.Work;
+                    _workCycle = true;
+                    _checkCloseOrderBuy = true;
+                    _checkCloseOrderSell = true;
+                    break;
+
+                default:
+
+                    break;
+            }
+        }
+
+        private void CloseOrdersOnMarket()
+        {
+            DialogResult result = MessageBox.Show("Остановить бота?", "Сообщение", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1);
+
+            for (int i = 0; i < _tab.PositionsOpenAll.Count; i++)
+            {
+                if (_tab.PositionsOpenAll[i].CloseOrders != null &&
+                    _tab.PositionsOpenAll[i].CloseOrders.Count > 0)
+                {
+                    _tab.CloseOrder(_tab.PositionsOpenAll[i].CloseOrders.Last());
+
+                    decimal price = _lastPrice + _tab.Security.PriceStep * 100;
+
+                    if (_tab.PositionsOpenAll[i].Direction == Side.Buy)
+                    {
+                        price = _lastPrice - _tab.Security.PriceStep * 100;
+                        _checkCloseOrderBuy = true;
+                    }
+                    else
+                    {
+                        _checkCloseOrderSell = true;
+                    }
+
+                    _tab.CloseAtLimitUnsafe(_tab.PositionsOpenAll[i], price, _tab.PositionsOpenAll[i].OpenVolume);
+                }
+            }
+
+            switch (result)
+            {
+                case DialogResult.Yes:
+                    _checkCloseOrderBuy = false;
+                    _checkCloseOrderSell = false;
+                    _workCycle = false;
+                    _checkExecuteOpenBuy = false;
+                    _checkExecuteOpenSell = false;
+                    _tryOpenOrderBuy = false;
+                    _tryOpenOrderSell = false;
+                    _status = Status.NoWork;
+
+                    _needRearrangeBuy = false;
+                    _needRearrangeSell = false;
+
+                    for (int i = 0; i < _tab.PositionsOpenAll.Count; i++)
+                    {
+                        _tab.CloseAllOrderToPosition(_tab.PositionsOpenAll[i]);
+                    }
+
+                    break;
+
+                case DialogResult.No:
+                    _checkExecuteOpenBuy = true;
+                    _checkExecuteOpenSell = true;
+                    _tryOpenOrderBuy = false;
+                    _tryOpenOrderSell = false;
+                    _status = Status.Work;
+                    _workCycle = true;
+                    break;
+
+                default:
+
+                    break;
             }
         }
 
