@@ -512,7 +512,7 @@ namespace OsEngine.Journal
 
         private void PaintTitleAbsProfit(List<Position> positionsAll)
         {
-            decimal absProfit = PositionStatisticGenerator.GetAllProfitInAbsolute(positionsAll.ToArray());
+            decimal absProfit = PositionStatisticGenerator.GetAllProfitInAbsolute(positionsAll.ToArray(), false);
 
             if (absProfit != 0)
             {
@@ -1106,6 +1106,11 @@ namespace OsEngine.Journal
                     }
                     else if (chartType == "Percent 1 contract")
                     {
+                        if (positionsAll[i].NameBotClass == "TaxPayer"
+                         || positionsAll[i].NameBotClass == "PayOfMarginBot")
+                        {
+                            continue;
+                        }
                         curProfit = positionsAll[i].ProfitOperationPercent * (curMult / 100);
                     }
 
@@ -2385,15 +2390,31 @@ namespace OsEngine.Journal
                     int indexClose = allChange.FindIndex(change => change == timeClose);
 
                     if (indexOpen != -1)
-                    {                        
-                        volume[indexOpen] += pos.MaxVolume * pos.EntryPrice;
+                    {
+                        if(pos.Lots != 0)
+                        {
+                            volume[indexOpen] += pos.MaxVolume * pos.EntryPrice * pos.Lots;
+                        }
+                        else
+                        {
+                            volume[indexOpen] += pos.MaxVolume * pos.EntryPrice;
+                        }
+                            
                         deposit[indexOpen] = pos.PortfolioValueOnOpenPosition;
                     }
 
                     if (pos.State == PositionStateType.Done
                         && indexClose != -1)
                     {
-                        volume[indexClose] -= pos.MaxVolume * pos.EntryPrice;
+                        if (pos.Lots != 0)
+                        {
+                            volume[indexClose] -= pos.MaxVolume * pos.EntryPrice * pos.Lots;
+                        }
+                        else
+                        {
+                            volume[indexClose] -= pos.MaxVolume * pos.EntryPrice;
+                        }
+                        
                         deposit[indexClose] = pos.PortfolioValueOnOpenPosition;
                     }
                 }
