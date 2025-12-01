@@ -2376,7 +2376,7 @@ namespace OsEngine.Robots
                 else
                 {
                     decimal calc = firstListVolume[0] * (decimal)Math.Pow((double)_percentMartingale.ValueDecimal / 100 + 1, i);
-                    firstListVolume.Add(Math.Round(calc, _tab.Security.Decimals, MidpointRounding.ToNegativeInfinity));
+                    firstListVolume.Add(Math.Round(calc, _tab.Security.DecimalsVolume, MidpointRounding.ToNegativeInfinity));
                 }
             }
             return firstListVolume;
@@ -2501,7 +2501,7 @@ namespace OsEngine.Robots
 
             for (int i = 0; i < firstListVolume.Count; i++)
             {
-                secondListVolume.Add(Math.Round(firstListVolume[i] * scale / _tab.Security.Lot, _tab.Security.Decimals, MidpointRounding.ToNegativeInfinity) * _tab.Security.Lot);
+                secondListVolume.Add(Math.Round(firstListVolume[i] * scale / _tab.Security.Lot, _tab.Security.DecimalsVolume, MidpointRounding.ToNegativeInfinity) * _tab.Security.Lot);
             }
 
             return secondListVolume;
