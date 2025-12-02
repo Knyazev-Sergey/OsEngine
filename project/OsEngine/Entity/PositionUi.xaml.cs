@@ -9,7 +9,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using OsEngine.Market;
-using System.Drawing;
 
 namespace OsEngine.Entity
 {
@@ -355,7 +354,7 @@ namespace OsEngine.Entity
             MouseEventArgs mouse = (MouseEventArgs)e;
             if (mouse.Button != MouseButtons.Right)
             {
-                CheckOpenOrdersTimeButtonClick(_position.CloseOrders, _closeOrdersGrid);
+                CheckOrdersTimeButtonClick(_position.CloseOrders, _closeOrdersGrid);
                 return;
             }
 
@@ -466,7 +465,7 @@ namespace OsEngine.Entity
                 MouseEventArgs mouse = (MouseEventArgs)e;
                 if (mouse.Button != MouseButtons.Right)
                 {
-                    CheckOpenOrdersTimeButtonClick(_position.OpenOrders, _openOrdersGrid);
+                    CheckOrdersTimeButtonClick(_position.OpenOrders, _openOrdersGrid);
                     return;
                 }
 
@@ -489,7 +488,7 @@ namespace OsEngine.Entity
             }
         }
 
-        private void CheckOpenOrdersTimeButtonClick(List<Order> orders, DataGridView grid)
+        private void CheckOrdersTimeButtonClick(List<Order> orders, DataGridView grid)
         {
             try
             {
@@ -532,7 +531,7 @@ namespace OsEngine.Entity
                     {
                         myOrder.TimeCallBack = dialog.Time;
                         myOrder.TimeCreate = dialog.Time;
-                        RePaint();
+                        grid.Rows[tabRow].Cells[tabColumn].Value = myOrder.TimeCallBack.ToString(_currentCulture);
                     }
                 }
             }
@@ -725,7 +724,7 @@ namespace OsEngine.Entity
                     if (dialog.IsSaved)
                     {
                         myOrder.Time = dialog.Time;
-                        RePaint();
+                        grid.Rows[tabRow].Cells[tabColumn].Value = myOrder.Time.ToString(_currentCulture);
                     }
                 }
             }

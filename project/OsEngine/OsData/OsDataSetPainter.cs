@@ -378,13 +378,6 @@ namespace OsEngine.OsData
                 { // cut
                     if (isRowWithManageButtons)
                     {
-
-                    }
-                }
-                else if (columnIndex == 9)
-                { // copying
-                    if (isRowWithManageButtons)
-                    {
                         // временно кнопка настройки
                         try
                         {
@@ -402,6 +395,41 @@ namespace OsEngine.OsData
                             _masterPainter.RefreshActiveSet();
                             _masterPainter.RePaintSetGrid();
                             _masterPainter.GridSets.Rows[rowGridSetsIndex].Selected = true;
+                        }
+                        catch (Exception error)
+                        {
+                            SendNewLogMessage(error.ToString(), LogMessageType.Error);
+                        }
+                    }
+                }
+                else if (columnIndex == 9)
+                { // copying
+                    if (isRowWithManageButtons)
+                    {
+                        // временно кнопка удалить
+                        try
+                        {
+                            AcceptDialogUi ui = new AcceptDialogUi(OsLocalization.Data.Label9);
+                            ui.ShowDialog();
+
+                            if (ui.UserAcceptAction == false)
+                            {
+                                return;
+                            }
+
+                            _set.Delete();
+                            _set.BaseSettings.Regime = DataSetState.Off;
+
+                            if (_set != null)
+                            {
+                                _masterPainter.StopPaintActiveSet();
+                                _masterPainter.Master.SelectedSet = null;
+                            }
+
+                            _masterPainter.Master.Sets.Remove(_set);
+                            _masterPainter.RePaintSetGrid();
+
+                            RePaintInterface();
                         }
                         catch (Exception error)
                         {
@@ -431,34 +459,13 @@ namespace OsEngine.OsData
                     if (isRowWithManageButtons)
                     { // update set
 
-                        // временно кнопка удалить
-                        try
+                        // временно кнопка обрезать
+
+                        if (_set.SecuritiesLoad.Count > 0)
                         {
-                            AcceptDialogUi ui = new AcceptDialogUi(OsLocalization.Data.Label9);
-                            ui.ShowDialog();
-
-                            if (ui.UserAcceptAction == false)
-                            {
-                                return;
-                            }
-
-                            _set.Delete();
-                            _set.BaseSettings.Regime = DataSetState.Off;
-
-                            if (_set != null)
-                            {
-                                _masterPainter.StopPaintActiveSet();
-                                _masterPainter.Master.SelectedSet = null;
-                            }
-
-                            _masterPainter.Master.Sets.Remove(_set);
-                            _masterPainter.RePaintSetGrid();
-
-                            RePaintInterface();
-                        }
-                        catch (Exception error)
-                        {
-                            SendNewLogMessage(error.ToString(), LogMessageType.Error);
+                            DataPrunerUi ui = new DataPrunerUi(_set, this);
+                            ui.Show();
+                            return;
                         }
                     }
                     else if (isClickOnShowHideSecs)
@@ -791,23 +798,23 @@ namespace OsEngine.OsData
                 rows[0].Cells.Add(new DataGridViewTextBoxCell() { Value = "" });
             }
 
-            for (int i = 0; i <= 8; i++)
+            for (int i = 0; i <= 7; i++)
             {
                 rows[1].Cells.Add(new DataGridViewTextBoxCell() { Value = "" });
             }
 
-            for (int i = 9; i <= 11; i++)
+            for (int i = 8; i <= 11; i++)
             {
                 DataGridViewButtonCell buttonCell = new DataGridViewButtonCell();
 
                 switch (i)
                 {
-                    case 9:
+                    case 8:
                         buttonCell.Value = OsLocalization.Data.Label61; break; //Настройки
-                    case 10:
+                    case 9:
                         buttonCell.Value = OsLocalization.Data.Label8; break; // удалить
-                    //case 8:
-                    //    buttonCell.Value = "Обрезать"; break;
+                    case 10:
+                        buttonCell.Value = OsLocalization.Data.Label73; break; // "Обрезать"
                     //case 9:
                     //    buttonCell.Value = "Дублировать"; break;
                     //case 10:

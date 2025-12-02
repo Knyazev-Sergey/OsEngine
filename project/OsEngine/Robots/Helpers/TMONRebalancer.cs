@@ -1,5 +1,10 @@
-﻿
+﻿/*
+ * Your rights to use code governed by this license https://github.com/AlexWan/OsEngine/blob/master/LICENSE
+ * Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
+*/
+
 using OsEngine.Entity;
+using OsEngine.Language;
 using OsEngine.Market;
 using OsEngine.Market.Servers;
 using OsEngine.OsTrader;
@@ -9,19 +14,42 @@ using OsEngine.OsTrader.Panels.Tab;
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
+/* Description
+Робот предназначен для покупки TMON вечером на свободные средства и продаже всего объема TMON утром.
+
+The robot is designed to buy TMON in the evening with available funds and sell the entire volume of TMON in the morning.
+ */
 
 namespace OsEngine.Robots
 {
-    [Bot("TMONRebalancer")]
-    public class TMONRebalancer : BotPanel
+    [Bot("TmonRebalancer")]
+    public class TmonRebalancer : BotPanel
     {
-        public TMONRebalancer(string name, StartProgram startProgram) : base(name, startProgram)
+        private BotTabSimple _tab;
+
+        private StrategyParameterString _regimeParameter;
+        private StrategyParameterDecimal _minBalance;
+        private StrategyParameterDecimal _allowedSpreadSize;
+        private StrategyParameterTimeOfDay _timeToBuy;
+        private StrategyParameterTimeOfDay _timeToSell;
+        private StrategyParameterCheckBox _tradeMonday;
+        private StrategyParameterCheckBox _tradeTuesday;
+        private StrategyParameterCheckBox _tradeWednesday;
+        private StrategyParameterCheckBox _tradeThursday;
+        private StrategyParameterCheckBox _tradeFriday;
+        private StrategyParameterCheckBox _tradeSaturday;
+        private StrategyParameterCheckBox _tradeSunday;
+        private StrategyParameterButton _rebalanceNowButton;
+        private bool _botClosePositionToday;
+
+        public TmonRebalancer(string name, StartProgram startProgram) : base(name, startProgram)
         {
             TabCreate(BotTabType.Simple);
             _tab = TabsSimple[0];
 
-            _regimeParameter = CreateParameter("Regime", "Off", new[] { "Off", "On", "OnlyClose" });
+            _regimeParameter = CreateParameter("Regime", "Off", new[] { "Off", "RebalancingTwiceADay", "RebalancingOnceADay", "OnlyClose" });
 
             _minBalance = CreateParameter("Minimum balance", 5000m, 5000m, 5000m, 5000m);
             _allowedSpreadSize = CreateParameter("Allowed spread size(%)", 0.01m, 0.01m, 0.01m, 0.01m);
@@ -50,15 +78,21 @@ namespace OsEngine.Robots
             {
                 _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;
             }
+
+            Description = OsLocalization.ConvertToLocString(
+                "En:The robot is designed to buy TMON in the evening with available funds and sell the entire volume of TMON in the morning._" +
+                "Ru:Робот предназначен для покупки TMON вечером на свободные средства и продаже всего объема TMON утром._");
         }
 
         private void _rebalanceNowButton_UserClickOnButtonEvent()
         {
-            RebalanceLogic();
-            _rebalanceNow = true;
+            _botClosePositionToday = true;
+            Task.Run(RebalanceLogic);
         }
 
-        #region Work thread
+        #region Work thread for Real
+
+        private DateTime _timeLast = DateTime.MinValue;
 
         private void StartThread()
         {
@@ -74,10 +108,24 @@ namespace OsEngine.Robots
                         continue;
                     }
 
+                    if (_tab.IsConnected == false
+                        || _tab.IsReadyToTrade == false)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
                     if (_tab.Security == null
                         || _tab.CandlesAll == null)
                     {
                         Thread.Sleep(1000);
+                        continue;
+                    }
+
+                    if (_regimeParameter.ValueString == "OnlyClose")
+                    {
+                        ClosePositions();
+                        _regimeParameter.ValueString = "Off";
                         continue;
                     }
 
@@ -87,18 +135,58 @@ namespace OsEngine.Robots
                         continue;
                     }
 
-                    if (_timeToSell.Value < TimeServer && _timeToBuy.Value > TimeServer && _rebalanceNow == false)
+                    if (_regimeParameter.ValueString == "RebalancingOnceADay")
                     {
-                        ClosePositions();
+                        if (_timeToBuy.Value < TimeServer)
+                        {
+                            if (_timeLast.AddDays(1) < TimeServer)
+                            {
+                                RebalanceLogic();
+                                _timeLast = TimeServer;
+                                continue;
+                            }
+                            else
+                            {
+                                Thread.Sleep(1000);
+                                continue;
+                            }
+                        }
+                        else
+                        {
+                            Thread.Sleep(1000);
+                            continue;
+                        }
+                    }
+
+                    if (_timeToSell.Value > _timeToBuy.Value)
+                    {
+                        SendNewLogMessage(
+                            OsLocalization.ConvertToLocString(
+                           "En:The time is incorrect!!! The time for buying should be longer than the time for selling_" +
+                           "Ru:Неправильно указано время!!! Время для покупки должно быть больше, чем время для продажи_")
+                            , Logging.LogMessageType.Error);
+
+                        Thread.Sleep(10000);
                         continue;
                     }
 
-                    if (_timeToBuy.Value < TimeServer)
+                    if (_timeToSell.Value < TimeServer
+                        && _timeToBuy.Value > TimeServer
+                        && _botClosePositionToday == false)
                     {
-                        RebalanceLogic();
-                        _rebalanceNow = false;
+                        ClosePositions();
+                        _botClosePositionToday = true;
                         continue;
                     }
+
+                    if (_timeToBuy.Value < TimeServer
+                        && _botClosePositionToday == true)
+                    {
+                        RebalanceLogic();
+                        _botClosePositionToday = false;
+                        continue;
+                    }
+
                 }
                 catch (Exception ex)
                 {
@@ -110,7 +198,7 @@ namespace OsEngine.Robots
 
         #endregion
 
-        #region Candlestick completion event 
+        #region Candlestick completion event for Tester
 
         private void _tab_CandleFinishedEvent(List<Candle> candles)
         {
@@ -130,39 +218,71 @@ namespace OsEngine.Robots
                 return;
             }
 
-            if (_timeToSell.Value < TimeServer && _timeToBuy.Value > TimeServer && _rebalanceNow == false)
+            if (_regimeParameter.ValueString == "RebalancingOnceADay")
             {
-                ClosePositions();
-                return;
+                if (_timeToBuy.Value < TimeServer)
+                {
+                    if (_timeLast.AddDays(1) < TimeServer
+                        || _timeLast > candles[^1].TimeStart
+                        || _timeLast == DateTime.MinValue)
+                    {
+                        RebalanceLogic();
+                        _timeLast = TimeServer;
+                        return;
+                    }
+                }
             }
-
-            if (_timeToBuy.Value < TimeServer)
+            else // _regimeParameter.ValueString == "RebalancingTwiceADay"
             {
-                RebalanceLogic();
-                _rebalanceNow = false;
-                return;
+                if (_timeToSell.Value < TimeServer && _timeToBuy.Value > TimeServer && _botClosePositionToday == false)
+                {
+                    ClosePositions();
+                    return;
+                }
+
+                if (_timeToBuy.Value < TimeServer)
+                {
+                    RebalanceLogic();
+                    _botClosePositionToday = false;
+                    return;
+                }
             }
         }
 
         #endregion
 
-        #region Logic robot
+        #region Logic
 
         private void RebalanceLogic()
         {
-            if (!CheckSpread())
-            {
-                return;
-            }
-
-            if (_tab.Portfolio.PositionOnBoard == null)
-            {
-                return;
-            }
-
             if (_tab.Portfolio == null)
             {
                 return;
+            }
+
+            if (StartProgram == StartProgram.IsOsTrader)
+            {
+                if (_tab.Portfolio.PositionOnBoard == null)
+                {
+                    return;
+                }
+
+                if (!CheckSpread())
+                {
+                    return;
+                }
+
+                if (_tab.Connector.MyServer.ServerType != ServerType.TInvest
+                 || _tab.Security.Name != "TMON@")
+                {
+                    SendNewLogMessage(OsLocalization.ConvertToLocString(
+                               "En:The robot is only intended for rebalancing TMON with the T-Investments broker and for testing._" +
+                               "Ru:Робот предназначен только для ребалансировки TMON у брокера Т-Инвестиции и для запуска в тестере_")
+                               , Logging.LogMessageType.Error);
+                    Thread.Sleep(10000);
+                    return;
+                }
+
             }
 
             decimal balance = GetPortfolioValue();
@@ -205,6 +325,11 @@ namespace OsEngine.Robots
 
         private void ClosePositions()
         {
+            if (!CheckSpread())
+            {
+                return;
+            }
+
             if (_tab.PositionsOpenAll.Count > 0)
             {
                 for (int i = 0; i < _tab.PositionsOpenAll.Count; i++)
@@ -213,10 +338,6 @@ namespace OsEngine.Robots
                 }
             }
         }
-
-        #endregion
-
-        #region Position on board
 
         private decimal GetPortfolioValue()
         {
@@ -236,7 +357,7 @@ namespace OsEngine.Robots
                         {
                             if (positions[i].SecurityNameCode == "rub")
                             {
-                                return positions[i].ValueCurrent;
+                                return positions[i].ValueCurrent - positions[i].ValueBlocked;
                             }
                         }
                     }
@@ -301,41 +422,6 @@ namespace OsEngine.Robots
             return 0;
         }
 
-        #endregion
-
-        #region Volume
-
-        private decimal GetVolume(decimal balance)
-        {
-            decimal contractPrice = _tab.PriceBestAsk;
-            decimal volume = balance / contractPrice;
-
-            if (StartProgram == StartProgram.IsOsTrader)
-            {
-                IServerPermission serverPermission = ServerMaster.GetServerPermission(_tab.Connector.ServerType);
-
-                if (serverPermission != null &&
-                    serverPermission.IsUseLotToCalculateProfit &&
-                _tab.Security.Lot != 0 &&
-                    _tab.Security.Lot > 1)
-                {
-                    volume = balance / (contractPrice * _tab.Security.Lot);
-                }
-
-                volume = Math.Round(volume, _tab.Security.DecimalsVolume);
-            }
-            else // Tester or Optimizer
-            {
-                volume = Math.Round(volume, 6);
-            }
-
-            return volume;
-        }
-
-        #endregion
-
-        #region Trade time
-
         private bool CheckDayOfWeek()
         {
             DayOfWeek currentdDayOfWeek = TimeServer.DayOfWeek;
@@ -349,31 +435,6 @@ namespace OsEngine.Robots
             else if (currentdDayOfWeek == DayOfWeek.Sunday && _tradeSunday == false) return false;
             else return true;
         }
-
-        #endregion
-
-        #region Fields
-
-        BotTabSimple _tab;
-
-        private StrategyParameterString _regimeParameter;
-        private StrategyParameterDecimal _minBalance;
-        private StrategyParameterDecimal _allowedSpreadSize;
-        private StrategyParameterTimeOfDay _timeToBuy;
-        private StrategyParameterTimeOfDay _timeToSell;
-        private StrategyParameterCheckBox _tradeMonday;
-        private StrategyParameterCheckBox _tradeTuesday;
-        private StrategyParameterCheckBox _tradeWednesday;
-        private StrategyParameterCheckBox _tradeThursday;
-        private StrategyParameterCheckBox _tradeFriday;
-        private StrategyParameterCheckBox _tradeSaturday;
-        private StrategyParameterCheckBox _tradeSunday;
-        private StrategyParameterButton _rebalanceNowButton;
-        private bool _rebalanceNow;
-
-        #endregion
-
-        #region Helpers
 
         private bool CheckSpread()
         {
@@ -406,9 +467,31 @@ namespace OsEngine.Robots
             }
         }
 
-        public override string GetNameStrategyType()
+        private decimal GetVolume(decimal balance)
         {
-            return "TMONRebalancer";
+            decimal contractPrice = _tab.PriceBestAsk;
+            decimal volume = balance / contractPrice;
+
+            if (StartProgram == StartProgram.IsOsTrader)
+            {
+                IServerPermission serverPermission = ServerMaster.GetServerPermission(_tab.Connector.ServerType);
+
+                if (serverPermission != null &&
+                    serverPermission.IsUseLotToCalculateProfit &&
+                _tab.Security.Lot != 0 &&
+                    _tab.Security.Lot > 1)
+                {
+                    volume = balance / (contractPrice * _tab.Security.Lot);
+                }
+
+                volume = Math.Round(volume, _tab.Security.DecimalsVolume);
+            }
+            else // Tester or Optimizer
+            {
+                volume = Math.Round(volume, 6);
+            }
+
+            return volume;
         }
 
         #endregion
