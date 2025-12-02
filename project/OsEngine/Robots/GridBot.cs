@@ -2268,6 +2268,7 @@ namespace OsEngine.Robots
             List<decimal> listOrders = new();
             List<decimal> listVolume = new();
 
+            // расчет сетки по мартигейлу от минимального объема
             if (_autoCalcMartingaleAmountOrders)
             {
                 List<decimal> oldListOrders = new();
@@ -2292,7 +2293,7 @@ namespace OsEngine.Robots
                     }
                 }
             }
-            else
+            else // обычный расчет сетки
             {
                 listOrders = GenerateLevels((double)(minimumPrice), (double)(maximumPrice), _countOrdersGrid.ValueInt, (double)_logPriceLevels.ValueDecimal);
                 listVolume = GenerateVolume(listOrders);
@@ -2375,8 +2376,9 @@ namespace OsEngine.Robots
                 }
                 else
                 {
-                    decimal calc = firstListVolume[0] * (decimal)Math.Pow((double)_percentMartingale.ValueDecimal / 100 + 1, i);
-                    firstListVolume.Add(Math.Round(calc, _tab.Security.DecimalsVolume, MidpointRounding.ToNegativeInfinity));
+                    decimal calc = Math.Round(firstListVolume[0] * (decimal)Math.Pow((double)_percentMartingale.ValueDecimal / 100 + 1, i), _tab.Security.DecimalsVolume, MidpointRounding.ToNegativeInfinity);
+                    decimal truncateVolume = Math.Floor(calc / _tab.Security.VolumeStep) * _tab.Security.VolumeStep;
+                    firstListVolume.Add(truncateVolume);
                 }
             }
             return firstListVolume;
@@ -2501,7 +2503,9 @@ namespace OsEngine.Robots
 
             for (int i = 0; i < firstListVolume.Count; i++)
             {
-                secondListVolume.Add(Math.Round(firstListVolume[i] * scale / _tab.Security.Lot, _tab.Security.DecimalsVolume, MidpointRounding.ToNegativeInfinity) * _tab.Security.Lot);
+                decimal scaleVolume = Math.Round(firstListVolume[i] * scale / _tab.Security.Lot, _tab.Security.DecimalsVolume, MidpointRounding.ToNegativeInfinity) * _tab.Security.Lot;
+                decimal truncateVolume = Math.Floor(scaleVolume / _tab.Security.VolumeStep) * _tab.Security.VolumeStep;
+                secondListVolume.Add(truncateVolume);
             }
 
             return secondListVolume;
