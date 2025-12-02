@@ -44,6 +44,10 @@ namespace OsEngine.Robots
         private Status _status = Status.NoWork;
         private StrategyParameterDecimal _minVolumeForTicker;
         private StrategyParameterBool _autoCalcMartingaleAmountOrders;
+        private StrategyParameterDecimal _setTimeTwapOrders;
+        private DateTime _timeTwapBuyOrders;
+        private DateTime _timeTwapSellOrders;
+        private StrategyParameterBool _boolTimerTwapOrders;
 
         Aindicator _rsi;
         Aindicator _rsiBTC;
@@ -90,6 +94,8 @@ namespace OsEngine.Robots
             _logPriceLevels = CreateParameter("Логарифмическое распределение уровней цен", 0m, 0m, 0m, 0m, tabNameParameters);
             _tag = CreateParameter("Тэг", "", tabNameParameters);
             _minVolumeForTicker = CreateParameter("Минимальный объем по инструменту", 0m, 0m, 0m, 0m, tabNameParameters);
+            _boolTimerTwapOrders = CreateParameter("Включить TWAP ордера", false, tabNameParameters);
+            _setTimeTwapOrders = CreateParameter("Задержка выставления TWAP ордеров", 0m, 0m, 0m, 0m, tabNameParameters);
 
             _rsiOnOff = CreateParameter("Фильтр RSI", RsiRegime.Off.ToString(), new string[] { RsiRegime.Off.ToString(), RsiRegime.On.ToString() }, tabNameRsi);
             _periodRsi = CreateParameter("Период RSI", 14, 0, 0, 0, tabNameRsi);
@@ -2610,6 +2616,13 @@ namespace OsEngine.Robots
                     _listOrdersSell.RemoveAt(i);
                     i--;
                     count++;
+
+                    if (_boolTimerTwapOrders)
+                    {
+                        _timeTwapSellOrders = DateTime.UtcNow;
+                        SendNewLogMessage("Установлено время TWAP ордера Sell: " + _timeTwapSellOrders, Logging.LogMessageType.User);
+                        break;
+                    }
                 }
 
                 SaveRecoveryGrid();
@@ -2645,6 +2658,13 @@ namespace OsEngine.Robots
 					_listOrdersBuy.RemoveAt(i);
                     i--;
                     count++;
+
+                    if (_boolTimerTwapOrders)
+                    {
+                        _timeTwapBuyOrders = DateTime.UtcNow;
+                        SendNewLogMessage("Установлено время TWAP ордера Buy: " + _timeTwapBuyOrders, Logging.LogMessageType.User);
+                        break;
+                    }
                 }
 				SaveRecoveryGrid();
 				_checkExecuteOpenBuy = true;
