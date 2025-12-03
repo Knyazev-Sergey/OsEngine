@@ -233,6 +233,16 @@ namespace OsEngine.Market.Servers.Bybit
 
         #region Other Permissions
 
+        public bool Leverage_IsSupports
+        {
+            get { return true; }
+        }
+
+        public decimal Leverage_StandartValue
+        {
+            get { return 1; }
+        }
+
         public bool IsNewsServer
         {
             get { return false; }

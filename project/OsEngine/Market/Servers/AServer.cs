@@ -171,6 +171,19 @@ namespace OsEngine.Market.Servers
                     ServerParameters[ServerParameters.Count - 1].Comment = OsLocalization.Market.Label243;
                 }
 
+                if (ServerPermission != null
+                    && ServerPermission.Leverage_IsSupports)
+                {
+                    /*Task task5 = new Task(CheckLeverageFlowThread);
+                    task5.Start();*/
+
+                    CreateParameterButton(OsLocalization.ConvertToLocString("Eng:Leverage_Ru:Плечо_"));
+                    ServerParameters[9].Comment = OsLocalization.ConvertToLocString(
+                        "Eng:The button opens the window of _" +
+                        "Ru:Кнопка открывает окно настроек _"); ;
+                    ((ServerParameterButton)ServerParameters[9]).UserClickButton += AServer_UserClickLeverageUiButton;
+                }
+
                 _serverStandardParamsCount = ServerParameters.Count;
 
                 _serverRealization.ServerParameters = ServerParameters;
@@ -4551,6 +4564,15 @@ namespace OsEngine.Market.Servers
             {
                 return _isNonTradingPeriodNow; 
             }
+        }
+
+        #endregion
+
+        #region Set Leverage
+
+        private void AServer_UserClickLeverageUiButton()
+        {
+            
         }
 
         #endregion
