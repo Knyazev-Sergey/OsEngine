@@ -975,6 +975,7 @@ namespace OsEngine.Robots
             {
                 CheckExecuteOpenOrder(Side.Buy);
                 CheckExecuteCloseOrders(Side.Buy);
+                //PlaceNewOrderFromGrid(Side.Buy);
                 PlaceOpenOrders(Side.Buy);
             }
             else if (_regime.ValueString == GetDescription(Regime.OnlyShort))
@@ -1608,6 +1609,8 @@ namespace OsEngine.Robots
 
             if (pos == null || pos.Count == 0) return;
 
+            PlaceNewOrderFromGrid(side);
+
             decimal volume = 0;
 
             for (int i = 0; i < pos[0].OpenOrders.Count; i++)
@@ -1647,7 +1650,7 @@ namespace OsEngine.Robots
                 }
             }
 
-            PlaceNewOrderFromGrid(side);
+            //PlaceNewOrderFromGrid(side);
 
             Side sideClose = pos.Last().Direction == Side.Buy ? Side.Sell : Side.Buy;
 
@@ -1687,12 +1690,15 @@ namespace OsEngine.Robots
         {
             if (side == Side.Buy)
             {
-                if (_listOrdersBuy.Count == 0)
+                if (_boolTimerTwapOrders)
                 {
-                    return;
+                    if (_timeTwapBuyOrders.AddMinutes((double)_setTimeTwapOrders.ValueDecimal) > DateTime.UtcNow) return;
                 }
 
+                if (_listOrdersBuy.Count == 0) return;
+
                 int count = 0;
+
                 for (int i = 0; i < _tab.PositionOpenLong[0].OpenOrders.Count; i++)
                 {
                     if (_tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Activ ||
@@ -1712,14 +1718,22 @@ namespace OsEngine.Robots
                     SendNewLogMessage("Добавляем ордер на биржу из сетки: " + side + " " + _listOrdersBuy[0].Price + " - " + _listOrdersBuy[0].Volume, Logging.LogMessageType.User);
                     _tab.BuyAtLimitToPositionUnsafe(_tab.PositionOpenLong.Last(), _listOrdersBuy[0].Price, _listOrdersBuy[0].Volume);
                     _listOrdersBuy.RemoveAt(0);
-                }
+
+                    if (_boolTimerTwapOrders)
+                    {
+                        _timeTwapBuyOrders = DateTime.UtcNow;
+                        SendNewLogMessage($"Выставлен TWAP ордер Buy: {_timeTwapBuyOrders}, следующий ордер будет выставлен после {_timeTwapBuyOrders.AddMinutes((double)_setTimeTwapOrders.ValueDecimal)}", Logging.LogMessageType.User);
+                    }
+                }                               
             }
             else
             {
-                if (_listOrdersSell.Count == 0)
+                if (_boolTimerTwapOrders)
                 {
-                    return;
+                    if (_timeTwapSellOrders.AddMinutes((double)_setTimeTwapOrders.ValueDecimal) > DateTime.UtcNow) return;
                 }
+
+                if (_listOrdersSell.Count == 0) return;
 
                 int count = 0;
                 for (int i = 0; i < _tab.PositionOpenShort[0].OpenOrders.Count; i++)
@@ -1740,6 +1754,12 @@ namespace OsEngine.Robots
                     SendNewLogMessage("Добавляем ордер на биржу из сетки: " + side + " " + _listOrdersSell[0].Price + " - " + _listOrdersSell[0].Volume, Logging.LogMessageType.User);
                     _tab.SellAtLimitToPositionUnsafe(_tab.PositionOpenShort.Last(), _listOrdersSell[0].Price, _listOrdersSell[0].Volume);
                     _listOrdersSell.RemoveAt(0);
+
+                    if (_boolTimerTwapOrders)
+                    {
+                        _timeTwapSellOrders = DateTime.UtcNow;
+                        SendNewLogMessage($"Выставлен TWAP ордер Sell: {_timeTwapSellOrders}, следующий ордер будет выставлен после {_timeTwapSellOrders.AddMinutes((double)_setTimeTwapOrders.ValueDecimal)}", Logging.LogMessageType.User);
+                    }
                 }
             }
 
@@ -2620,7 +2640,7 @@ namespace OsEngine.Robots
                     if (_boolTimerTwapOrders)
                     {
                         _timeTwapSellOrders = DateTime.UtcNow;
-                        SendNewLogMessage("Установлено время TWAP ордера Sell: " + _timeTwapSellOrders, Logging.LogMessageType.User);
+                        SendNewLogMessage($"Установлено время TWAP ордера Sell: {_timeTwapSellOrders}, следующий ордер будет выставлен после {_timeTwapSellOrders.AddMinutes((double)_setTimeTwapOrders.ValueDecimal)}", Logging.LogMessageType.User);
                         break;
                     }
                 }
@@ -2662,7 +2682,7 @@ namespace OsEngine.Robots
                     if (_boolTimerTwapOrders)
                     {
                         _timeTwapBuyOrders = DateTime.UtcNow;
-                        SendNewLogMessage("Установлено время TWAP ордера Buy: " + _timeTwapBuyOrders, Logging.LogMessageType.User);
+                        SendNewLogMessage($"Установлено время TWAP ордера Buy: {_timeTwapBuyOrders}, следующий ордер будет выставлен после {_timeTwapBuyOrders.AddMinutes((double)_setTimeTwapOrders.ValueDecimal)}", Logging.LogMessageType.User);
                         break;
                     }
                 }
