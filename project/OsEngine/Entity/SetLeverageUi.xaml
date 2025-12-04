@@ -4,7 +4,7 @@
         Title="Securities" Height="700" Width="800" MinWidth="400" MinHeight="300" Style="{StaticResource WindowStyleCanResize}" WindowStartupLocation="CenterScreen" Icon="/Images/OsLogo.ico">
     <Grid>
         <Rectangle Margin="5"/>
-        <WindowsFormsHost Name="HostSecurities" Margin="5,49,5,5"/>
+        <WindowsFormsHost Name="HostLeverage" Margin="5,49,5,5"/>
         <ComboBox Name="ComboBoxClass" HorizontalAlignment="Left" Margin="132,25,0,0" VerticalAlignment="Top" Width="179"/>
         <Label Name="LabelClass" Content="Class" HorizontalAlignment="Left" Margin="21,25,0,0" VerticalAlignment="Top" Width="81"/>
         <TextBox Name="TextBoxSearchSecurity" HorizontalAlignment="Left" Margin="355,25,0,0" TextWrapping="Wrap" Text="search..." VerticalAlignment="Top" Width="164"/>
