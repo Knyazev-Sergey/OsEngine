@@ -94,8 +94,8 @@ namespace OsEngine.Robots
             _logPriceLevels = CreateParameter("Логарифмическое распределение уровней цен", 0m, 0m, 0m, 0m, tabNameParameters);
             _tag = CreateParameter("Тэг", "", tabNameParameters);
             _minVolumeForTicker = CreateParameter("Минимальный объем по инструменту", 0m, 0m, 0m, 0m, tabNameParameters);
-            _boolTimerTwapOrders = CreateParameter("Включить TWAP ордера", false, tabNameParameters);
-            _setTimeTwapOrders = CreateParameter("Задержка выставления TWAP ордеров", 0m, 0m, 0m, 0m, tabNameParameters);
+            //_boolTimerTwapOrders = CreateParameter("Включить TWAP ордера", false, tabNameParameters);
+            //_setTimeTwapOrders = CreateParameter("Задержка выставления TWAP ордеров", 0m, 0m, 0m, 0m, tabNameParameters);
 
             _rsiOnOff = CreateParameter("Фильтр RSI", RsiRegime.Off.ToString(), new string[] { RsiRegime.Off.ToString(), RsiRegime.On.ToString() }, tabNameRsi);
             _periodRsi = CreateParameter("Период RSI", 14, 0, 0, 0, tabNameRsi);
@@ -975,7 +975,6 @@ namespace OsEngine.Robots
             {
                 CheckExecuteOpenOrder(Side.Buy);
                 CheckExecuteCloseOrders(Side.Buy);
-                //PlaceNewOrderFromGrid(Side.Buy);
                 PlaceOpenOrders(Side.Buy);
             }
             else if (_regime.ValueString == GetDescription(Regime.OnlyShort))
