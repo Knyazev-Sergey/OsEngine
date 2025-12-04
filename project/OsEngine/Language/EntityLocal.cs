@@ -547,5 +547,9 @@ namespace OsEngine.Language
             "Eng:Message box_" +
             "Ru:Окно сообщений_");
 
+        public string TitleSetLeverageUi => OsLocalization.ConvertToLocString(
+            "Eng:Leverage instruments _" +
+            "Ru:Плечи инструментов_");
+
     }
 }

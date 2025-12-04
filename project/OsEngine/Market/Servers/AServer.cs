@@ -4570,9 +4570,29 @@ namespace OsEngine.Market.Servers
 
         #region Set Leverage
 
+        private SetLeverageUi _leverageUi;
+             
         private void AServer_UserClickLeverageUiButton()
         {
-            
+            try
+            {
+                if (_leverageUi == null)
+                {
+                    _leverageUi = new SetLeverageUi(this);
+                    _leverageUi.Show();
+                    _leverageUi.Closed += _leverageUi_Closed;
+                }
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void _leverageUi_Closed(object sender, EventArgs e)
+        {
+            _leverageUi.Closed -= _securitiesUi_Closed;
+            _leverageUi = null;
         }
 
         #endregion
