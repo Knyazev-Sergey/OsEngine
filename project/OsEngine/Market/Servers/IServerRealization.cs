@@ -137,6 +137,11 @@ namespace OsEngine.Market.Servers
         /// </summary>
         event Action<SecurityVolumes> Volume24hUpdateEvent;
 
+        /// <summary>
+        /// Set leverage on security
+        /// </summary>
+        void SetLeverage(Security security, decimal leverage);
+
         #endregion
 
         #region Data upload

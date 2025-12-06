@@ -548,7 +548,7 @@ namespace OsEngine.Language
             "Ru:Окно сообщений_");
 
         public string TitleSetLeverageUi => OsLocalization.ConvertToLocString(
-            "Eng:Leverage instruments _" +
+            "Eng:Instruments leverage_" +
             "Ru:Плечи инструментов_");
 
     }

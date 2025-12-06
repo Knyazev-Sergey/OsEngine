@@ -134,9 +134,20 @@ namespace OsEngine.Market.Servers
                 ServerParameters[9].Comment = OsLocalization.Market.Label131;
                 ((ServerParameterButton)ServerParameters[9]).UserClickButton += AServer_UserClickSecuritiesUiButton;
 
+                //if (ServerPermission != null
+                //    && ServerPermission.Leverage_IsSupports)
+                if (ServerPermission != null)
+                {
+                    CreateParameterButton(OsLocalization.ConvertToLocString("Eng:Leverage_Ru:Плечо_"));
+                    ServerParameters[9].Comment = OsLocalization.ConvertToLocString(
+                        "Eng:The button opens the window of _" +
+                        "Ru:Кнопка открывает окно настроек _"); ;
+                    ((ServerParameterButton)ServerParameters[10]).UserClickButton += AServer_UserClickLeverageUiButton;
+                }
+
                 CreateParameterButton(OsLocalization.Market.ServerParam14);
                 ServerParameters[10].Comment = OsLocalization.Market.Label281;
-                ((ServerParameterButton)ServerParameters[10]).UserClickButton += AServer_UserClickNonTradePeriodsUiButton;
+                ((ServerParameterButton)ServerParameters[11]).UserClickButton += AServer_UserClickNonTradePeriodsUiButton;
 
                 if (ServerPermission != null
                     && ServerPermission.IsSupports_ProxyFor_MultipleInstances)
@@ -169,19 +180,6 @@ namespace OsEngine.Market.Servers
                     CreateParameterBoolean(OsLocalization.Market.Label242, false);
                     _needToCheckDataFeedOnDisconnect = (ServerParameterBool)ServerParameters[ServerParameters.Count - 1];
                     ServerParameters[ServerParameters.Count - 1].Comment = OsLocalization.Market.Label243;
-                }
-
-                if (ServerPermission != null
-                    && ServerPermission.Leverage_IsSupports)
-                {
-                    /*Task task5 = new Task(CheckLeverageFlowThread);
-                    task5.Start();*/
-
-                    CreateParameterButton(OsLocalization.ConvertToLocString("Eng:Leverage_Ru:Плечо_"));
-                    ServerParameters[9].Comment = OsLocalization.ConvertToLocString(
-                        "Eng:The button opens the window of _" +
-                        "Ru:Кнопка открывает окно настроек _"); ;
-                    ((ServerParameterButton)ServerParameters[9]).UserClickButton += AServer_UserClickLeverageUiButton;
                 }
 
                 _serverStandardParamsCount = ServerParameters.Count;
@@ -4578,7 +4576,7 @@ namespace OsEngine.Market.Servers
             {
                 if (_leverageUi == null)
                 {
-                    _leverageUi = new SetLeverageUi(this);
+                    _leverageUi = new SetLeverageUi(this, _serverRealization);
                     _leverageUi.Show();
                     _leverageUi.Closed += _leverageUi_Closed;
                 }

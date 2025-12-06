@@ -38,7 +38,7 @@ namespace OsEngine.Market.Servers.Bybit
             CreateParameterEnum("Margin Mode", MarginMode.Cross.ToString(), new List<string>() { MarginMode.Cross.ToString(), MarginMode.Isolated.ToString() });
             CreateParameterBoolean("Hedge Mode", true);
             ServerParameters[4].ValueChange += BybitServer_ValueChange;
-            CreateParameterString("Leverage", "");
+            //CreateParameterString("Leverage", "");
             CreateParameterBoolean("Extended Data", false);
             CreateParameterBoolean("Use Options", false);
 
@@ -140,9 +140,9 @@ namespace OsEngine.Market.Servers.Bybit
                 httpClientHandler = null;
                 httpClient = null;
 
-                _leverage = ((ServerParameterString)ServerParameters[5]).Value.Replace(",", ".");
+                //_leverage = ((ServerParameterString)ServerParameters[5]).Value.Replace(",", ".");
 
-                if (((ServerParameterBool)ServerParameters[6]).Value == true)
+                if (((ServerParameterBool)ServerParameters[5]).Value == true)
                 {
                     _extendedMarketData = true;
                 }
@@ -151,7 +151,7 @@ namespace OsEngine.Market.Servers.Bybit
                     _extendedMarketData = false;
                 }
 
-                if (((ServerParameterBool)ServerParameters[7]).Value == true)
+                if (((ServerParameterBool)ServerParameters[6]).Value == true)
                 {
                     _useOptions = true;
                 }
@@ -2087,9 +2087,7 @@ namespace OsEngine.Market.Servers.Bybit
                             webSocketPublicLinear?.SendAsync($"{{\"req_id\": \"trade0001\",  \"op\": \"subscribe\", \"args\": [\"tickers.{security.Name.Replace(".P", "")}\" ] }}");
                             GetFundingData(security.Name.Replace(".P", ""));
                         }
-                    }
-
-                    SetLeverage(security);
+                    }                    
                 }
                 else if (security.Name.EndsWith(".I") && security.SecurityType != SecurityType.Option)
                 {
@@ -4815,21 +4813,16 @@ namespace OsEngine.Market.Servers.Bybit
             return BitConverter.ToString(signature).Replace("-", "").ToLower();
         }
 
-        private void SetLeverage(Security security)
+        public void SetLeverage(Security security, decimal leverage)
         {
             try
-            {
-                if (_leverage == "")
-                {
-                    return;
-                }
-
+            {  
                 Dictionary<string, object> parametrs = new Dictionary<string, object>();
                 parametrs.Clear();
                 parametrs["category"] = Category.linear.ToString();
                 parametrs["symbol"] = security.Name.Split(".")[0];
-                parametrs["buyLeverage"] = _leverage;
-                parametrs["sellLeverage"] = _leverage;
+                parametrs["buyLeverage"] = leverage;
+                parametrs["sellLeverage"] = leverage;
 
                 CreatePrivateQuery(parametrs, HttpMethod.Post, "/v5/position/set-leverage");
             }

@@ -80,9 +80,9 @@ namespace OsEngine.Market.Servers
 
         #region Other Permissions
 
-        bool Leverage_IsSupports { get; }
+        //bool Leverage_IsSupports { get; }
 
-        decimal Leverage_StandartValue { get; }
+       // decimal Leverage_StandartValue { get; }
 
         bool IsNewsServer { get; }
 
