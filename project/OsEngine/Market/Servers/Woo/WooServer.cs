@@ -2926,6 +2926,11 @@ namespace OsEngine.Market.Servers.Woo
             LogMessageEvent(message, messageType);
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<string, LogMessageType> LogMessageEvent;
 
         #endregion

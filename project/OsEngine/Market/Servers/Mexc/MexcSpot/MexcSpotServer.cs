@@ -2334,6 +2334,11 @@ namespace OsEngine.Market.Servers.Mexc
             LogMessageEvent?.Invoke(message, messageType);
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<string, LogMessageType> LogMessageEvent;
 
         #endregion

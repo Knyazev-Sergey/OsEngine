@@ -2259,6 +2259,11 @@ namespace OsEngine.Market.Servers.BloFin
             }
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<string, LogMessageType> LogMessageEvent;
 
         #endregion 13

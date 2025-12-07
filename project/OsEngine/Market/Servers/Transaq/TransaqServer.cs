@@ -3333,6 +3333,11 @@ namespace OsEngine.Market.Servers.Transaq
 
         [DllImport("TXmlConnector64.dll", CallingConvention = CallingConvention.Winapi)]
         private static extern IntPtr SetLogLevel(Int32 logLevel);
+
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
         //--------------------------------------------------------------------------------
 
         #endregion

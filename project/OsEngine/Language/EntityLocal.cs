@@ -551,5 +551,9 @@ namespace OsEngine.Language
             "Eng:Instruments leverage_" +
             "Ru:Плечи инструментов_");
 
+        public string LeverageColumn => OsLocalization.ConvertToLocString(
+            "Eng:Leverage_" +
+            "Ru:Плечо");
+
     }
 }

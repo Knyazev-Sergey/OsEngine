@@ -4212,6 +4212,11 @@ namespace OsEngine.Market.Servers.TInvest
             LogMessageEvent?.Invoke(message, messageType);
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<string, LogMessageType> LogMessageEvent;
 
         public event Action<Funding> FundingUpdateEvent { add { } remove { } }

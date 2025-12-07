@@ -1014,6 +1014,8 @@ namespace OsEngine.Market.Servers.BinanceData
 
         #region 8 Unused methods
 
+        public void SetLeverage(Security security, decimal leverage) { }
+
         public void Subscribe(Security security) { }
 
         public void SendOrder(Order order) { }

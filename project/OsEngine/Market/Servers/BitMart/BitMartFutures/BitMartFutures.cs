@@ -2843,6 +2843,11 @@ namespace OsEngine.Market.Servers.BitMartFutures
             LogMessageEvent?.Invoke(message, messageType);
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<string, LogMessageType> LogMessageEvent;
 
         #endregion

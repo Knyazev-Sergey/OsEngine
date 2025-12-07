@@ -2163,6 +2163,11 @@ namespace OsEngine.Market.Servers.MetaTrader5
             }
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<News> NewsEvent { add { } remove { } }
 
         public event Action<Funding> FundingUpdateEvent { add { } remove { } }

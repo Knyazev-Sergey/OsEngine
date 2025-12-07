@@ -2060,6 +2060,11 @@ namespace OsEngine.Market.Servers.HTX.Futures
             LogMessageEvent(message, messageType);
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         #endregion
     }
 }

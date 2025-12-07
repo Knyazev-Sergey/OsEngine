@@ -321,6 +321,11 @@ namespace OsEngine.Market.Servers.NinjaTrader
             throw new NotImplementedException();
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         /// <summary>
         /// outgoing log message
         /// исходящее сообщение для лога

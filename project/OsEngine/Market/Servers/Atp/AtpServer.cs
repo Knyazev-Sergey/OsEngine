@@ -1888,6 +1888,11 @@ namespace OsEngine.Market.Servers.Atp
             return null;
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+
+        }
+
         #endregion
 
         #region 11 Log

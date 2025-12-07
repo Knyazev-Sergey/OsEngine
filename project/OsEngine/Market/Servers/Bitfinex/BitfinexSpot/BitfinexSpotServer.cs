@@ -3169,6 +3169,11 @@ namespace OsEngine.Market.Servers.Bitfinex
             LogMessageEvent(message, messageType);
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         #endregion
     }
 }

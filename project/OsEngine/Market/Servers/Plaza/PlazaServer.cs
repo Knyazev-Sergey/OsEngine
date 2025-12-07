@@ -3304,6 +3304,11 @@ namespace OsEngine.Market.Servers.Plaza
             return -1;
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<OptionMarketDataForConnector> AdditionalMarketDataEvent { add { } remove { } }
 
         public event Action<Funding> FundingUpdateEvent { add { } remove { } }

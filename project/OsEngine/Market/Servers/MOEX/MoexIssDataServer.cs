@@ -773,6 +773,11 @@ namespace OsEngine.Market.Servers.MOEX
 
         public List<Candle> GetLastCandleHistory(Security security, TimeFrameBuilder timeFrameBuilder, int candleCount) { return null; }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<News> NewsEvent { add { } remove { } }
         public event Action<Order> MyOrderEvent { add { } remove { } }
         public event Action<MyTrade> MyTradeEvent { add { } remove { } }

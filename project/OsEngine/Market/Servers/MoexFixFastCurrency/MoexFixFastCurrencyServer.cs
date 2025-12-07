@@ -3360,6 +3360,11 @@ namespace OsEngine.Market.Servers.MoexFixFastCurrency
             LogMessageEvent(message, messageType);
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         #endregion
     }
 }

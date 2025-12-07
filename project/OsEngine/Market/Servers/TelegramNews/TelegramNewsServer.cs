@@ -611,6 +611,11 @@ namespace OsEngine.Market.Servers.TelegramNews
         {
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<List<Security>> SecurityEvent;
         public event Action<List<Portfolio>> PortfolioEvent;
         public event Action<MarketDepth> MarketDepthEvent { add { } remove { } }

@@ -2069,6 +2069,11 @@ namespace OsEngine.Market.Servers.FinamGrpc
             LogMessageEvent?.Invoke(msg, msgType);
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<string, LogMessageType> LogMessageEvent;
 
         public event Action<Funding> FundingUpdateEvent { add { } remove { } }

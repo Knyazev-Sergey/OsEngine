@@ -1395,6 +1395,11 @@ namespace OsEngine.Market.Servers.GateIoData
 
         public List<Candle> GetLastCandleHistory(Security security, TimeFrameBuilder timeFrameBuilder, int candleCount) { return null; }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<News> NewsEvent { add { } remove { } }
         public event Action<MarketDepth> MarketDepthEvent { add { } remove { } }
         public event Action<Trade> NewTradesEvent { add { } remove { } }

@@ -4614,6 +4614,11 @@ namespace OsEngine.Market.Servers.MoexFixFastTwimeFutures
             LogMessageEvent(message, messageType);
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         #endregion
     }
 }

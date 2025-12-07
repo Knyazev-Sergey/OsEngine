@@ -4816,15 +4816,34 @@ namespace OsEngine.Market.Servers.Bybit
         public void SetLeverage(Security security, decimal leverage)
         {
             try
-            {  
-                Dictionary<string, object> parametrs = new Dictionary<string, object>();
-                parametrs.Clear();
-                parametrs["category"] = Category.linear.ToString();
-                parametrs["symbol"] = security.Name.Split(".")[0];
-                parametrs["buyLeverage"] = leverage;
-                parametrs["sellLeverage"] = leverage;
+            {
+                if (security.SecurityType == SecurityType.Futures)
+                {
+                    string category = Category.linear.ToString();
 
-                CreatePrivateQuery(parametrs, HttpMethod.Post, "/v5/position/set-leverage");
+                    if (security.Name.EndsWith(".I"))
+                    {
+                        category = Category.inverse.ToString();
+                    }
+
+                    Dictionary<string, object> parameters = new Dictionary<string, object>();
+                    parameters.Clear();
+                    parameters["category"] = category;
+                    parameters["symbol"] = security.Name.Split(".")[0];
+                    parameters["buyLeverage"] = leverage;
+                    parameters["sellLeverage"] = leverage;
+
+                    CreatePrivateQuery(parameters, HttpMethod.Post, "/v5/position/set-leverage");
+                }
+                else if (security.SecurityType == SecurityType.CurrencyPair)
+                {
+                    Dictionary<string, object> parameters = new Dictionary<string, object>();
+                    parameters.Clear();
+                    parameters["currency"] = security.Name.ToUpper();
+                    parameters["leverage"] = leverage;
+
+                    CreatePrivateQuery(parameters, HttpMethod.Post, "/v5/spot-margin-trade/set-leverage");
+                }                
             }
             catch (Exception ex)
             {

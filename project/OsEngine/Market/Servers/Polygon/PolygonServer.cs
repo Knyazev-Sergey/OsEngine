@@ -680,6 +680,11 @@ namespace OsEngine.Market.Servers.Polygon
             return false;
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<News> NewsEvent { add { } remove { } }
 
         public event Action<Order> MyOrderEvent { add { } remove { } }

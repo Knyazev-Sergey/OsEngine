@@ -770,6 +770,11 @@ namespace OsEngine.Market.Servers.OKXData
             return false;
         }
 
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            throw new NotImplementedException();
+        }
+
         public event Action<News> NewsEvent { add { } remove { } }
         public event Action<MarketDepth> MarketDepthEvent { add { } remove { } }
         public event Action<Trade> NewTradesEvent { add { } remove { } }

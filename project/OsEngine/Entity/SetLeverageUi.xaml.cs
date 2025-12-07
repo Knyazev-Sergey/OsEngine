@@ -30,7 +30,7 @@ namespace OsEngine.Entity
             _serverRealization = serverRealization;
 
             //IServerPermission ServerPermission = ServerMaster.GetServerPermission(server.ServerType);
-            TextBoxLeverage.Text = "1";
+            TextBoxLeverage.Text = "10";
 
             UpdateClassComboBox(server.Securities);
             ComboBoxClass.SelectionChanged += ComboBoxClass_SelectionChanged;
@@ -39,6 +39,8 @@ namespace OsEngine.Entity
             PaintLeverageTable(server.Securities);
 
             Title = OsLocalization.Entity.TitleSetLeverageUi + " " + _server.ServerType;
+            LabelClass.Content = OsLocalization.Entity.SecuritiesColumn11;
+            TextBoxSearchLeverage.Text = OsLocalization.Market.Label64;
 
             this.Activate();
             this.Focus();
@@ -54,7 +56,29 @@ namespace OsEngine.Entity
             ButtonLeftInSearchResults.Click += ButtonLeftInSearchResults_Click;
 
             Thread worker = new Thread(ThreadSetLeverage);
+            worker.IsBackground = true;
             worker.Start();
+        }
+
+        private void SetLeverageUi_Closed(object sender, EventArgs e)
+        {
+            TextBoxSearchLeverage.MouseEnter -= TextBoxSearchLeverage_MouseEnter;
+            TextBoxSearchLeverage.TextChanged -= TextBoxSearchLeverage_TextChanged;
+            TextBoxSearchLeverage.MouseLeave -= TextBoxSearchLeverage_MouseLeave;
+            TextBoxSearchLeverage.LostKeyboardFocus -= TextBoxSearchLeverage_LostKeyboardFocus;
+            TextBoxSearchLeverage.KeyDown -= TextBoxSearchLeverage_KeyDown;
+            ButtonRightInSearchResults.Click -= ButtonRightInSearchResults_Click;
+            ButtonLeftInSearchResults.Click -= ButtonLeftInSearchResults_Click;
+
+            _queueLeverage.Clear();
+            _dgv.Rows.Clear();
+            _dgv.CellValueChanged -= _dgv_CellValueChanged;
+            _dgv.DataError -= _dgv_DataError;
+            _dgv = null;
+            HostLeverage.Child = null;
+            _server.SecuritiesChangeEvent -= _server_SecuritiesChangeEvent;
+            _server = null;
+            _serverRealization = null;
         }
 
         private void ThreadSetLeverage(object obj)
@@ -63,6 +87,11 @@ namespace OsEngine.Entity
             {
                 try
                 {
+                    if(_serverRealization == null)
+                    {
+                        return;
+                    }
+
                     if(_serverRealization.ServerStatus == ServerConnectStatus.Disconnect)
                     {
                         Thread.Sleep(1000);
@@ -97,7 +126,7 @@ namespace OsEngine.Entity
 
         private void SetLeverageOnExchange(SecurityLeverageData data)
         {
-            //_serverRealization.SetLeverage(data.Security, data.Leverage);
+            _serverRealization.SetLeverage(data.Security, data.Leverage);
         }
 
         private DataGridView _dgv;
@@ -121,7 +150,7 @@ namespace OsEngine.Entity
                 _dgv.Columns[3].HeaderText = OsLocalization.Entity.SecuritiesColumn10; // Name ID
                 _dgv.Columns[4].HeaderText = OsLocalization.Entity.SecuritiesColumn11; // Class
                 _dgv.Columns[5].HeaderText = OsLocalization.Entity.SecuritiesColumn2; // Type
-                _dgv.Columns[6].HeaderText = OsLocalization.ConvertToLocString("Eng:Leverage_Ru:Плечо");
+                _dgv.Columns[6].HeaderText = OsLocalization.Entity.LeverageColumn; // Leverage
 
                 foreach (DataGridViewColumn column in _dgv.Columns)
                 {
@@ -303,7 +332,10 @@ namespace OsEngine.Entity
                     _dgv.Rows.AddRange(rows.ToArray());
                 }
 
-                HostLeverage.Child = _dgv;                
+                HostLeverage.Child = _dgv;
+
+                UpdateSearchResults();
+                UpdateSearchPanel();
             }
             catch (Exception ex)
             {
@@ -386,28 +418,6 @@ namespace OsEngine.Entity
                 ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
                 return null;
             }
-        }
-
-        private void SetLeverageUi_Closed(object sender, EventArgs e)
-        {
-            TextBoxSearchLeverage.MouseEnter -= TextBoxSearchLeverage_MouseEnter;
-            TextBoxSearchLeverage.TextChanged -= TextBoxSearchLeverage_TextChanged;
-            TextBoxSearchLeverage.MouseLeave -= TextBoxSearchLeverage_MouseLeave;
-            TextBoxSearchLeverage.LostKeyboardFocus -= TextBoxSearchLeverage_LostKeyboardFocus;
-            TextBoxSearchLeverage.KeyDown -= TextBoxSearchLeverage_KeyDown;
-            ButtonRightInSearchResults.Click -= ButtonRightInSearchResults_Click;
-            ButtonLeftInSearchResults.Click -= ButtonLeftInSearchResults_Click;
-
-            _queueLeverage.Clear();
-            _dgv.Rows.Clear();
-            _dgv.CellValueChanged -= _dgv_CellValueChanged;
-            _dgv.DataError -= _dgv_DataError;
-            _dgv = null;
-            HostLeverage.Child = null;
-            _server.SecuritiesChangeEvent -= _server_SecuritiesChangeEvent;
-            _server = null;
-            _serverRealization = null;
-
         }
 
         private void _server_SecuritiesChangeEvent(List<Security> securities)
@@ -504,6 +514,8 @@ namespace OsEngine.Entity
                 ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
             }
         }
+
+        #region Search
 
         private void ButtonLeftInSearchResults_Click(object sender, RoutedEventArgs e)
         {
@@ -784,6 +796,8 @@ namespace OsEngine.Entity
                 ServerMaster.SendNewLogMessage(ex.ToString(), LogMessageType.Error);
             }
         }
+
+        #endregion
 
         private class LeverageData
         {
