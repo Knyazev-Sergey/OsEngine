@@ -7,7 +7,7 @@
         <WindowsFormsHost Name="HostLeverage" Margin="5,49,5,5"/>
         <ComboBox Name="ComboBoxClass" HorizontalAlignment="Left" Margin="132,25,0,0" VerticalAlignment="Top" Width="179"/>
         <Label Name="LabelClass" Content="Class" HorizontalAlignment="Left" Margin="21,25,0,0" VerticalAlignment="Top" Width="81"/>
-        <TextBox Name="TextBoxSearchSecurity" HorizontalAlignment="Left" Margin="355,25,0,0" TextWrapping="Wrap" Text="search..." VerticalAlignment="Top" Width="164"/>
+        <TextBox Name="TextBoxSearchLeverage" HorizontalAlignment="Left" Margin="355,25,0,0" TextWrapping="Wrap" Text="search..." VerticalAlignment="Top" Width="164"/>
         <Button Name="ButtonRightInSearchResults" Content="&gt;" HorizontalAlignment="Left" Margin="496,5,0,0" VerticalAlignment="Top" Width="23" Height="20"/>
         <Button Name="ButtonLeftInSearchResults" Content="&lt;" HorizontalAlignment="Left" Margin="355,5,0,0" VerticalAlignment="Top" Width="23" Height="20"/>
         <Label Name="LabelCurrentResultShow" Content="1" HorizontalAlignment="Left" Margin="415,5,0,0" VerticalAlignment="Top" Height="20"/>

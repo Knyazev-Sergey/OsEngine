@@ -140,7 +140,7 @@ namespace OsEngine.Market.Servers
         /// <summary>
         /// Set leverage on security
         /// </summary>
-        void SetLeverage(Security security, decimal leverage);
+        //void SetLeverage(Security security, decimal leverage);
 
         #endregion
 
