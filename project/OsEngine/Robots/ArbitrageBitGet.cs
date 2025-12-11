@@ -971,12 +971,10 @@ namespace OsEngine.Robots
                         //_regime = Regime.Shutdown;
                     }
                     return;
-                }
-
-                
+                }                
             }
 
-            if (volume * _secondAsk < 2)
+            /*if (volume * _secondAsk < 2)
             {
                 if (!_sendMessage)
                 {
@@ -984,7 +982,7 @@ namespace OsEngine.Robots
                     SendNewLogMessage($"Объем в аске ({summOrders}) меньше чем 2 USDT", _logging);
                 }
                 return;
-            }
+            }*/
 
             _sendMessage = false;
 

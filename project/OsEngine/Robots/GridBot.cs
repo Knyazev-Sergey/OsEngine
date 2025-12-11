@@ -15,6 +15,7 @@ using System.Windows.Forms.Integration;
 using System.Globalization;
 using OsEngine.Candles.Series;
 using OsEngine.Charts.CandleChart.Indicators;
+using OsEngine.Market.Servers.TraderNet.Entity;
 
 namespace OsEngine.Robots
 {
@@ -961,6 +962,18 @@ namespace OsEngine.Robots
             {
                 try
                 {
+                    if (_tab == null || _tab.Portfolio == null)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
+                    if (!_tab.Connector.IsReadyToTrade)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
                     if (_rsi.DataSeries != null || _rsiBTC.DataSeries != null)
                     {
                         _lastRsi = _rsi.DataSeries[0].Last;
@@ -1306,16 +1319,22 @@ namespace OsEngine.Robots
         {
             WriteLogOrders();
 
-            _status = Status.Work;
+            _averagePriceBuy = GetAveragePricePositions(Side.Buy);
+            _priceTPBuy = Math.Round((_averagePriceBuy + _averagePriceBuy * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep, MidpointRounding.AwayFromZero) * (double)_tab.Security.PriceStep;
+            _averagePriceSell = GetAveragePricePositions(Side.Sell);
+            _priceTPSell = Math.Round((_averagePriceSell - _averagePriceSell * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep, MidpointRounding.AwayFromZero) * (double)_tab.Security.PriceStep;
+
             if (_regime.ValueString == GetDescription(Regime.OnlyLong))
             {
                 _checkExecuteOpenBuy = true;                
                 RecoveryGrid(Side.Buy);
+                RecoveryTpOrders(Side.Buy);
             }
             else if (_regime.ValueString == GetDescription(Regime.OnlyShort))
             {
                 _checkExecuteOpenSell = true;
                 RecoveryGrid(Side.Sell);
+                RecoveryTpOrders(Side.Sell);
             }
             else
             {
@@ -1323,14 +1342,12 @@ namespace OsEngine.Robots
                 _checkExecuteOpenSell = true;
                 RecoveryGrid(Side.Buy);
                 RecoveryGrid(Side.Sell);
+                RecoveryTpOrders(Side.Buy);
+                RecoveryTpOrders(Side.Sell);
             }
-
-            _averagePriceBuy = GetAveragePricePositions(Side.Buy);
-            _priceTPBuy = Math.Round((_averagePriceBuy + _averagePriceBuy * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep, MidpointRounding.AwayFromZero) * (double)_tab.Security.PriceStep;
-            _averagePriceSell = GetAveragePricePositions(Side.Sell);
-            _priceTPSell = Math.Round((_averagePriceSell - _averagePriceSell * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep, MidpointRounding.AwayFromZero) * (double)_tab.Security.PriceStep;
-
+                        
             _workCycle = true;
+            _status = Status.Work;
         }
 
         private void RecoveryGrid(Side side)
@@ -1368,6 +1385,45 @@ namespace OsEngine.Robots
             }
 
             SendNewLogMessage("Восстановление сетки закончено", Logging.LogMessageType.User);
+        }
+
+        private void RecoveryTpOrders(Side side)
+        {
+            List<Position> pos = _tab.PositionOpenShort;
+            decimal price = (decimal)_priceTPSell;
+
+            if (side == Side.Buy)
+            {
+                pos = _tab.PositionOpenLong;
+                price = (decimal)_priceTPBuy;
+            }
+           
+            if (pos.Count == 0)
+            {
+                return;
+            }
+
+            decimal volume = pos[0].OpenVolume;
+
+            if (volume > 0)
+            {
+                for (int j = 0; j < pos[0].CloseOrders.Count; j++)
+                {
+                    for (int i = 0; i < pos[0].CloseOrders.Count; i++)
+                    {
+                        if (pos[0].CloseOrders[i].State == OrderStateType.Active ||
+                        pos[0].CloseOrders[i].State == OrderStateType.Partial ||
+                        pos[0].CloseOrders[i].State == OrderStateType.Pending)
+                        {
+                            SendNewLogMessage("Удаляем закрывающий ордер: " + pos[0].CloseOrders[i].Side + " " + pos[0].CloseOrders[i].Price + " - " + pos[0].CloseOrders[i].Volume + ", State: " + pos[0].CloseOrders[i].State, Logging.LogMessageType.User);
+                            _tab.CloseOrder(pos[0].CloseOrders[i]);
+                        }
+                    }
+                }                    
+            }
+
+            _tab.CloseAtLimitUnsafe(pos[0], price, volume);
+            SendNewLogMessage("Ставим новый закрывающий ордер", Logging.LogMessageType.User);
         }
 
         private void CheckCloseOrders(List<Position> pos)
@@ -1420,7 +1476,7 @@ namespace OsEngine.Robots
                 {
                     count++;
                 }
-            }
+            }            
 
             SendNewLogMessage("Кол-во ордеров на бирже " + pos[0].Direction + ": " + count, Logging.LogMessageType.User);
             
