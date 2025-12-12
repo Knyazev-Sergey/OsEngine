@@ -44,9 +44,6 @@ namespace OsEngine.Journal
             InitializeComponent();
             OsEngine.Layout.StickyBorders.Listen(this);
 
-            //LabelBenchmark.Visibility = Visibility.Hidden;
-            //ComboBoxBenchmark.Visibility = Visibility.Hidden;
-
             _startProgram = startProgram;
             _botsJournals = botsJournals;
 
@@ -515,7 +512,7 @@ namespace OsEngine.Journal
 
         private void PaintTitleAbsProfit(List<Position> positionsAll)
         {
-            decimal absProfit = PositionStatisticGenerator.GetAllProfitInAbsolute(positionsAll.ToArray());
+            decimal absProfit = PositionStatisticGenerator.GetAllProfitInAbsolute(positionsAll.ToArray(), false);
 
             if (absProfit != 0)
             {
@@ -771,7 +768,7 @@ namespace OsEngine.Journal
 
         #region Equity chart
 
-        Chart _chartEquity;
+        private Chart _chartEquity;
 
         private void CreateChartProfit()
         {
@@ -1109,6 +1106,11 @@ namespace OsEngine.Journal
                     }
                     else if (chartType == "Percent 1 contract")
                     {
+                        if (positionsAll[i].NameBotClass == "TaxPayer"
+                         || positionsAll[i].NameBotClass == "PayOfMarginBot")
+                        {
+                            continue;
+                        }
                         curProfit = positionsAll[i].ProfitOperationPercent * (curMult / 100);
                     }
 
@@ -1224,7 +1226,8 @@ namespace OsEngine.Journal
                     ComboBoxBenchmark.IsEnabled = false;
                 }
 
-                if (ComboBoxBenchmark.SelectedItem.ToString() != BenchmarkSecurity.Off.ToString() &&
+                if (positionsAll.Count > 0
+                    && ComboBoxBenchmark.SelectedItem.ToString() != BenchmarkSecurity.Off.ToString() &&
                     chartType == "Absolute")
                 {
                     _startValuePortfolio = positionsAll[0].PortfolioValueOnOpenPosition;
@@ -2070,11 +2073,11 @@ namespace OsEngine.Journal
 
         #region Volume to Portfolio
 
-        Chart _chartPortfolio;
+        private Chart _chartPortfolio;
 
-        DataGridView _gridLeveragePortfolio;
+        private DataGridView _gridLeveragePortfolio;
 
-        TableLayoutPanel _layoutPanelPortfolio;
+        private TableLayoutPanel _layoutPanelPortfolio;
 
         private void CreateChartPortfolio()
         {
@@ -2387,15 +2390,31 @@ namespace OsEngine.Journal
                     int indexClose = allChange.FindIndex(change => change == timeClose);
 
                     if (indexOpen != -1)
-                    {                        
-                        volume[indexOpen] += pos.MaxVolume * pos.EntryPrice;
+                    {
+                        if(pos.Lots != 0)
+                        {
+                            volume[indexOpen] += pos.MaxVolume * pos.EntryPrice * pos.Lots;
+                        }
+                        else
+                        {
+                            volume[indexOpen] += pos.MaxVolume * pos.EntryPrice;
+                        }
+                            
                         deposit[indexOpen] = pos.PortfolioValueOnOpenPosition;
                     }
 
                     if (pos.State == PositionStateType.Done
                         && indexClose != -1)
                     {
-                        volume[indexClose] -= pos.MaxVolume * pos.EntryPrice;
+                        if (pos.Lots != 0)
+                        {
+                            volume[indexClose] -= pos.MaxVolume * pos.EntryPrice * pos.Lots;
+                        }
+                        else
+                        {
+                            volume[indexClose] -= pos.MaxVolume * pos.EntryPrice;
+                        }
+                        
                         deposit[indexClose] = pos.PortfolioValueOnOpenPosition;
                     }
                 }
@@ -2427,7 +2446,13 @@ namespace OsEngine.Journal
                     volumePortfolio.Points.AddXY(i, volumeDataPoint);
                     volumePortfolio.Points[^1].AxisLabel = allChange[i].ToString();
 
-                    decimal leverage = Math.Round(volumeDataPoint / totalDataPoint, 2);
+                    decimal leverage = 0;
+
+                    if (totalDataPoint != 0)
+                    {
+                        leverage = Math.Round(volumeDataPoint / totalDataPoint, 2);
+                    }
+                    
                     leverageBars.Points.AddXY(i, leverage);
                     leverageBars.Points[^1].AxisLabel = allChange[i].ToString();
 
@@ -2621,7 +2646,7 @@ namespace OsEngine.Journal
 
         #region Max DD Chart
 
-        Chart _chartDd;
+        private Chart _chartDd;
 
         private void CreateChartDrawDown()
         {
@@ -2641,6 +2666,8 @@ namespace OsEngine.Journal
                 areaDdPunct.Position.Y = 0;
                 areaDdPunct.CursorX.IsUserSelectionEnabled = false; //allow the user to change the view scope/ разрешаем пользователю изменять рамки представления
                 areaDdPunct.CursorX.IsUserEnabled = true; //trait/чертa
+                areaDdPunct.AxisY2.Title = OsLocalization.Journal.Label25;
+                areaDdPunct.AxisY2.TitleForeColor = Color.DeepSkyBlue;
 
                 _chartDd.ChartAreas.Add(areaDdPunct);
 
@@ -2651,6 +2678,8 @@ namespace OsEngine.Journal
                 areaDdPercent.Position.Y = 50;
                 areaDdPercent.AxisX.Enabled = AxisEnabled.False;
                 areaDdPercent.CursorX.IsUserEnabled = true; //trait/чертa
+                areaDdPercent.AxisY2.Title = OsLocalization.Journal.Label24;
+                areaDdPercent.AxisY2.TitleForeColor = Color.DarkOrange;
 
                 _chartDd.ChartAreas.Add(areaDdPercent);
 
@@ -4314,6 +4343,11 @@ namespace OsEngine.Journal
             try
             {
                 List<Journal> journals = new List<Journal>();
+
+                if(_botsJournals == null)
+                {
+                    return null;
+                }
 
                 for (int i = 0; i < _botsJournals.Count; i++)
                 {

@@ -141,6 +141,13 @@ namespace OsEngine.OsData
             {
                 SecuritiesLoad.Clear();
             }
+
+            if (Dublicator != null)
+            {
+                Dublicator = null;
+
+                IsThereDublicate = false;
+            }
         }
 
         private bool _isDeleted = false;
@@ -316,6 +323,81 @@ namespace OsEngine.OsData
             return Math.Round(result, 2);
         }
 
+        private LqdtDataFakeServer _lqdtDataServer;
+
+        public void AddLqdtMoex()
+        {
+            _lqdtDataServer = null;
+
+            CreateLqdtServer("MOEX");
+
+            if (_lqdtDataServer.IsRatesDownloaded == false)
+            {
+                _lqdtDataServer = null;
+                return;
+            }
+
+            SecurityToLoad record = new SecurityToLoad();
+            record.SecName = "LQDTMOEX";
+            record.SecId = "LQDTMOEX";
+            record.SecClass = "LQDT";
+            record.SecExchange = "MOEX";
+            record.SecNameFull = "LQDTMOEX";
+            record.SetName = SetName;
+            record.NewLogMessageEvent += SendNewLogMessage;
+
+            record.CopySettingsFromParam(BaseSettings);
+
+            if (SecuritiesLoad != null && SecuritiesLoad.Find(s => s.SecId == record.SecId) == null)
+            {
+                SecuritiesLoad.Add(record);
+            }
+
+            Save();
+        }
+
+        public void AddLqdtNyse()
+        {
+            _lqdtDataServer = null;
+
+            CreateLqdtServer("NYSE");
+
+            if (_lqdtDataServer.IsRatesDownloaded == false)
+            {
+                _lqdtDataServer = null;
+                return;
+            }
+
+            SecurityToLoad record = new SecurityToLoad();
+            record.SecName = "LQDTNYSE";
+            record.SecId = "LQDTNYSE";
+            record.SecClass = "LQDT";
+            record.SecExchange = "NYSE";
+            record.SecNameFull = "LQDTNYSE";
+            record.SetName = SetName;
+            record.NewLogMessageEvent += SendNewLogMessage;
+
+            record.CopySettingsFromParam(BaseSettings);
+
+            if (SecuritiesLoad != null && SecuritiesLoad.Find(s => s.SecId == record.SecId) == null)
+            {
+                SecuritiesLoad.Add(record);
+            }
+
+            Save();
+        }
+
+        private void CreateLqdtServer(string exchange)
+        {
+            _lqdtDataServer = new LqdtDataFakeServer(exchange);
+
+            _lqdtDataServer.StartServer();
+        }
+
+        public SetDublicator Dublicator { get; set; }
+
+        public bool IsThereDublicate { get; set; }
+
         #endregion
 
         #region Data loading
@@ -323,6 +405,8 @@ namespace OsEngine.OsData
         public List<SecurityToLoad> SecuritiesLoad;
 
         private IServer _myServer;
+
+        public IServer MyServer { get { return _myServer; } }
 
         private async void WorkerArea()
         {
@@ -381,7 +465,42 @@ namespace OsEngine.OsData
                     return;
                 }
 
-                SecuritiesLoad[i].Process(_myServer);
+                 if (SecuritiesLoad[i].SecClass == "LQDT")
+                {
+                    if (_lqdtDataServer == null)
+                    {
+                        CreateLqdtServer(SecuritiesLoad[i].SecExchange);
+
+                        if(!_lqdtDataServer.IsRatesDownloaded)
+                        {
+                            _lqdtDataServer = null;
+                            return;
+                        }
+                    }
+
+                    SecuritiesLoad[i].Process(_lqdtDataServer);
+                }
+                else
+                {
+                   SecuritiesLoad[i].Process(_myServer);
+                }
+            }
+
+            if (IsThereDublicate && Dublicator != null && Dublicator.Regime == "On")
+            {
+                if (Dublicator.TimeLastCheckSet.Add(Dublicator.UpdatePeriod) < DateTime.Now)
+                {
+                    DateTime timeLastCheck = Directory.GetLastWriteTime("Data\\" + SetName);
+
+                    if (timeLastCheck > Dublicator.TimeWriteOriginalSet)
+                    {
+                        Dublicator.UpdateDublicate(SetName);
+
+                        Dublicator.TimeWriteOriginalSet = timeLastCheck;
+                    }
+
+                    Dublicator.TimeLastCheckSet = DateTime.Now;
+                }
             }
         }
 
@@ -2159,11 +2278,11 @@ namespace OsEngine.OsData
                     }
                     else
                     {
-                        _binaryWriter.Flush();
+                        if (_binaryWriter != null) _binaryWriter.Flush();
 
                         OffStream();
 
-                        await Task.Delay(1000);
+                        await Task.Delay(500);
                     }
                 }
                 catch (Exception ex)
@@ -2228,20 +2347,20 @@ namespace OsEngine.OsData
         private void ProcessAsksChanges(List<MarketDepthLevel> oldAsks, List<MarketDepthLevel> newAsks, List<QuoteChange> changes)
         {
             Dictionary<double, double> oldAsksDict = new Dictionary<double, double>();
-            for (int i = 0; i < oldAsks.Count; i++)
+            for (int i = 0; i < oldAsks.Count && i < _depth; i++)
             {
                 MarketDepthLevel ask = oldAsks[i];
                 oldAsksDict[ask.Price] = ask.Ask;
             }
 
             Dictionary<double, double> newAsksDict = new Dictionary<double, double>();
-            for (int i = 0; i < newAsks.Count; i++)
+            for (int i = 0; i < newAsks.Count && i < _depth; i++)
             {
                 MarketDepthLevel ask = newAsks[i];
                 newAsksDict[ask.Price] = ask.Ask;
             }
 
-            for (int i = 0; i < oldAsks.Count; i++)
+            for (int i = 0; i < oldAsks.Count && i < _depth; i++)
             {
                 MarketDepthLevel oldAsk = oldAsks[i];
 
@@ -2255,7 +2374,7 @@ namespace OsEngine.OsData
                 }
             }
 
-            for (int i = 0; i < newAsks.Count; i++)
+            for (int i = 0; i < newAsks.Count && i < _depth; i++)
             {
                 MarketDepthLevel newAsk = newAsks[i];
 
@@ -2284,20 +2403,20 @@ namespace OsEngine.OsData
         private void ProcessBidsChanges(List<MarketDepthLevel> oldBids, List<MarketDepthLevel> newBids, List<QuoteChange> changes)
         {
             Dictionary<double, double> oldBidsDict = new Dictionary<double, double>();
-            for (int i = 0; i < oldBids.Count; i++)
+            for (int i = 0; i < oldBids.Count && i < _depth; i++)
             {
                 MarketDepthLevel bid = oldBids[i];
                 oldBidsDict[bid.Price] = bid.Bid;
             }
 
             Dictionary<double, double> newBidsDict = new Dictionary<double, double>();
-            for (int i = 0; i < newBids.Count; i++)
+            for (int i = 0; i < newBids.Count && i < _depth; i++)
             {
                 MarketDepthLevel bid = newBids[i];
                 newBidsDict[bid.Price] = bid.Bid;
             }
 
-            for (int i = 0; i < oldBids.Count; i++)
+            for (int i = 0; i < oldBids.Count && i < _depth; i++)
             {
                 MarketDepthLevel oldBid = oldBids[i];
 
@@ -2311,7 +2430,7 @@ namespace OsEngine.OsData
                 }
             }
 
-            for (int i = 0; i < newBids.Count; i++)
+            for (int i = 0; i < newBids.Count && i < _depth; i++)
             {
                 MarketDepthLevel newBid = newBids[i];
 
@@ -2343,7 +2462,7 @@ namespace OsEngine.OsData
             {
                 List<QuoteChange> changes = new List<QuoteChange>();
 
-                for (int i = 0; i < md.Asks.Count; i++)
+                for (int i = 0; i < md.Asks.Count && i < _depth; i++)
                 {
                     QuoteChange quoteChange = new QuoteChange();
 
@@ -2353,7 +2472,7 @@ namespace OsEngine.OsData
                     changes.Add(quoteChange);
                 }
 
-                for (int i = 0; i < md.Bids.Count; i++)
+                for (int i = 0; i < md.Bids.Count && i < _depth; i++)
                 {
                     QuoteChange quoteChange = new QuoteChange();
 
@@ -2516,7 +2635,6 @@ namespace OsEngine.OsData
 
             return true;
         }
-
 
         private bool CheckPrefix(Stream stream, byte[] buffer, byte[] prefix)
         {
@@ -3318,5 +3436,80 @@ namespace OsEngine.OsData
         public Candle LastCandle;
 
         public int CandlesCount;
+    }
+
+    public class SetDublicator
+    {
+        public string Regime { get; set; }
+
+        public string PathForDublicate { get; set; }
+
+        public TimeSpan UpdatePeriod { get; set; }
+
+        public DateTime TimeWriteOriginalSet { get; set; }
+
+        public DateTime TimeLastCheckSet { get; set; } = DateTime.MinValue;
+
+        public void SaveDublicateSettings(string pathSettings)
+        {
+            string result = "";
+
+            result += Regime + "%";
+            result += PathForDublicate + "%";
+            result += UpdatePeriod.Minutes + "%";
+            result += TimeWriteOriginalSet.ToString(CultureInfo.InvariantCulture);
+
+            try
+            {
+                File.WriteAllText(pathSettings, result);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        public void LoadDublicateSettings(string pathSettings)
+        {
+            try
+            {
+                string settings = File.ReadAllText(pathSettings);
+
+                if (!string.IsNullOrEmpty(settings))
+                {
+                    string[] setParts = settings.Split('%');
+
+                    Regime = setParts[0];
+                    PathForDublicate = setParts[1];
+                    UpdatePeriod = new TimeSpan(0, Convert.ToInt32(setParts[2]), 0);
+                    TimeWriteOriginalSet = Convert.ToDateTime(setParts[3], CultureInfo.InvariantCulture);
+                }
+
+            }
+            catch (Exception)
+            {
+                // ignore
+            }
+        }
+
+        public void UpdateDublicate(string setName)
+        {
+            try
+            {
+                string sourcePath = "Data\\" + setName;
+                string destinationPath = PathForDublicate + "\\" + setName;
+
+                if (Directory.Exists(destinationPath))
+                {
+                    Directory.Delete(destinationPath, true);
+                }
+
+                Microsoft.VisualBasic.FileIO.FileSystem.CopyDirectory(sourcePath, destinationPath, true);
+            }
+            catch (Exception)
+            {
+                // ignore
+            }
+        }
     }
 }

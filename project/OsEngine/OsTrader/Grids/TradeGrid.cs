@@ -118,6 +118,8 @@ namespace OsEngine.OsTrader.Grids
             result += DelayInReal + "@";
             result += CheckMicroVolumes + "@";
             result += MaxDistanceToOrdersPercent + "@";
+            result += OpenOrdersMakerOnly + "@";
+            result += "@";
             result += "@";
 
             result += "%";
@@ -197,6 +199,15 @@ namespace OsEngine.OsTrader.Grids
                 catch
                 {
                     MaxDistanceToOrdersPercent = 1.5m;
+                }
+
+                try
+                {
+                    OpenOrdersMakerOnly = Convert.ToBoolean(values[14]);
+                }
+                catch
+                {
+                    OpenOrdersMakerOnly = true;
                 }
 
                 // non trade periods
@@ -459,6 +470,8 @@ namespace OsEngine.OsTrader.Grids
 
         public decimal MaxDistanceToOrdersPercent = 0;
 
+        public bool OpenOrdersMakerOnly = true;
+
         #endregion
 
         #region Grid managment
@@ -613,6 +626,24 @@ namespace OsEngine.OsTrader.Grids
         {
             try
             {
+                for (int i = numbers.Count - 1; i > -1; i--)
+                {
+                    int curNumber = numbers[i];
+
+                    if (curNumber >= GridCreator.Lines.Count)
+                    {
+                        continue;
+                    }
+
+                    TradeGridLine line = GridCreator.Lines[curNumber];
+
+                    if (line.Position != null
+                        && line.Position.OpenActive)
+                    {
+                        Tab.CloseOrder(line.Position.OpenOrders[^1]);
+                    }
+                }
+
                 GridCreator.RemoveSelected(numbers);
                 Save();
             }
@@ -844,7 +875,8 @@ namespace OsEngine.OsTrader.Grids
 
                 // проверяем работу авто-стартера, если он включен
 
-                if (AutoStarter.AutoStartRegime == TradeGridAutoStartRegime.Off)
+                if (AutoStarter.AutoStartRegime == TradeGridAutoStartRegime.Off
+                    && AutoStarter.StartGridByTimeOfDayIsOn == false)
                 {
                     return;
                 }
@@ -928,7 +960,7 @@ namespace OsEngine.OsTrader.Grids
 
             // 5 попытка смены режима если блокировано по времени или по дням
 
-            if (baseRegime == TradeGridRegime.On)
+            if (baseRegime != TradeGridRegime.Off)
             {
                 DateTime serverTime = Tab.TimeServerCurrent;
 
@@ -2314,10 +2346,13 @@ namespace OsEngine.OsTrader.Grids
                         }
                     }
 
-                    if (curLine.PriceEnter <= lastPrice)
+                    if (OpenOrdersMakerOnly
+                        && curLine.PriceEnter > lastPrice)
                     {
-                        linesWithOrdersToOpenNeed.Add(curLine);
+                        continue;
                     }
+
+                    linesWithOrdersToOpenNeed.Add(curLine);
 
                     if (linesWithOrdersToOpenNeed.Count >= MaxOpenOrdersInMarket)
                     {
@@ -2360,11 +2395,14 @@ namespace OsEngine.OsTrader.Grids
                         }
                     }
 
-                    if (curLine.PriceEnter >= lastPrice)
+                    if (OpenOrdersMakerOnly 
+                        && curLine.PriceEnter < lastPrice)
                     {
-                        linesWithOrdersToOpenNeed.Add(curLine);
+                        continue;
                     }
 
+                    linesWithOrdersToOpenNeed.Add(curLine);
+                    
                     if (linesWithOrdersToOpenNeed.Count >= MaxOpenOrdersInMarket)
                     {
                         break;

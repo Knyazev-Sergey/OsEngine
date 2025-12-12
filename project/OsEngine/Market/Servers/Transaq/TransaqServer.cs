@@ -1186,7 +1186,7 @@ namespace OsEngine.Market.Servers.Transaq
 
             XmlNode currencyPortfolio = root.SelectSingleNode("portfolio_currency");
 
-            if(currencyPortfolio != null)
+            if (currencyPortfolio != null)
             {
                 XmlNode balance = currencyPortfolio.SelectSingleNode("cover");
                 string cr = currencyPortfolio.Attributes[0].Value;
@@ -2273,7 +2273,7 @@ namespace OsEngine.Market.Servers.Transaq
                             }
                             else if (data.StartsWith("<error>"))
                             {
-                                SendLogMessage(data, LogMessageType.Error);
+                                SendLogMessage($"Transaq. Пришла ошибка с сервера: {data}", LogMessageType.Error);
                             }
                             else if (data.StartsWith("<news_header>"))
                             {
@@ -2300,7 +2300,7 @@ namespace OsEngine.Market.Servers.Transaq
                             }
                             else
                             {
-                                SendLogMessage(data, LogMessageType.Error);
+                                SendLogMessage($"Пришло необработанное сообщение с сервера. Зачастую это просто информационное сообщение и его можно игнорировать: {data}", LogMessageType.System);
                             }
                         }
                     }
@@ -2702,7 +2702,7 @@ namespace OsEngine.Market.Servers.Transaq
 
                 if (order.Orderno == "0")
                 {
-                    //continue;
+                    continue;
                 }
 
                 Order newOrder = new Order();
@@ -2710,6 +2710,7 @@ namespace OsEngine.Market.Servers.Transaq
                 newOrder.NumberUser = Convert.ToInt32(order.Transactionid);
                 newOrder.SecurityClassCode = order.Board;
                 newOrder.NumberMarket = order.Orderno;
+
                 newOrder.TimeCallBack = order.Time != null ? DateTime.Parse(order.Time) : ServerTime;
                 newOrder.Side = order.Buysell == "B" ? Side.Buy : Side.Sell;
                 newOrder.Volume = order.Quantity.ToDecimal();

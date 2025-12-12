@@ -684,12 +684,10 @@ namespace OsEngine.Market.Servers.Tester
 
                     if (!_dataIsReady)
                     {
-
                         SendLogMessage(OsLocalization.Market.Message48, LogMessageType.System);
                         TesterRegime = TesterRegime.NotActive;
                         continue;
                     }
-
 
                     if (TesterRegime == TesterRegime.PlusOne)
                     {
@@ -700,9 +698,8 @@ namespace OsEngine.Market.Servers.Tester
                         CheckOrders();
                         continue;
                     }
-                    if (TesterRegime == TesterRegime.Play)
+                    else if (TesterRegime == TesterRegime.Play)
                     {
-
                         LoadNextData();
                         CheckOrders();
                     }
@@ -869,7 +866,18 @@ namespace OsEngine.Market.Servers.Tester
             {
                 _candleSeriesTesterActivate[i].Load(TimeNow);
             }
+
+            if (EndNextMinuteWithCandlesEvent != null
+                && _timeAddType == TimeAddInTestType.Minute
+                && _timeLastCandle == TimeNow)
+            {
+                EndNextMinuteWithCandlesEvent();
+            }
         }
+
+        private DateTime _timeLastCandle;
+
+        public event Action EndNextMinuteWithCandlesEvent;
 
         #endregion
 
@@ -935,7 +943,12 @@ namespace OsEngine.Market.Servers.Tester
                 }
                 else if (security.DataType == SecurityTesterDataType.MarketDepth)
                 {
-                    // HERE!!!!!!!!!!!! / ЗДЕСЬ!!!!!!!!!!!!!!!!!!!!
+                    if (order.MySecurityInTester.LastMarketDepth.Time.Day != ServerTime.Day)
+                    {
+                        security = GetMySecurity(order);
+                        order.MySecurityInTester = security;
+                    }
+
                     MarketDepth depth = security.LastMarketDepth;
 
                     if (CheckOrdersInMarketDepthTest(order, depth))
@@ -1388,6 +1401,7 @@ namespace OsEngine.Market.Servers.Tester
             {
                 return false;
             }
+
             decimal sellBestPrice = lastMarketDepth.Asks[0].Price.ToDecimal();
             decimal buyBestPrice = lastMarketDepth.Bids[0].Price.ToDecimal();
 
@@ -1766,6 +1780,22 @@ namespace OsEngine.Market.Servers.Tester
                                  (tester.LastCandle != null
                                  || tester.LastTradeSeries != null
                                  || tester.LastMarketDepth != null));
+                }
+            }
+            else if (TypeTesterData == TesterDataType.MarketDepthAllCandleState || TypeTesterData == TesterDataType.MarketDepthOnlyReadyCandle)
+            {
+                for (int i = 0; i < _candleSeriesTesterActivate.Count; i++)
+                {
+                    SecurityTester testerSecurity = _candleSeriesTesterActivate[i];
+
+                    if (testerSecurity.Security.Name == order.SecurityNameCode && ServerTime.Day == testerSecurity.TimeStart.Day &&
+                             (testerSecurity.LastCandle != null
+                             || testerSecurity.LastTradeSeries != null
+                             || testerSecurity.LastMarketDepth != null))
+                    {
+                        security = testerSecurity;
+                        break;
+                    }
                 }
             }
             else
@@ -3811,8 +3841,6 @@ namespace OsEngine.Market.Servers.Tester
                     timeFrameBuilder.CandleMarketDataType = CandleMarketDataType.Tick;
                 }
 
-                CandleSeries series = new CandleSeries(timeFrameBuilder, security, StartProgram.IsTester);
-
                 // start security for unloading / запускаем бумагу на выгрузку
 
                 if (TypeTesterData != TesterDataType.Candle &&
@@ -3882,6 +3910,8 @@ namespace OsEngine.Market.Servers.Tester
                                                             tester.TimeFrameSpan == time));
                     }
                 }
+
+                CandleSeries series = new CandleSeries(timeFrameBuilder, security, StartProgram.IsTester);
 
                 _candleManager.StartSeries(series);
 
@@ -4382,6 +4412,8 @@ namespace OsEngine.Market.Servers.Tester
         private void TesterServer_NewCandleEvent(Candle candle, string nameSecurity, TimeSpan timeFrame)
         {
             ServerTime = candle.TimeStart;
+
+            _timeLastCandle = candle.TimeStart;
 
             if (_dataIsActive == false)
             {

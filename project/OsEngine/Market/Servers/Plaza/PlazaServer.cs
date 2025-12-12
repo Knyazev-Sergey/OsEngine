@@ -321,6 +321,7 @@ namespace OsEngine.Market.Servers.Plaza
 
                 _marketDepths = new List<MarketDepth>();
                 _lastRevisions = null;
+                _currentOrders = new List<Order>();
                 _ordersToExecute = new Queue<Order>();
                 _ordersToCansel = new Queue<Order>();
                 _ordersToChange = new Queue<Order>();
@@ -404,6 +405,8 @@ namespace OsEngine.Market.Servers.Plaza
 
         private object _publisherLocker = new object();
 
+        private object _currentOrdersLosker = new object();
+
         /// <summary>
         /// if the limit on the number of applications per second is exceeded, the system blocks the acceptance of new applications for a certain time |
         /// при превышении ограничения по количеству заявок в секунду, система блокирует на определенное время прием новых заявок
@@ -417,6 +420,8 @@ namespace OsEngine.Market.Servers.Plaza
         /// очередь заявок на исполнение
         /// </summary>
         private Queue<Order> _ordersToExecute;
+
+        private List<Order> _currentOrders;
 
         /// <summary>
 		/// order queue for cancellation |
@@ -1717,6 +1722,7 @@ namespace OsEngine.Market.Servers.Plaza
                                     security.NameId = replmsg["isin_id"].asInt().ToString();
                                     security.State = SecurityStateType.Activ;
                                     security.VolumeStep = 1;
+									security.Expiration = replmsg["last_trade_date"].asDateTime();
                                     security.Exchange = "MOEX";
 
                                     security.PriceStep = Convert.ToDecimal(replmsg["min_step"].asDecimal());
@@ -1725,7 +1731,7 @@ namespace OsEngine.Market.Servers.Plaza
                                     security.PriceLimitLow = Convert.ToDecimal(replmsg["settlement_price"].asDecimal()) - Convert.ToDecimal(replmsg["limit_down"].asDecimal());
                                     security.PriceLimitHigh = Convert.ToDecimal(replmsg["settlement_price"].asDecimal()) + Convert.ToDecimal(replmsg["limit_up"].asDecimal());
 
-                                    security.Lot = replmsg["lot_volume"].asInt(); //Convert.ToDecimal(replmsg["lot_volume"].asInt());
+                                    security.Lot = 1;
 
                                     security.SecurityType = SecurityType.Futures;
 
@@ -2371,11 +2377,9 @@ namespace OsEngine.Market.Servers.Plaza
                                     trade.Time = replmsg["moment"].asDateTime();
                                     trade.Volume = replmsg["xamount"].asInt();
 
-
                                     string portfolioBuy = replmsg["code_buy"].asString();
 
                                     string portfolioSell = replmsg["code_sell"].asString();
-
 
                                     if (!string.IsNullOrWhiteSpace(portfolioBuy))
                                     {
@@ -2394,6 +2398,9 @@ namespace OsEngine.Market.Servers.Plaza
                                         }
                                     }
 
+                                    SendLogMessage($"Пришел трейд. NumberTrade: {trade.NumberTrade}, Sec: {trade.SecurityNameCode}, Price: {trade.Price}, Time: {trade.Time}, Volume: {trade.Volume}, " +
+                                        $"Order: {trade.NumberOrderParent}", LogMessageType.System);
+
                                     if (MyTradeEvent != null)
                                     {
                                         MyTradeEvent(trade);
@@ -2410,6 +2417,27 @@ namespace OsEngine.Market.Servers.Plaza
                                 {
                                     Order order = new Order();
 
+                                    order.NumberUser = replmsg["ext_id"].asInt();
+
+                                    lock (_currentOrdersLosker)
+                                    {
+                                        bool inArray = false;
+                                        for (int i = 0; i < _currentOrders.Count; i++)
+                                        {
+                                            if (_currentOrders[i].NumberUser == order.NumberUser)
+                                            {
+                                                order = _currentOrders[i];
+                                                inArray = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if (inArray == false)
+                                        {
+                                            _currentOrders.Add(order);
+                                        }
+                                    }
+
                                     long xstatus = replmsg["xstatus"].asLong();
 
                                     if (((long)BitMask.Auction & xstatus) != 0) // признак лимитной заявки( Котировочная заявка (Day))
@@ -2422,12 +2450,13 @@ namespace OsEngine.Market.Servers.Plaza
                                     }
 
                                     order.NumberMarket = replmsg["public_order_id"].asLong().ToString();
-                                    order.NumberUser = replmsg["ext_id"].asInt();
 
-                                    order.Volume = replmsg["public_amount"].asInt();
+                                    if (order.Volume == 0)
+                                        order.Volume = (decimal)replmsg["public_amount"].asLong();
 
-                                    int remainingVolume = replmsg["public_amount_rest"].asInt(); // это у нас оставшееся в заявке
-                                    order.VolumeExecute = order.Volume - remainingVolume;
+                                    long remainingVolume = replmsg["public_amount_rest"].asLong(); // это у нас оставшееся в заявке
+                                    long currentVolume = replmsg["public_amount"].asLong();
+
 
                                     order.Price = Convert.ToDecimal(replmsg["price"].asDecimal());
                                     order.PortfolioNumber = replmsg["client_code"].asString();
@@ -2443,7 +2472,7 @@ namespace OsEngine.Market.Servers.Plaza
                                     order.TimeCallBack = replmsg["moment"].asDateTime();
                                     order.ServerType = ServerType.Plaza;
 
-                                    int action = replmsg["public_action"].asInt();
+                                    int action = replmsg["public_action"].asByte();
 
                                     if (action == 0)
                                     {
@@ -2466,21 +2495,41 @@ namespace OsEngine.Market.Servers.Plaza
                                             }
                                         }
 
-                                        order.VolumeExecute = remainingVolume;
-
                                         order.State = OrderStateType.Cancel;
                                         order.TimeCancel = order.TimeCallBack;
                                     }
                                     else if (action == 1)
                                     {
+                                        order.VolumeExecute = order.Volume - remainingVolume;
                                         order.State = OrderStateType.Active;
                                     }
                                     else if (action == 2)
                                     {
-                                        order.State = OrderStateType.Done;
+                                        order.VolumeExecute = order.Volume - remainingVolume;
+
+                                        if (order.Volume != order.VolumeExecute)
+                                        {
+                                            order.State = OrderStateType.Partial;
+                                        }
+                                        else
+                                        {
+                                            order.State = OrderStateType.Done;
+
+                                            lock (_currentOrdersLosker)
+                                            {
+                                                for (int i = _currentOrders.Count - 1; i >= 0; i--)
+                                                {
+                                                    if (_currentOrders[i].NumberUser == order.NumberUser)
+                                                    {
+                                                        _currentOrders.RemoveAt(i);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
 
-                                    int dir = replmsg["dir"].asInt();
+                                    byte dir = replmsg["dir"].asByte();
 
                                     if (dir == 1)
                                     {
@@ -2490,6 +2539,9 @@ namespace OsEngine.Market.Servers.Plaza
                                     {
                                         order.Side = Side.Sell;
                                     }
+
+                                    SendLogMessage($"Пришел ордер, orders_log. Number: {order.NumberMarket}, User: {order.NumberUser}, Volume: {order.Volume}, Execute: {order.VolumeExecute}, Price: {order.Price}, " +
+                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.Error);
 
                                     if (MyOrderEvent != null)
                                     {
@@ -2544,27 +2596,27 @@ namespace OsEngine.Market.Servers.Plaza
 
                                     int code = msgData["code"].asInt();
 
-                                    Order order = new Order();
+                                    Order order = _ordersToExecute.Dequeue();
 
                                     if (code == 0)
                                     {
-                                        CGate.LogInfo($"AddOrder. \n {msgData}");
-
-                                        order = _ordersToExecute.Dequeue();
+                                        lock (_currentOrdersLosker)
+                                        {
+                                            _currentOrders.Add(order);
+                                        }
 
                                         order.State = OrderStateType.Active;
                                         order.NumberMarket = msgData["order_id"].asLong().ToString();
                                     }
                                     else
                                     {
-                                        CGate.LogInfo($"AddOrder fail. \n {msgData.ToString()}");
-
-                                        order = _ordersToExecute.Dequeue();
-
                                         order.State = OrderStateType.Fail;
 
                                         SendLogMessage($"Order fail. Message - {msgData["message"].asString()}", LogMessageType.System);
                                     }
+
+                                    SendLogMessage($"Пришел ордер, Msg179. Number: {order.NumberMarket}, User: {order.NumberUser}, Volume: {order.Volume}, Execute: {order.VolumeExecute}, Price: {order.Price}, " +
+                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.Error);
 
                                     if (MyOrderEvent != null)
                                     {
@@ -2581,32 +2633,65 @@ namespace OsEngine.Market.Servers.Plaza
 
                                     if (code == 0)
                                     {
-                                        CGate.LogInfo($"DelOrder. \n {msgData.ToString()}");
-
                                         order = _ordersToCansel.Dequeue();
-                                        order.NumberUser = (int)msgData.UserId;
+
+                                        lock (_currentOrdersLosker)
+                                        {
+                                            for (int i = 0; i < _currentOrders.Count; i++)
+                                            {
+                                                if (_currentOrders[i].NumberUser == order.NumberUser)
+                                                {
+                                                    order = _currentOrders[i];
+                                                    break;
+                                                }
+                                            }
+                                        }
+
                                         order.State = OrderStateType.Cancel;
                                     }
                                     else if (code == 14)
                                     {
-                                        CGate.LogInfo($"DelOrder. The warrant has already been cancelled. \n {msgData.ToString()}");
-
                                         order = _ordersToCansel.Dequeue();
-                                        order.NumberUser = (int)msgData.UserId;
+
+                                        lock (_currentOrdersLosker)
+                                        {
+                                            for (int i = 0; i < _currentOrders.Count; i++)
+                                            {
+                                                if (_currentOrders[i].NumberUser == order.NumberUser)
+                                                {
+                                                    order = _currentOrders[i];
+                                                    break;
+                                                }
+                                            }
+                                        }
+
                                         order.State = OrderStateType.Cancel;
 
                                         SendLogMessage($"The warrant has already been cancelled. Message - {msgData["message"].asString()}", LogMessageType.System);
                                     }
                                     else
                                     {
-                                        CGate.LogInfo($"DelOrder fail. \n {msgData.ToString()}");
-
                                         order = _ordersToCansel.Dequeue();
-                                        order.NumberUser = (int)msgData.UserId;
+
+                                        lock (_currentOrdersLosker)
+                                        {
+                                            for (int i = 0; i < _currentOrders.Count; i++)
+                                            {
+                                                if (_currentOrders[i].NumberUser == order.NumberUser)
+                                                {
+                                                    order = _currentOrders[i];
+                                                    break;
+                                                }
+                                            }
+                                        }
+
                                         order.State = OrderStateType.Fail;
 
                                         SendLogMessage($"Order fail. Message - {msgData["message"].asString()}", LogMessageType.System);
                                     }
+
+                                    SendLogMessage($"Пришел ордер, Msg177. Number: {order.NumberMarket}, User: {order.NumberUser}, Volume: {order.Volume}, Execute: {order.VolumeExecute}, Price: {order.Price}, " +
+                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.Error);
 
                                     if (MyOrderEvent != null)
                                     {
@@ -2623,9 +2708,20 @@ namespace OsEngine.Market.Servers.Plaza
 
                                     if (code != 0)
                                     {
-                                        CGate.LogInfo($"MoveOrder fail. \n {msgData.ToString()}");
-
                                         order = _ordersToChange.Dequeue();
+
+                                        lock (_currentOrdersLosker)
+                                        {
+                                            for (int i = 0; i < _currentOrders.Count; i++)
+                                            {
+                                                if (_currentOrders[i].NumberUser == order.NumberUser)
+                                                {
+                                                    order = _currentOrders[i];
+                                                    break;
+                                                }
+                                            }
+                                        }
+
                                         order.State = OrderStateType.Fail;
 
                                         SendLogMessage($"Order fail. Message - {msgData["message"].asString()}", LogMessageType.System);
@@ -2634,15 +2730,28 @@ namespace OsEngine.Market.Servers.Plaza
                                     }
                                     else
                                     {
-                                        CGate.LogInfo($"MoveOrder. \n {msgData.ToString()}");
-
                                         order = _ordersToChange.Dequeue();
+
+                                        lock (_currentOrdersLosker)
+                                        {
+                                            for (int i = 0; i < _currentOrders.Count; i++)
+                                            {
+                                                if (_currentOrders[i].NumberUser == order.NumberUser)
+                                                {
+                                                    order = _currentOrders[i];
+                                                    break;
+                                                }
+                                            }
+                                        }
 
                                         order.NumberMarket = msgData["order_id1"].asLong().ToString();
                                         order.State = OrderStateType.Active;
 
                                         SendLogMessage($"Move order. NumberUser - {order.NumberUser}. Message - {msgData["message"].asString()}", LogMessageType.System);
                                     }
+
+                                    SendLogMessage($"Пришел ордер, Msg176. Number: {order.NumberMarket}, User: {order.NumberUser}, Volume: {order.Volume}, Execute: {order.VolumeExecute}, Price: {order.Price}, " +
+                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.Error);
 
                                     if (MyOrderEvent != null)
                                     {
@@ -2651,8 +2760,6 @@ namespace OsEngine.Market.Servers.Plaza
                                 }
                                 if (msgData.MsgId == 99)
                                 {
-                                    CGate.LogInfo(msgData.ToString());
-
                                     SendLogMessage($"{OsLocalization.Market.Message81}. " +
                                         $"The restriction will be lifted after {msgData["penalty_remain"].asInt()} milliseconds", LogMessageType.System);
 
@@ -2664,7 +2771,6 @@ namespace OsEngine.Market.Servers.Plaza
                                 }
                                 else if (msgData.MsgId == 100)
                                 {
-                                    CGate.LogInfo(msgData.ToString());
                                     SendLogMessage(msgData.ToString(), LogMessageType.Error);
                                 }
                             }
@@ -2708,11 +2814,33 @@ namespace OsEngine.Market.Servers.Plaza
                                 {
                                     Order order = new Order();
 
-                                    order.NumberMarket = replmsg["public_order_id"].asLong().ToString();
                                     order.NumberUser = replmsg["ext_id"].asInt();
 
-                                    order.Volume = replmsg["public_amount"].asInt();
-                                    order.VolumeExecute = order.Volume - replmsg["public_amount_rest"].asInt();
+                                    lock (_currentOrdersLosker)
+                                    {
+                                        bool inArray = false;
+                                        for (int i = 0; i < _currentOrders.Count; i++)
+                                        {
+                                            if (_currentOrders[i].NumberUser == order.NumberUser)
+                                            {
+                                                order = _currentOrders[i];
+                                                inArray = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if (inArray == false)
+                                        {
+                                            _currentOrders.Add(order);
+                                        }
+                                    }
+
+                                    order.NumberMarket = replmsg["public_order_id"].asLong().ToString();
+
+                                    if (order.Volume == 0)
+                                        order.Volume = (decimal)replmsg["public_amount"].asLong();
+
+                                    long remainingVolume = replmsg["public_amount_rest"].asLong(); // это у нас оставшееся в заявке
 
                                     order.Price = Convert.ToDecimal(replmsg["price"].asDecimal());
                                     order.PortfolioNumber = replmsg["client_code"].asString();
@@ -2726,27 +2854,60 @@ namespace OsEngine.Market.Servers.Plaza
                                             order.SecurityNameCode = security.Name;
                                     }
 
+                                    long xstatus = replmsg["xstatus"].asLong();
+
+                                    if (((long)BitMask.Auction & xstatus) != 0) // признак лимитной заявки( Котировочная заявка (Day))
+                                    {
+                                        order.TypeOrder = OrderPriceType.Limit;
+                                    }
+                                    else if (((long)BitMask.Opposite & xstatus) != 0) // признак маркет заявки ( Встречная заявка (IOC))
+                                    {
+                                        order.TypeOrder = OrderPriceType.Market;
+                                    }
+
                                     order.TimeCallBack = replmsg["moment"].asDateTime();
                                     order.ServerType = ServerType.Plaza;
 
-                                    int action = replmsg["public_action"].asInt();
+                                    byte action = replmsg["public_action"].asByte();
 
                                     if (action == 0)
                                     {
-                                        order.VolumeExecute = replmsg["public_amount_rest"].asInt();
+                                        order.VolumeExecute = order.VolumeExecute;
                                         order.State = OrderStateType.Cancel;
                                         order.TimeCancel = order.TimeCallBack;
                                     }
                                     else if (action == 1)
                                     {
+                                        order.VolumeExecute = order.Volume - remainingVolume;
                                         order.State = OrderStateType.Active;
                                     }
                                     else if (action == 2)
                                     {
-                                        order.State = OrderStateType.Done;
+                                        order.VolumeExecute = order.Volume - remainingVolume;
+
+                                        if (order.Volume != order.VolumeExecute)
+                                        {
+                                            order.State = OrderStateType.Partial;
+                                        }
+                                        else
+                                        {
+                                            order.State = OrderStateType.Done;
+
+                                            lock (_currentOrdersLosker)
+                                            {
+                                                for (int i = _currentOrders.Count; i >= 0; i--)
+                                                {
+                                                    if (_currentOrders[i].NumberUser == order.NumberUser)
+                                                    {
+                                                        _currentOrders.RemoveAt(i);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
 
-                                    int dir = replmsg["dir"].asInt();
+                                    byte dir = replmsg["dir"].asByte();
 
                                     if (dir == 1)
                                     {
@@ -2756,6 +2917,9 @@ namespace OsEngine.Market.Servers.Plaza
                                     {
                                         order.Side = Side.Sell;
                                     }
+
+                                    SendLogMessage($"Пришел ордер, orders. Number: {order.NumberMarket}, User: {order.NumberUser}, Volume: {order.Volume}, Execute: {order.VolumeExecute}, Price: {order.Price}, " +
+                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.Error);
 
                                     if (MyOrderEvent != null)
                                     {
@@ -2832,6 +2996,8 @@ namespace OsEngine.Market.Servers.Plaza
                     smsg.UserId = (uint)order.NumberUser;
                     smsg["broker_code"].set(brockerCode);
                     smsg["order_id"].set(Convert.ToInt64(order.NumberMarket));
+
+                    SendLogMessage($"Отменен ордер. Price {order.Price.ToString().Replace(',', '.')}, User: {order.NumberUser}, Number: {order.NumberMarket}, Volume: {Convert.ToInt32(order.Volume)} ", LogMessageType.System);
 
                     _ordersToCansel.Enqueue(order);
 
@@ -3015,11 +3181,12 @@ namespace OsEngine.Market.Servers.Plaza
                     smsg["amount"].set(Convert.ToInt32(order.Volume));
                     smsg["ext_id"].set(order.NumberUser);
 
+                    SendLogMessage($"Выслан ордер. Price {order.Price.ToString().Replace(',', '.')}, User: {order.NumberUser}, Volume: {Convert.ToInt32(order.Volume)} ", LogMessageType.System);
+
                     _ordersToExecute.Enqueue(order);
 
                     _publisher.Post(sendMessage, PublishFlag.NeedReply);
                     sendMessage.Dispose();
-
                 }
                 catch (Exception error)
                 {

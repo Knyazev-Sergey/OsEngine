@@ -1916,8 +1916,8 @@ namespace OsEngine.Language
          "Ru:Лимит_");
 
         public string Label504 => OsLocalization.ConvertToLocString(
-         "Eng:Regime_" +
-         "Ru:Режим_");
+         "Eng:Start by price regime_" +
+         "Ru:Режим старт по цене_");
 
         public string Label505 => OsLocalization.ConvertToLocString(
          "Eng:Price_" +
@@ -2432,7 +2432,19 @@ namespace OsEngine.Language
         "Ru:Установить периоды_");
 
         public string Label633 => OsLocalization.ConvertToLocString(
-         "Eng:Non trade periods_" +
-         "Ru:Неторговое время_");
+         "Eng:Other_" +
+         "Ru:Дополнительные_");
+
+        public string Label634 => OsLocalization.ConvertToLocString(
+         "Eng:Start by time_" +
+         "Ru:Старт по времени_");
+
+        public string Label635 => OsLocalization.ConvertToLocString(
+         "Eng:Open orders maker only_" +
+         "Ru:Открытие только мэйкер_");
+
+        public string Label636 => OsLocalization.ConvertToLocString(
+         "Eng:Single activation mode_" +
+         "Ru:Режим одиночной активации_");
     }
 }

@@ -584,7 +584,7 @@ namespace OsEngine.Market.Servers.Bybit
             Dictionary<string, object> parametrs = new Dictionary<string, object>();
             parametrs.Add("limit", "1000");
             parametrs["category"] = category.ToString();
-            
+
             string cursor = "";
 
             while (true)
@@ -604,7 +604,7 @@ namespace OsEngine.Market.Servers.Bybit
                     else
                     {
                         SendLogMessage($"{category} securities error. Code: {responseSymbols?.retCode}\nMessage: {responseSymbols?.retMsg}", LogMessageType.Error);
-                        break; 
+                        break;
                     }
 
                     if (string.IsNullOrEmpty(responseSymbols.result.nextPageCursor))
@@ -618,7 +618,7 @@ namespace OsEngine.Market.Servers.Bybit
                 }
                 else
                 {
-                    break; 
+                    break;
                 }
             }
         }
@@ -705,7 +705,7 @@ namespace OsEngine.Market.Servers.Bybit
                     {
                         Security security = new Security();
                         security.NameFull = oneSec.symbol;
-                        
+
                         if (category == Category.linear
                             || category == Category.inverse)
                         {
@@ -727,6 +727,7 @@ namespace OsEngine.Market.Servers.Bybit
                             security.NameId = oneSec.symbol;
                             security.NameClass = oneSec.quoteCoin;
                             security.MinTradeAmount = oneSec.lotSizeFilter.minOrderAmt.ToDecimal();
+                            security.MinTradeAmountType = MinTradeAmountType.C_Currency;
                         }
                         else if (category == Category.linear)
                         {
@@ -742,7 +743,8 @@ namespace OsEngine.Market.Servers.Bybit
                                 security.NameClass = oneSec.contractType;
                             }
 
-                            security.MinTradeAmount = oneSec.lotSizeFilter.minNotionalValue.ToDecimal();
+                            security.MinTradeAmount = oneSec.lotSizeFilter.minOrderQty.ToDecimal();
+                            security.MinTradeAmountType = MinTradeAmountType.Contract;
                         }
                         else if (category == Category.inverse)
                         {
@@ -750,6 +752,7 @@ namespace OsEngine.Market.Servers.Bybit
                             security.NameId = oneSec.symbol + ".I";
                             security.NameClass = oneSec.contractType;
                             security.MinTradeAmount = oneSec.lotSizeFilter.minOrderQty.ToDecimal();
+                            security.MinTradeAmountType = MinTradeAmountType.Contract;
                         }
                         else if (category == Category.option)
                         {
@@ -758,6 +761,7 @@ namespace OsEngine.Market.Servers.Bybit
                             security.NameId = oneSec.symbol;
                             security.NameClass = oneSec.quoteCoin + "_Options";
                             security.MinTradeAmount = oneSec.lotSizeFilter.minOrderQty.ToDecimal();
+                            security.MinTradeAmountType = MinTradeAmountType.Contract;
                             security.OptionType = oneSec.optionsType == "Call" ? OptionType.Call : OptionType.Put;
 
                             // https://bybit-exchange.github.io/docs/api-explorer/v5/market/instrument
@@ -785,8 +789,6 @@ namespace OsEngine.Market.Servers.Bybit
 
                         security.PriceStep = oneSec.priceFilter.tickSize.ToDecimal();
                         security.PriceStepCost = oneSec.priceFilter.tickSize.ToDecimal();
-
-                        security.MinTradeAmountType = MinTradeAmountType.C_Currency;
 
                         if (oneSec.lotSizeFilter.qtyStep != null)
                         {
@@ -892,8 +894,12 @@ namespace OsEngine.Market.Servers.Bybit
             CreateQueryPortfolio(true);
         }
 
+        private RateGate _rateGatePortfolio = new RateGate(1, TimeSpan.FromMilliseconds(30));
+
         private void CreateQueryPortfolio(bool IsUpdateValueBegin)
         {
+            _rateGatePortfolio.WaitToProceed();
+
             try
             {
                 Dictionary<string, object> parametrs = new Dictionary<string, object>();
@@ -1050,8 +1056,12 @@ namespace OsEngine.Market.Servers.Bybit
             }
         }
 
+        private RateGate _rateGatePositions = new RateGate(1, TimeSpan.FromMilliseconds(30));
+
         private List<PositionOnBoard> GetPositionsInverse(string portfolioNumber, bool IsUpdateValueBegin)
         {
+            _rateGatePositions.WaitToProceed();
+
             List<PositionOnBoard> positionOnBoards = new List<PositionOnBoard>();
 
             try
@@ -1135,6 +1145,8 @@ namespace OsEngine.Market.Servers.Bybit
 
         private List<PositionOnBoard> GetPositionsSpot(List<Coin> coinList, string portfolioNumber, bool IsUpdateValueBegin)
         {
+            _rateGatePositions.WaitToProceed();
+
             try
             {
                 List<PositionOnBoard> pb = new List<PositionOnBoard>();
@@ -1167,6 +1179,8 @@ namespace OsEngine.Market.Servers.Bybit
 
         private List<PositionOnBoard> GetPositionsLinear(string portfolioNumber, bool IsUpdateValueBegin)
         {
+            _rateGatePositions.WaitToProceed();
+
             List<PositionOnBoard> positionOnBoards = new List<PositionOnBoard>();
 
             try
@@ -4160,7 +4174,7 @@ namespace OsEngine.Market.Servers.Bybit
                         {
                             newOrder.State = OrderStateType.Active;
                         }
-                        else if(order.orderStatus == "PartiallyFilled")
+                        else if (order.orderStatus == "PartiallyFilled")
                         {
                             newOrder.State = OrderStateType.Partial;
                         }
