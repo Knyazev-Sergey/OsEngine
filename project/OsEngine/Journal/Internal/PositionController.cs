@@ -613,7 +613,7 @@ namespace OsEngine.Journal.Internal
                         for (int indexCloseOrders = 0; indexCloseOrders < curPosition.CloseOrders.Count; indexCloseOrders++)
                         {
                             if (curPosition.CloseOrders[indexCloseOrders].NumberUser == updateOrder.NumberUser
-                                && string.IsNullOrEmpty(curPosition.CloseOrders[indexCloseOrders].NumberMarket))
+                                 && string.IsNullOrEmpty(curPosition.CloseOrders[indexCloseOrders].NumberMarket))
                             {
                                 isCloseOrder = true;
                                 break;
@@ -640,7 +640,7 @@ namespace OsEngine.Journal.Internal
                             }
 
                             if (curPosition.OpenOrders[indexOpenOrd].NumberUser == updateOrder.NumberUser
-                                && string.IsNullOrEmpty(curPosition.OpenOrders[indexOpenOrd].NumberMarket))
+                                 && string.IsNullOrEmpty(curPosition.OpenOrders[indexOpenOrd].NumberMarket))
                             {
                                 isOpenOrder = true;
                                 break;
@@ -865,7 +865,8 @@ namespace OsEngine.Journal.Internal
 
         private void TrySaveStopLimits()
         {
-            if (_startProgram == StartProgram.IsOsOptimizer)
+            if (_startProgram == StartProgram.IsOsOptimizer
+                || _startProgram == StartProgram.IsTester)
             {
                 return;
             }

@@ -741,7 +741,10 @@ namespace OsEngine.Market.Servers.AstsBridge
                             {
                                 if (NewTradeEvent != null)
                                 {
-                                    NewTradeEvent(trades);
+                                    for(int i = 0;i < trades.Count;i++)
+                                    {
+                                        NewTradeEvent(trades[i]);
+                                    }
                                 }
                             }
                         }
@@ -1427,7 +1430,7 @@ namespace OsEngine.Market.Servers.AstsBridge
         /// called at the time of the appearance of new trades on instrument
         /// вызывается в момет появления новых трейдов по инструменту
         /// </summary>
-        public event Action<List<Trade>> NewTradeEvent;
+        public event Action<Trade> NewTradeEvent;
 
         /// <summary>
         /// all trade table changed
@@ -1448,7 +1451,7 @@ namespace OsEngine.Market.Servers.AstsBridge
         {
             get { return _myTrades; }
         }
-
+                
         /// <summary>
         /// my incoming from system trades
         /// входящие из системы мои сделки
@@ -1607,6 +1610,18 @@ namespace OsEngine.Market.Servers.AstsBridge
             throw new NotImplementedException();
         }
 
+        public decimal GetLeverage(Security security)
+        {
+            return 0;
+        }
+
+        public void SetLeverage(Security security, decimal leverage)
+        {
+            
+        }
+
+        List<SecurityLeverageData> IServer.ListLeverageData => null;
+
         /// <summary>
         /// log manager
         /// менеджер лога
@@ -1624,6 +1639,8 @@ namespace OsEngine.Market.Servers.AstsBridge
         public event Action<SecurityVolumes> Volume24hUpdateEvent { add { } remove { } }
         public event Action<Funding> NewFundingEvent { add { } remove { } }
         public event Action<SecurityVolumes> NewVolume24hUpdateEvent { add { } remove { } }
+
+        
     }
 
     /// <summary>

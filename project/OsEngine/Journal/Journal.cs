@@ -479,7 +479,7 @@ namespace OsEngine.Journal
                         }
 
                         if (openOrder.NumberUser == order.NumberUser
-                          && string.IsNullOrEmpty(openOrder.NumberMarket))
+                         && string.IsNullOrEmpty(openOrder.NumberMarket))
                         {
                             return openOrder;
                         }
@@ -502,7 +502,7 @@ namespace OsEngine.Journal
                         }
 
                         if (closeOrder.NumberUser == order.NumberUser
-                          && string.IsNullOrEmpty(closeOrder.NumberMarket))
+                         && string.IsNullOrEmpty(closeOrder.NumberMarket))
                         {
                             return closeOrder;
                         }
@@ -550,7 +550,7 @@ namespace OsEngine.Journal
                     }
 
                     if (openOrder.NumberUser == order.NumberUser
-                      && string.IsNullOrEmpty(openOrder.NumberMarket))
+                    && string.IsNullOrEmpty(openOrder.NumberMarket))
                     {
                         return openOrder;
                     }
@@ -573,7 +573,7 @@ namespace OsEngine.Journal
                     }
 
                     if (closeOrder.NumberUser == order.NumberUser
-                      && string.IsNullOrEmpty(closeOrder.NumberMarket))
+                       && string.IsNullOrEmpty(closeOrder.NumberMarket))
                     {
                         return closeOrder;
                     }

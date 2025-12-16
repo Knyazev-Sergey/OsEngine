@@ -3241,6 +3241,8 @@ namespace OsEngine.Market.Servers.Binance.Futures
             }
         }
 
+        public void SetLeverage(Security security, decimal leverage) { }
+
         #endregion
 
         #region 13 Log
