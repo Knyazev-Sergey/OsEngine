@@ -177,7 +177,15 @@ namespace OsEngine.Market.Servers.QuikLua
 
         public string[] ManuallyClosePositionOnBoard_ExceptionPositionNames
         {
-            get { return null; }
+            get
+            {
+                string[] values = new string[]
+                {
+                    "rub"
+                };
+
+                return values;
+            }
         }
 
         public bool CanQueryOrdersAfterReconnect
@@ -254,10 +262,23 @@ namespace OsEngine.Market.Servers.QuikLua
             get { return 10; }
         }
 
-        public string[] IpAddresServer
+        public string[] IpAddressServer
         {
             get { return null; }
         }
+
+        public bool Leverage_IsSupports
+        {
+            get { return false; }
+        }
+
+        public decimal Leverage_StandardValue
+        {
+            get { return 10; }
+        }
+
+        public string[] Leverage_SupportClasses { get; }
+
 
         #endregion
     }

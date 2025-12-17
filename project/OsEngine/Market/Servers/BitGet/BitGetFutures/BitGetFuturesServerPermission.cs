@@ -296,7 +296,7 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
             get { return 10; }
         }
 
-        public string[] IpAddresServer
+        public string[] IpAddressServer
         {
             get
             {
@@ -306,6 +306,31 @@ namespace OsEngine.Market.Servers.BitGet.BitGetFutures
                 };
 
                 return pingIpDomens;
+            }
+        }
+
+        public bool Leverage_IsSupports
+        {
+            get { return true; }
+        }
+
+        public decimal Leverage_StandardValue
+        {
+            get { return 10; }
+        }
+
+        public string[] Leverage_SupportClasses
+        {
+            get
+            {
+                string[] listClasses = new string[]
+                {
+                    "USDT-FUTURES",
+                    "COIN-FUTURES",
+                    "USDC-FUTURES"
+                };
+
+                return listClasses;
             }
         }
 

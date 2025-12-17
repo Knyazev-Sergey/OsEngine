@@ -100,7 +100,13 @@ namespace OsEngine.Market.Servers
 
         int AsyncCandlesStarter_RateGateLimitMls { get; }
 
-        string[] IpAddresServer { get; }
+        string[] IpAddressServer { get; }
+
+        bool Leverage_IsSupports { get; }
+
+        decimal Leverage_StandardValue { get; }
+
+        string[] Leverage_SupportClasses { get; }
 
         #endregion
     }

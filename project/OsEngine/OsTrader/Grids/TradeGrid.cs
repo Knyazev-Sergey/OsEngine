@@ -626,6 +626,24 @@ namespace OsEngine.OsTrader.Grids
         {
             try
             {
+                for (int i = numbers.Count - 1; i > -1; i--)
+                {
+                    int curNumber = numbers[i];
+
+                    if (curNumber >= GridCreator.Lines.Count)
+                    {
+                        continue;
+                    }
+
+                    TradeGridLine line = GridCreator.Lines[curNumber];
+
+                    if (line.Position != null
+                        && line.Position.OpenActive)
+                    {
+                        Tab.CloseOrder(line.Position.OpenOrders[^1]);
+                    }
+                }
+
                 GridCreator.RemoveSelected(numbers);
                 Save();
             }
@@ -942,7 +960,7 @@ namespace OsEngine.OsTrader.Grids
 
             // 5 попытка смены режима если блокировано по времени или по дням
 
-            if (baseRegime == TradeGridRegime.On)
+            if (baseRegime != TradeGridRegime.Off)
             {
                 DateTime serverTime = Tab.TimeServerCurrent;
 

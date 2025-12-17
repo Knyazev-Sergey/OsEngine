@@ -283,7 +283,7 @@ namespace OsEngine.Market.Servers.Bybit
             get { return 50; }
         }
 
-        public string[] IpAddresServer
+        public string[] IpAddressServer
         {
             get
             {
@@ -298,6 +298,33 @@ namespace OsEngine.Market.Servers.Bybit
                 };
 
                 return pingIpDomens;
+            }
+        }
+
+        public bool Leverage_IsSupports
+        {
+            get { return true; }
+        }
+
+        public decimal Leverage_StandardValue
+        {
+            get { return 10; }
+        }
+
+        public string[] Leverage_SupportClasses
+        {
+            get
+            {
+                string[] listClasses = new string[]
+                {
+                    "LinearPerpetual",
+                    "LinearPerpetual_PERP",
+                    "InversePerpetual",
+                    "LinearFutures",
+                    "InverseFutures"
+                };
+
+                return listClasses;
             }
         }
 

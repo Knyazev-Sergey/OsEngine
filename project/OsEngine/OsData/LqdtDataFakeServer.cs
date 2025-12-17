@@ -534,7 +534,7 @@ namespace OsEngine.OsData
         public event Action<CandleSeries> NewCandleIncomeEvent;
         public event Action<decimal, decimal, Security> NewBidAskIncomeEvent;
         public event Action<MarketDepth> NewMarketDepthEvent;
-        public event Action<List<Trade>> NewTradeEvent;
+        public event Action<Trade> NewTradeEvent;
         public event Action<OptionMarketData> NewAdditionalMarketDataEvent;
         public event Action<Funding> NewFundingEvent;
         public event Action<SecurityVolumes> NewVolume24hUpdateEvent;
@@ -542,6 +542,19 @@ namespace OsEngine.OsData
         public event Action<MyTrade> NewMyTradeEvent;
         public event Action<Order> CancelOrderFailEvent;
         public event Action<string, LogMessageType> LogMessageEvent;
+
+        public decimal GetLeverage(Security security)
+        {
+            return 0;
+        }
+
+        public void SetLeverage(Security security, decimal leverage)
+        {
+
+        }
+
+        List<SecurityLeverageData> IServer.ListLeverageData => null;
+
         #endregion
     }
 

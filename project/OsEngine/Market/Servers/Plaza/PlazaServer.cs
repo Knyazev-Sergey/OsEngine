@@ -1722,6 +1722,7 @@ namespace OsEngine.Market.Servers.Plaza
                                     security.NameId = replmsg["isin_id"].asInt().ToString();
                                     security.State = SecurityStateType.Activ;
                                     security.VolumeStep = 1;
+									security.Expiration = replmsg["last_trade_date"].asDateTime();
                                     security.Exchange = "MOEX";
 
                                     security.PriceStep = Convert.ToDecimal(replmsg["min_step"].asDecimal());
@@ -1730,7 +1731,7 @@ namespace OsEngine.Market.Servers.Plaza
                                     security.PriceLimitLow = Convert.ToDecimal(replmsg["settlement_price"].asDecimal()) - Convert.ToDecimal(replmsg["limit_down"].asDecimal());
                                     security.PriceLimitHigh = Convert.ToDecimal(replmsg["settlement_price"].asDecimal()) + Convert.ToDecimal(replmsg["limit_up"].asDecimal());
 
-                                    security.Lot = replmsg["lot_volume"].asInt(); //Convert.ToDecimal(replmsg["lot_volume"].asInt());
+                                    security.Lot = 1;
 
                                     security.SecurityType = SecurityType.Futures;
 
@@ -2540,7 +2541,7 @@ namespace OsEngine.Market.Servers.Plaza
                                     }
 
                                     SendLogMessage($"Пришел ордер, orders_log. Number: {order.NumberMarket}, User: {order.NumberUser}, Volume: {order.Volume}, Execute: {order.VolumeExecute}, Price: {order.Price}, " +
-                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.Error);
+                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.System);
 
                                     if (MyOrderEvent != null)
                                     {
@@ -2615,7 +2616,7 @@ namespace OsEngine.Market.Servers.Plaza
                                     }
 
                                     SendLogMessage($"Пришел ордер, Msg179. Number: {order.NumberMarket}, User: {order.NumberUser}, Volume: {order.Volume}, Execute: {order.VolumeExecute}, Price: {order.Price}, " +
-                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.Error);
+                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.System);
 
                                     if (MyOrderEvent != null)
                                     {
@@ -2690,7 +2691,7 @@ namespace OsEngine.Market.Servers.Plaza
                                     }
 
                                     SendLogMessage($"Пришел ордер, Msg177. Number: {order.NumberMarket}, User: {order.NumberUser}, Volume: {order.Volume}, Execute: {order.VolumeExecute}, Price: {order.Price}, " +
-                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.Error);
+                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.System);
 
                                     if (MyOrderEvent != null)
                                     {
@@ -2750,7 +2751,7 @@ namespace OsEngine.Market.Servers.Plaza
                                     }
 
                                     SendLogMessage($"Пришел ордер, Msg176. Number: {order.NumberMarket}, User: {order.NumberUser}, Volume: {order.Volume}, Execute: {order.VolumeExecute}, Price: {order.Price}, " +
-                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.Error);
+                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.System);
 
                                     if (MyOrderEvent != null)
                                     {
@@ -2918,7 +2919,7 @@ namespace OsEngine.Market.Servers.Plaza
                                     }
 
                                     SendLogMessage($"Пришел ордер, orders. Number: {order.NumberMarket}, User: {order.NumberUser}, Volume: {order.Volume}, Execute: {order.VolumeExecute}, Price: {order.Price}, " +
-                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.Error);
+                                        $"State: {order.State}, Time: {order.TimeCallBack}", LogMessageType.System);
 
                                     if (MyOrderEvent != null)
                                     {
@@ -3309,6 +3310,8 @@ namespace OsEngine.Market.Servers.Plaza
         public event Action<Funding> FundingUpdateEvent { add { } remove { } }
 
         public event Action<SecurityVolumes> Volume24hUpdateEvent { add { } remove { } }
+
+        public void SetLeverage(Security security, decimal leverage) { }
 
         #endregion
     }

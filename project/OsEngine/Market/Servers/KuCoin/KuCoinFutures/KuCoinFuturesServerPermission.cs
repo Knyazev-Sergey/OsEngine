@@ -282,7 +282,7 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
             get { return 10; }
         }
 
-        public string[] IpAddresServer
+        public string[] IpAddressServer
         {
             get
             {
@@ -294,6 +294,18 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
                 return pingIpDomens;
             }
         }
+
+        public bool Leverage_IsSupports
+        {
+            get { return false; }
+        }
+
+        public decimal Leverage_StandardValue
+        {
+            get { return 10; }
+        }
+
+        public string[] Leverage_SupportClasses { get; }
 
         #endregion
     }

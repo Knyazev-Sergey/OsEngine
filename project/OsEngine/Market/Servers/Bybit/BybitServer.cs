@@ -38,7 +38,6 @@ namespace OsEngine.Market.Servers.Bybit
             CreateParameterEnum("Margin Mode", MarginMode.Cross.ToString(), new List<string>() { MarginMode.Cross.ToString(), MarginMode.Isolated.ToString() });
             CreateParameterBoolean("Hedge Mode", true);
             ServerParameters[4].ValueChange += BybitServer_ValueChange;
-            CreateParameterString("Leverage", "");
             CreateParameterBoolean("Extended Data", false);
             CreateParameterBoolean("Use Options", false);
 
@@ -140,9 +139,7 @@ namespace OsEngine.Market.Servers.Bybit
                 httpClientHandler = null;
                 httpClient = null;
 
-                _leverage = ((ServerParameterString)ServerParameters[5]).Value.Replace(",", ".");
-
-                if (((ServerParameterBool)ServerParameters[6]).Value == true)
+                if (((ServerParameterBool)ServerParameters[5]).Value == true)
                 {
                     _extendedMarketData = true;
                 }
@@ -151,7 +148,7 @@ namespace OsEngine.Market.Servers.Bybit
                     _extendedMarketData = false;
                 }
 
-                if (((ServerParameterBool)ServerParameters[7]).Value == true)
+                if (((ServerParameterBool)ServerParameters[6]).Value == true)
                 {
                     _useOptions = true;
                 }
@@ -279,19 +276,16 @@ namespace OsEngine.Market.Servers.Bybit
             {
                 try
                 {
-                    lock (_httpClientLocker)
-                    {
-                        httpClient?.Dispose();
-                        httpClientHandler?.Dispose();
-                    }
-
-                    httpClient = null;
-                    httpClientHandler = null;
+                    httpClient?.Dispose();
+                    httpClientHandler?.Dispose();
                 }
                 catch (Exception ex)
                 {
                     SendLogMessage(ex.Message, LogMessageType.Error);
                 }
+
+                httpClient = null;
+                httpClientHandler = null;
             }
             catch
             {
@@ -416,8 +410,6 @@ namespace OsEngine.Market.Servers.Bybit
                 SetPositionMode();
             }
         }
-
-        private string _leverage;
 
         private bool _extendedMarketData;
 
@@ -584,7 +576,7 @@ namespace OsEngine.Market.Servers.Bybit
             Dictionary<string, object> parametrs = new Dictionary<string, object>();
             parametrs.Add("limit", "1000");
             parametrs["category"] = category.ToString();
-            
+
             string cursor = "";
 
             while (true)
@@ -604,7 +596,7 @@ namespace OsEngine.Market.Servers.Bybit
                     else
                     {
                         SendLogMessage($"{category} securities error. Code: {responseSymbols?.retCode}\nMessage: {responseSymbols?.retMsg}", LogMessageType.Error);
-                        break; 
+                        break;
                     }
 
                     if (string.IsNullOrEmpty(responseSymbols.result.nextPageCursor))
@@ -618,7 +610,7 @@ namespace OsEngine.Market.Servers.Bybit
                 }
                 else
                 {
-                    break; 
+                    break;
                 }
             }
         }
@@ -705,7 +697,7 @@ namespace OsEngine.Market.Servers.Bybit
                     {
                         Security security = new Security();
                         security.NameFull = oneSec.symbol;
-                        
+
                         if (category == Category.linear
                             || category == Category.inverse)
                         {
@@ -829,30 +821,6 @@ namespace OsEngine.Market.Servers.Bybit
             }
         }
 
-        private decimal GetVolumeStepByVolumeDecimals(int volumeDecimals)
-        {
-            if (volumeDecimals == 0)
-            {
-                return 1;
-            }
-
-            string result = "0.";
-
-            for (int i = 0; i < volumeDecimals; i++)
-            {
-                if (i + 1 == volumeDecimals)
-                {
-                    result += "1";
-                }
-                else
-                {
-                    result += "0";
-                }
-            }
-
-            return result.ToDecimal();
-        }
-
         #endregion 3
 
         #region 4 Portfolios
@@ -894,8 +862,12 @@ namespace OsEngine.Market.Servers.Bybit
             CreateQueryPortfolio(true);
         }
 
+        private RateGate _rateGatePortfolio = new RateGate(1, TimeSpan.FromMilliseconds(30));
+
         private void CreateQueryPortfolio(bool IsUpdateValueBegin)
         {
+            _rateGatePortfolio.WaitToProceed();
+
             try
             {
                 Dictionary<string, object> parametrs = new Dictionary<string, object>();
@@ -1052,8 +1024,12 @@ namespace OsEngine.Market.Servers.Bybit
             }
         }
 
+        private RateGate _rateGatePositions = new RateGate(1, TimeSpan.FromMilliseconds(30));
+
         private List<PositionOnBoard> GetPositionsInverse(string portfolioNumber, bool IsUpdateValueBegin)
         {
+            _rateGatePositions.WaitToProceed();
+
             List<PositionOnBoard> positionOnBoards = new List<PositionOnBoard>();
 
             try
@@ -1137,6 +1113,8 @@ namespace OsEngine.Market.Servers.Bybit
 
         private List<PositionOnBoard> GetPositionsSpot(List<Coin> coinList, string portfolioNumber, bool IsUpdateValueBegin)
         {
+            _rateGatePositions.WaitToProceed();
+
             try
             {
                 List<PositionOnBoard> pb = new List<PositionOnBoard>();
@@ -1169,6 +1147,8 @@ namespace OsEngine.Market.Servers.Bybit
 
         private List<PositionOnBoard> GetPositionsLinear(string portfolioNumber, bool IsUpdateValueBegin)
         {
+            _rateGatePositions.WaitToProceed();
+
             List<PositionOnBoard> positionOnBoards = new List<PositionOnBoard>();
 
             try
@@ -1283,7 +1263,7 @@ namespace OsEngine.Market.Servers.Bybit
 
         #region 5 Data
 
-        private RateGate _rateGateGetCandleHistory = new RateGate(5, TimeSpan.FromMilliseconds(100));
+        private RateGate _rateGateGetCandleHistory = new RateGate(1, TimeSpan.FromMilliseconds(50));
         private string _rateGateGetCandleHistoryLocker = "_rateGateGetCandleHistoryLocker";
 
         public List<Candle> GetLastCandleHistory(Security security, TimeFrameBuilder timeFrameBuilder, int candleCount)
@@ -1293,12 +1273,11 @@ namespace OsEngine.Market.Servers.Bybit
                 return new List<Candle>(); // no option history
             }
 
-            lock (_rateGateGetCandleHistoryLocker)
-            {
-                _rateGateGetCandleHistory.WaitToProceed();
-            }
+            int tfTotalMinutes = (int)timeFrameBuilder.TimeFrameTimeSpan.TotalMinutes;
+            DateTime endTime = DateTime.UtcNow;
+            DateTime startTime = endTime.AddMinutes(-tfTotalMinutes * candleCount);
 
-            return GetCandleHistory(security.Name, timeFrameBuilder.TimeFrameTimeSpan, false, DateTime.UtcNow, candleCount);
+            return GetCandleDataToSecurity(security, timeFrameBuilder, startTime, endTime, endTime);
         }
 
         public List<Candle> GetCandleHistory(string nameSec, TimeSpan tf, bool IsOsData, DateTime timeEnd, int CountToLoad)
@@ -1359,6 +1338,11 @@ namespace OsEngine.Market.Servers.Bybit
 
         public List<Candle> GetCandleDataToSecurity(Security security, TimeFrameBuilder timeFrameBuilder, DateTime startTime, DateTime endTime, DateTime actualTime)
         {
+            lock (_rateGateGetCandleHistoryLocker)
+            {
+                _rateGateGetCandleHistory.WaitToProceed();
+            }
+
             try
             {
                 if (actualTime < startTime || actualTime > endTime)
@@ -1434,11 +1418,6 @@ namespace OsEngine.Market.Servers.Bybit
             return null;
         }
 
-        public List<Trade> GetTickDataToSecurity(Security security, DateTime startTime, DateTime endTime, DateTime actualTime)
-        {
-            return null;
-        }
-
         private List<Candle> GetListCandles(string candlesQuery)
         {
             List<Candle> candles = new List<Candle>();
@@ -1502,6 +1481,11 @@ namespace OsEngine.Market.Servers.Bybit
             dictionary.Add(1440, "D");
 
             return dictionary;
+        }
+
+        public List<Trade> GetTickDataToSecurity(Security security, DateTime startTime, DateTime endTime, DateTime actualTime)
+        {
+            return null;
         }
 
         #endregion 5
@@ -2088,8 +2072,6 @@ namespace OsEngine.Market.Servers.Bybit
                             GetFundingData(security.Name.Replace(".P", ""));
                         }
                     }
-
-                    SetLeverage(security);
                 }
                 else if (security.Name.EndsWith(".I") && security.SecurityType != SecurityType.Option)
                 {
@@ -4162,7 +4144,7 @@ namespace OsEngine.Market.Servers.Bybit
                         {
                             newOrder.State = OrderStateType.Active;
                         }
-                        else if(order.orderStatus == "PartiallyFilled")
+                        else if (order.orderStatus == "PartiallyFilled")
                         {
                             newOrder.State = OrderStateType.Partial;
                         }
@@ -4815,27 +4797,46 @@ namespace OsEngine.Market.Servers.Bybit
             return BitConverter.ToString(signature).Replace("-", "").ToLower();
         }
 
-        private void SetLeverage(Security security)
+        public void SetLeverage(Security security, decimal leverage)
         {
             try
             {
-                if (_leverage == "")
+                string response = null;
+
+                if (security.SecurityType == SecurityType.Futures)
+                {
+                    string category = Category.linear.ToString();
+
+                    if (security.Name.EndsWith(".I"))
+                    {
+                        category = Category.inverse.ToString();
+                    }
+
+                    Dictionary<string, object> parameters = new Dictionary<string, object>();
+                    parameters.Clear();
+                    parameters["category"] = category;
+                    parameters["symbol"] = security.Name.Split(".")[0];
+                    parameters["buyLeverage"] = leverage.ToString().Replace(",", ".");
+                    parameters["sellLeverage"] = leverage.ToString().Replace(",", ".");
+
+                    response = CreatePrivateQuery(parameters, HttpMethod.Post, "/v5/position/set-leverage");
+                }
+
+                if (response == null)
                 {
                     return;
                 }
 
-                Dictionary<string, object> parametrs = new Dictionary<string, object>();
-                parametrs.Clear();
-                parametrs["category"] = Category.linear.ToString();
-                parametrs["symbol"] = security.Name.Split(".")[0];
-                parametrs["buyLeverage"] = _leverage;
-                parametrs["sellLeverage"] = _leverage;
+                ResponseRestMessageList<string> jsonResponce = JsonConvert.DeserializeObject<ResponseRestMessageList<string>>(response);
 
-                CreatePrivateQuery(parametrs, HttpMethod.Post, "/v5/position/set-leverage");
+                if (jsonResponce.retMsg != "OK")
+                {
+                    SendLogMessage($"SetLeverage: {security.Name} - {jsonResponce.retMsg}", LogMessageType.Error);
+                }
             }
             catch (Exception ex)
             {
-                SendLogMessage($"SetLeverage: {ex.Message} {ex.StackTrace}", LogMessageType.Error);
+                SendLogMessage($"SetLeverage: {security.Name} - {ex.Message} {ex.StackTrace}", LogMessageType.Error);
             }
         }
 

@@ -1269,8 +1269,9 @@ namespace OsEngine.Language
           "Eng:Trading mode on the Moscow Stock Exchange. Affects the display of the portfolio, accounts and positions_" +
           "Ru:Режим торгов на Московской бирже. Влияет на отображение портфеля, счетов и позиций_");
 
-
-
+        public string Label309 => OsLocalization.ConvertToLocString(
+          "Eng:Full logging of user's orders and trades. Records all the statuses of orders and trades that came from the exchange._" +
+          "Ru:Полное логирование ордеров и трейдов пользователя. Записывает все статусы ордеров и трейдов, которые пришли с биржи._");
 
 
 
@@ -1862,6 +1863,10 @@ namespace OsEngine.Language
             "Eng:Other_" +
             "Ru:Другое_");
 
+        public string FullLogConnector => OsLocalization.ConvertToLocString(
+            "Eng:Full logging of user's orders and trades_" +
+            "Ru:Полное логирование ордеров и трейдов пользователя_");
+
         public string UseSecInfoUpdates => OsLocalization.ConvertToLocString(
             "Eng:Use sec info updates_" +
             "Ru:Включить обновления инструментов_");
@@ -1890,5 +1895,12 @@ namespace OsEngine.Language
            "Eng:Telegram authorization_" +
            "Ru:Telegram авторизация_");
 
+        public string LeverageButton => OsLocalization.ConvertToLocString(
+           "Eng:Set leverage_" +
+           "Ru:Настроить обеспечение_");
+
+        public string LeverageButtonCommit => OsLocalization.ConvertToLocString(
+           "Eng:The button opens the leverage settings window for instruments._" +
+           "Ru:Кнопка открывает окно настроек плеча по инструментам._");
     }
 }

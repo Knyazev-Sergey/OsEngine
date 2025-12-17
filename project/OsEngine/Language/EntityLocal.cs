@@ -397,7 +397,7 @@ namespace OsEngine.Language
 
         public string ColumnPortfolio5 => OsLocalization.ConvertToLocString(
             "Eng:Unrealized Pnl_" +
-            "Ru:Не закрытая прибыль_");
+            "Ru:Незакрытая прибыль_");
 
         public string ColumnPortfolio6 => OsLocalization.ConvertToLocString(
             "Eng:Security_" +
@@ -547,5 +547,12 @@ namespace OsEngine.Language
             "Eng:Message box_" +
             "Ru:Окно сообщений_");
 
+        public string LeverageColumn => OsLocalization.ConvertToLocString(
+            "Eng:Leverage_" +
+            "Ru:Плечо_");
+
+        public string TitleSetLeverageUi => OsLocalization.ConvertToLocString(
+            "Eng:Leverage instruments_" +
+            "Ru:Плечи инструментов_");
     }
 }

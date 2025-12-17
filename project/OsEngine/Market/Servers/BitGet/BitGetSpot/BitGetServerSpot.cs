@@ -2707,6 +2707,8 @@ namespace OsEngine.Market.Servers.BitGet.BitGetSpot
             }
         }
 
+        public void SetLeverage(Security security, decimal leverage) { }
+
         #endregion
 
         #region 13 Log
