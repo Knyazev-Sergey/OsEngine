@@ -49,6 +49,7 @@ namespace OsEngine.Robots
         private DateTime _timeTwapBuyOrders;
         private DateTime _timeTwapSellOrders;
         private StrategyParameterBool _boolTimerTwapOrders;
+        private StrategyParameterBool _setAutoStart;
 
         Aindicator _rsi;
         Aindicator _rsiBTC;
@@ -71,7 +72,8 @@ namespace OsEngine.Robots
 
             string tabNameParameters = " Параметры ";
             string tabNameRsi = " Фильтр RSI ";
-                       
+
+            _setAutoStart = CreateParameter("Автоподключение", false, tabNameParameters);
             _typeVolume = CreateParameter("Тип объема", GetDescription(TypeVolume.Fix), new string[] { GetDescription(TypeVolume.Fix), GetDescription(TypeVolume.Percent) }, tabNameParameters);
             _volume = CreateParameter("Объем", 0m, 0m, 0m, 0m, tabNameParameters);
             _leverage = CreateParameter("Плечо", 0m, 0m, 0m, 0m, tabNameParameters);
@@ -880,7 +882,6 @@ namespace OsEngine.Robots
                         for (int i = 0; i < _tab.PositionOpenLong[0].OpenOrders.Count; i++)
                         {
                             if (_tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Active ||
-                                _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Activ ||
                                 _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Done)
                             {
                                 _postedOrdersBuy++;
@@ -903,7 +904,6 @@ namespace OsEngine.Robots
                         for (int i = 0; i < _tab.PositionOpenShort[0].OpenOrders.Count; i++)
                         {
                             if (_tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Active ||
-                                _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Activ ||
                                 _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Done)
                             {
                                 _postedOrdersSell++;
@@ -951,9 +951,11 @@ namespace OsEngine.Robots
         private bool _checkExecuteOpenBuy = true;
         private bool _checkExecuteOpenSell = true;
 
+        private bool _checkAutoStart = true;
+
         private void _tab_CandleUpdateEvent(List<Candle> obj)
         {
-            _lastPrice = obj[obj.Count - 1].Close;            
+            _lastPrice = obj[^1].Close;            
         }
 
         private void MainThread()
@@ -980,6 +982,18 @@ namespace OsEngine.Robots
                         _lastRsiSecond = _rsiBTC.DataSeries[0].Last;
                     }
 
+                    if (_lastPrice == 0)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
+                    if (_checkAutoStart && _setAutoStart)
+                    {
+                        _checkAutoStart = false;
+                        AutoStart();
+                    }
+
                     if (_status == Status.Work ||
                         _status == Status.Stop)
                     {
@@ -993,6 +1007,37 @@ namespace OsEngine.Robots
                     SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
                 }
             }    
+        }
+
+        private void AutoStart()
+        {
+            if (_tab.PositionOpenLong.Count > 0 || _tab.PositionOpenShort.Count > 0)
+            {
+                SetFalseAllFlags();
+
+                SendNewLogMessage("-----------------------------------------------------------------------------------------------------------------------------------", Logging.LogMessageType.User);
+                SendNewLogMessage("Запускаем Автостарт на восстановлении работы", Logging.LogMessageType.User);
+
+                LoadRecoveryGrid();
+                RecoveryMethod();
+            }
+            else
+            {
+                SendNewLogMessage("Нет позиций в роботе. Автостарт не запущен.", Logging.LogMessageType.User);
+            }
+        }
+
+        private void SetFalseAllFlags()
+        {
+            _workCycle = false;
+            _checkCloseOrderBuy = false;
+            _checkCloseOrderSell = false;
+            _checkExecuteOpenBuy = false;
+            _checkExecuteOpenSell = false;
+            _tryOpenOrderBuy = false;
+            _tryOpenOrderSell = false;
+            _needRearrangeBuy = false;
+            _needRearrangeSell = false;
         }
 
         private void RefreshGrid()
@@ -1025,15 +1070,7 @@ namespace OsEngine.Robots
         private void PushPauseButton()
         {
             _status = Status.Pause;
-            _workCycle = false;
-            _checkCloseOrderBuy = false;
-            _checkCloseOrderSell = false;
-            _checkExecuteOpenBuy = false;
-            _checkExecuteOpenSell = false;
-            _tryOpenOrderBuy = false;
-            _tryOpenOrderSell = false;
-            _needRearrangeBuy = false;
-            _needRearrangeSell = false;
+            SetFalseAllFlags();
 
             SendNewLogMessage("Включена пауза", Logging.LogMessageType.User);
         }
@@ -1047,15 +1084,7 @@ namespace OsEngine.Robots
         private void PushForcedStop()
         {
             _status = Status.ForcedStop;
-            _workCycle = false;
-            _checkCloseOrderBuy = false;
-            _checkCloseOrderSell = false;
-            _checkExecuteOpenBuy = false;
-            _checkExecuteOpenSell = false;
-            _tryOpenOrderBuy = false;
-            _tryOpenOrderSell = false;
-            _needRearrangeBuy = false;
-            _needRearrangeSell = false;
+            SetFalseAllFlags();
 
             SendNewLogMessage("Включена принудительная остановка", Logging.LogMessageType.User);
 
@@ -1070,8 +1099,7 @@ namespace OsEngine.Robots
                 {
                     for (int i = 0; i < _tab.PositionOpenLong[0].OpenOrders.Count; i++)
                     {
-                        if (_tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Active ||
-                            _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Activ)
+                        if (_tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Active)
                         {
                             ListOrders list = new ListOrders();
                             list.Price = _tab.PositionOpenLong[0].OpenOrders[i].Price;
@@ -1093,8 +1121,7 @@ namespace OsEngine.Robots
                 {
                     for (int i = 0; i < _tab.PositionOpenShort[0].OpenOrders.Count; i++)
                     {
-                        if (_tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Active ||
-                            _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Activ)
+                        if (_tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Active)
                         {
                             ListOrders list = new ListOrders();
                             list.Price = _tab.PositionOpenShort[0].OpenOrders[i].Price;
@@ -1220,6 +1247,8 @@ namespace OsEngine.Robots
 
 		private void PushStartButton()
         {
+            SendNewLogMessage("-----------------------------------------------------------------------------------------------------------------------------------", Logging.LogMessageType.User);
+
             if (_status == Status.Stop)
             {
                 _status = Status.Work;
@@ -1246,22 +1275,13 @@ namespace OsEngine.Robots
                     {
 						DialogResult result = MessageBox.Show("Восстановить работу предыдущей сетки?", "Сообщение", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1);
 
-						_workCycle = false;
-						_checkCloseOrderBuy = false;
-						_checkCloseOrderSell = false;
-						_checkExecuteOpenBuy = false;
-						_checkExecuteOpenSell = false;
-						_tryOpenOrderBuy = false;
-						_tryOpenOrderSell = false;
-						_needRearrangeBuy = false;
-						_needRearrangeSell = false;
+                        SetFalseAllFlags();
 
-						if (result == DialogResult.Yes)
-                        {
+                        if (result == DialogResult.Yes)
+                        {                            
                             SendNewLogMessage("Восстанавливаем предыдущую сетку", Logging.LogMessageType.User);
 
                             LoadRecoveryGrid();
-
 							RecoveryMethod();
 
 							return;
@@ -1275,7 +1295,7 @@ namespace OsEngine.Robots
 								if (_tab.PositionsOpenAll[i].CloseOrders != null &&
 									_tab.PositionsOpenAll[i].CloseOrders.Count > 0)
 								{
-									_tab.CloseOrder(_tab.PositionsOpenAll[i].CloseOrders.Last());
+									_tab.CloseOrder(_tab.PositionsOpenAll[i].CloseOrders[^1]);
 
 									decimal price = _lastPrice + _tab.Security.PriceStep * 100;
 
@@ -1319,38 +1339,42 @@ namespace OsEngine.Robots
         {
             WriteLogOrders();
 
-            _averagePriceBuy = GetAveragePricePositions(Side.Buy);
-            _priceTPBuy = Math.Round((_averagePriceBuy + _averagePriceBuy * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep, MidpointRounding.AwayFromZero) * (double)_tab.Security.PriceStep;
-            _averagePriceSell = GetAveragePricePositions(Side.Sell);
-            _priceTPSell = Math.Round((_averagePriceSell - _averagePriceSell * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep, MidpointRounding.AwayFromZero) * (double)_tab.Security.PriceStep;
-
             if (_regime.ValueString == GetDescription(Regime.OnlyLong))
             {
-                _checkExecuteOpenBuy = true;                
-                RecoveryGrid(Side.Buy);
-                RecoveryTpOrders(Side.Buy);
+                _checkExecuteOpenBuy = true;
+                _checkCloseOrderBuy = true;
+                //RecoveryGrid(Side.Buy);
+                //RecoveryTpOrders(Side.Buy);
             }
             else if (_regime.ValueString == GetDescription(Regime.OnlyShort))
             {
                 _checkExecuteOpenSell = true;
-                RecoveryGrid(Side.Sell);
-                RecoveryTpOrders(Side.Sell);
+                _checkCloseOrderSell = true;
+                //RecoveryGrid(Side.Sell);
+                //RecoveryTpOrders(Side.Sell);
             }
             else
             {
                 _checkExecuteOpenBuy = true;
                 _checkExecuteOpenSell = true;
-                RecoveryGrid(Side.Buy);
+                _checkCloseOrderBuy = true;
+                _checkCloseOrderSell = true;
+                /*RecoveryGrid(Side.Buy);
                 RecoveryGrid(Side.Sell);
                 RecoveryTpOrders(Side.Buy);
-                RecoveryTpOrders(Side.Sell);
+                RecoveryTpOrders(Side.Sell);*/
             }
-                        
+
+            _averagePriceBuy = GetAveragePricePositions(Side.Buy);
+            _priceTPBuy = Math.Round((_averagePriceBuy + _averagePriceBuy * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep, MidpointRounding.AwayFromZero) * (double)_tab.Security.PriceStep;
+            _averagePriceSell = GetAveragePricePositions(Side.Sell);
+            _priceTPSell = Math.Round((_averagePriceSell - _averagePriceSell * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep, MidpointRounding.AwayFromZero) * (double)_tab.Security.PriceStep;
+
             _workCycle = true;
             _status = Status.Work;
         }
 
-        private void RecoveryGrid(Side side)
+        /*private void RecoveryGrid(Side side)
         {
             SendNewLogMessage("Восстанавливаем сетку после приостановки торговли " + side + ", Текущая цена: " + _lastPrice, Logging.LogMessageType.User);
 
@@ -1405,22 +1429,19 @@ namespace OsEngine.Robots
 
             decimal volume = pos[0].OpenVolume;
 
-            if (volume > 0)
-            {
-                for (int j = 0; j < pos[0].CloseOrders.Count; j++)
+            if (volume > 0 && pos[0].CloseActive)
+            {               
+                for (int i = 0; i < pos[0].CloseOrders.Count; i++)
                 {
-                    for (int i = 0; i < pos[0].CloseOrders.Count; i++)
+                    if (pos[0].CloseOrders[i].State == OrderStateType.Active ||
+                    pos[0].CloseOrders[i].State == OrderStateType.Partial ||
+                    pos[0].CloseOrders[i].State == OrderStateType.Pending ||
+                    pos[0].CloseOrders[i].State == OrderStateType.Fail)
                     {
-                        if (pos[0].CloseOrders[i].State == OrderStateType.Active ||
-                        pos[0].CloseOrders[i].State == OrderStateType.Partial ||
-                        pos[0].CloseOrders[i].State == OrderStateType.Pending ||
-                        pos[0].CloseOrders[i].State == OrderStateType.Fail)
-                        {
-                            SendNewLogMessage("Удаляем закрывающий ордер: " + pos[0].CloseOrders[i].Side + " " + pos[0].CloseOrders[i].Price + " - " + pos[0].CloseOrders[i].Volume + ", State: " + pos[0].CloseOrders[i].State, Logging.LogMessageType.User);
-                            _tab.CloseOrder(pos[0].CloseOrders[i]);
-                        }
+                        SendNewLogMessage("Удаляем закрывающий ордер: " + pos[0].CloseOrders[i].Side + " " + pos[0].CloseOrders[i].Price + " - " + pos[0].CloseOrders[i].Volume + ", State: " + pos[0].CloseOrders[i].State, Logging.LogMessageType.User);
+                        _tab.CloseOrder(pos[0].CloseOrders[i]);
                     }
-                }                    
+                }                              
             }
 
             _tab.CloseAtLimitUnsafe(pos[0], price, volume);
@@ -1437,15 +1458,13 @@ namespace OsEngine.Robots
                     {
                         for (int i = 0; i < pos[0].OpenOrders.Count; i++)
                         {
-                            if (pos.Last().OpenOrders[i].State == OrderStateType.Activ ||
-                                pos.Last().OpenOrders[i].State == OrderStateType.Active ||
-                                pos.Last().OpenOrders[i].State == OrderStateType.Patrial ||
-                                pos.Last().OpenOrders[i].State == OrderStateType.Partial ||
-                                pos.Last().OpenOrders[i].State == OrderStateType.Pending ||
-                                pos.Last().OpenOrders[i].State == OrderStateType.None)
+                            if (pos[0].OpenOrders[i].State == OrderStateType.Active || 
+                                pos[0].OpenOrders[i].State == OrderStateType.Partial ||
+                                pos[0].OpenOrders[i].State == OrderStateType.Pending ||
+                                pos[0].OpenOrders[i].State == OrderStateType.None)
                             {
-                                SendNewLogMessage("Закрывающий ордер Done, закрываем открытый ордер " + pos[0].Direction + ": Price = " + pos.Last().OpenOrders[i].Price + ", Vol = " + pos.Last().OpenOrders[i].Volume + ", State: " + pos[0].OpenOrders[i].State, Logging.LogMessageType.User);
-                                _tab.CloseOrder(pos.Last().OpenOrders[i]);
+                                SendNewLogMessage("Закрывающий ордер Done, закрываем открытый ордер " + pos[0].Direction + ": Price = " + pos[0].OpenOrders[i].Price + ", Vol = " + pos[0].OpenOrders[i].Volume + ", State: " + pos[0].OpenOrders[i].State, Logging.LogMessageType.User);
+                                _tab.CloseOrder(pos[0].OpenOrders[i]);
                             }
                         }
 
@@ -1472,8 +1491,7 @@ namespace OsEngine.Robots
 
             for (int i = 0; i < pos[0].OpenOrders.Count; i++)
             {
-                if (pos[0].OpenOrders[i].State == OrderStateType.Active ||
-                    pos[0].OpenOrders[i].State == OrderStateType.Activ)// считаем кол-во открытых ордеров
+                if (pos[0].OpenOrders[i].State == OrderStateType.Active)// считаем кол-во открытых ордеров
                 {
                     count++;
                 }
@@ -1534,7 +1552,7 @@ namespace OsEngine.Robots
                 SaveRecoveryGrid();
                 WriteLogOrders();
             }           
-        }
+        }*/
 
         private void StartGrid()
         {
@@ -1684,17 +1702,18 @@ namespace OsEngine.Robots
 
             for (int i = 0; i < pos[0].OpenOrders.Count; i++)
             {
-                if (pos[0].OpenOrders[i].State == OrderStateType.Done)
+                if (pos[0].OpenOrders[i].State == OrderStateType.Done ||
+                    pos[0].OpenOrders[i].State == OrderStateType.Partial)
                 {
-                    volume += pos[0].OpenOrders[i].Volume;
+                    volume += pos[0].OpenOrders[i].VolumeExecute;
                 }
             }
 
             if (volume == 0) return;
 
-            if (pos.Last().CloseOrders != null && pos.Last().CloseOrders.Count > 0)
+            if (pos[0].CloseOrders != null && pos[0].CloseOrders.Count > 0)
             {
-                if (volume == pos.Last().CloseOrders.Last().Volume)
+                if (volume == pos[0].CloseOrders[^1].Volume)
                 {
                     return;
                 }
@@ -1706,24 +1725,26 @@ namespace OsEngine.Robots
 
                     for (int i = 0; i < pos[0].CloseOrders.Count; i++)
                     {
-                        if (pos[0].CloseOrders[i].State == OrderStateType.Activ ||
-                        pos[0].CloseOrders[i].State == OrderStateType.Active ||
-                        pos[0].CloseOrders[i].State == OrderStateType.Patrial ||
+                        if (pos[0].CloseOrders[i].State == OrderStateType.Active ||
                         pos[0].CloseOrders[i].State == OrderStateType.Partial ||
                         pos[0].CloseOrders[i].State == OrderStateType.Pending)
                         {
                             SendNewLogMessage("Удаляем закрывающий ордер: " + pos[0].CloseOrders[i].Side + " " + pos[0].CloseOrders[i].Price + " - " + pos[0].CloseOrders[i].Volume + ", State: " + pos[0].CloseOrders[i].State, Logging.LogMessageType.User);
                             _tab.CloseOrder(pos[0].CloseOrders[i]);
                         }
+
+                        /*if (pos[0].CloseOrders[i].State == OrderStateType.Fail && i == pos[0].CloseOrders.Count - 1)
+                        {
+                            SendNewLogMessage("Удаляем закрывающий ордер: " + pos[0].CloseOrders[i].Side + " " + pos[0].CloseOrders[i].Price + " - " + pos[0].CloseOrders[i].Volume + ", State: " + pos[0].CloseOrders[i].State, Logging.LogMessageType.User);
+                            _tab.CloseOrder(pos[0].CloseOrders[i]);
+                        }*/
                     }           
                 }
             }
 
-            //PlaceNewOrderFromGrid(side);
+            Side sideClose = pos[0].Direction == Side.Buy ? Side.Sell : Side.Buy;
 
-            Side sideClose = pos.Last().Direction == Side.Buy ? Side.Sell : Side.Buy;
-
-            if (pos.Last().Direction == Side.Buy)
+            if (pos[0].Direction == Side.Buy)
             {
                 _averagePriceBuy = GetAveragePricePositions(side);
                 if (_averagePriceBuy == 0)
@@ -1734,7 +1755,7 @@ namespace OsEngine.Robots
                 SendNewLogMessage("Цена TP ордера: " + _priceTPBuy, Logging.LogMessageType.User);
                 SendNewLogMessage("Ставим новый закрывающий ордер: " + sideClose + " " + _priceTPBuy + " - " + volume, Logging.LogMessageType.User);
 
-                _tab.CloseAtLimitUnsafe(pos.Last(), (decimal)_priceTPBuy, volume);
+                _tab.CloseAtLimitUnsafe(pos[0], (decimal)_priceTPBuy, volume);
 
                 _checkCloseOrderBuy = true;
             }
@@ -1749,7 +1770,7 @@ namespace OsEngine.Robots
                 SendNewLogMessage("Цена TP ордера: " + _priceTPSell, Logging.LogMessageType.User);
                 SendNewLogMessage("Ставим новый закрывающий ордер: " + sideClose + " " + _priceTPSell + " - " + volume, Logging.LogMessageType.User);
 
-                _tab.CloseAtLimitUnsafe(pos.Last(), (decimal)_priceTPSell, volume);
+                _tab.CloseAtLimitUnsafe(pos[0], (decimal)_priceTPSell, volume);
 
                 _checkCloseOrderSell = true;
             }    
@@ -1757,6 +1778,9 @@ namespace OsEngine.Robots
 
         private void PlaceNewOrderFromGrid(Side side)
         {
+            if (side == Side.Buy && _tryCloseRearrangeBuy) return;
+            if (side == Side.Sell && _tryCloseRearrangeSell) return;
+
             if (side == Side.Buy)
             {
                 if (_boolTimerTwapOrders)
@@ -1770,11 +1794,9 @@ namespace OsEngine.Robots
 
                 for (int i = 0; i < _tab.PositionOpenLong[0].OpenOrders.Count; i++)
                 {
-                    if (_tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Activ ||
-                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Active ||
+                    if (_tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Active ||
                         _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.None ||
                         _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Pending ||
-                        _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Patrial ||
                         _tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Partial
                         )
                     {
@@ -1805,13 +1827,12 @@ namespace OsEngine.Robots
                 if (_listOrdersSell.Count == 0) return;
 
                 int count = 0;
+
                 for (int i = 0; i < _tab.PositionOpenShort[0].OpenOrders.Count; i++)
                 {
-                    if (_tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Activ ||
-                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Active ||
+                    if (_tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Active ||
                         _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.None ||
                         _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Pending ||
-                        _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Patrial ||
                         _tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Partial)
                     {
                         count++;
@@ -1821,7 +1842,7 @@ namespace OsEngine.Robots
                 if (count < _countOrdersOnExchange.ValueInt)
                 {
                     SendNewLogMessage("Добавляем ордер на биржу из сетки: " + side + " " + _listOrdersSell[0].Price + " - " + _listOrdersSell[0].Volume, Logging.LogMessageType.User);
-                    _tab.SellAtLimitToPositionUnsafe(_tab.PositionOpenShort.Last(), _listOrdersSell[0].Price, _listOrdersSell[0].Volume);
+                    _tab.SellAtLimitToPositionUnsafe(_tab.PositionOpenShort[0], _listOrdersSell[0].Price, _listOrdersSell[0].Volume);
                     _listOrdersSell.RemoveAt(0);
 
                     if (_boolTimerTwapOrders)
@@ -1878,12 +1899,12 @@ namespace OsEngine.Robots
 				return;
             }
 
-            if (pos.Last().CloseActiv)
+            if (pos[0].CloseActive)
             {
                 return;
             }
 
-            SendNewLogMessage("Исполнился закрывающий ордер # ", Logging.LogMessageType.User);
+            SendNewLogMessage($"Исполнился закрывающий ордер {side}", Logging.LogMessageType.User);
 
             if (side == Side.Buy)
             {
@@ -1904,7 +1925,7 @@ namespace OsEngine.Robots
                 _priceTPSell = 0;
             }
 
-            if (pos.Last().OpenActiv)
+            if (pos[0].OpenActive)
             {
                 CloseOpeningOrders(pos);
             }
@@ -1914,22 +1935,20 @@ namespace OsEngine.Robots
         {
             if (pos.Count == 0) return;
 
-            if (pos.Last().OpenOrders == null)
+            if (pos[0].OpenOrders == null)
             {
                 return;
             }
 
-            for (int i = 0; i < pos.Last().OpenOrders.Count; i++)
+            for (int i = 0; i < pos[0].OpenOrders.Count; i++)
             {
-                if (pos.Last().OpenOrders[i].State == OrderStateType.Activ ||
-                    pos.Last().OpenOrders[i].State == OrderStateType.Active ||
-                    pos.Last().OpenOrders[i].State == OrderStateType.Patrial ||
-                    pos.Last().OpenOrders[i].State == OrderStateType.Partial ||
-                    pos.Last().OpenOrders[i].State == OrderStateType.Pending ||
-                    pos.Last().OpenOrders[i].State == OrderStateType.None)
+                if (pos[0].OpenOrders[i].State == OrderStateType.Active ||
+                    pos[0].OpenOrders[i].State == OrderStateType.Partial ||
+                    pos[0].OpenOrders[i].State == OrderStateType.Pending ||
+                    pos[0].OpenOrders[i].State == OrderStateType.None)
                 {
-                    SendNewLogMessage("Для выставления новой сетки удаляем открытый ордер " + pos.Last().Direction + ": Price = " + pos.Last().OpenOrders[i].Price + ", Vol = " + pos.Last().OpenOrders[i].Volume, Logging.LogMessageType.User);
-                    _tab.CloseOrder(pos.Last().OpenOrders[i]);
+                    SendNewLogMessage("Для выставления новой сетки удаляем открытый ордер " + pos[0].Direction + ": Price = " + pos[0].OpenOrders[i].Price + ", Vol = " + pos[0].OpenOrders[i].Volume, Logging.LogMessageType.User);
+                    _tab.CloseOrder(pos[0].OpenOrders[i]);
                 }
             }
         }
@@ -2069,14 +2088,14 @@ namespace OsEngine.Robots
                 return;
             }
 
-            if (pos.Last().CloseActiv)
+            if (pos[0].CloseActive)
             {
                 return;
             }
 
             decimal priceOrder = 0;
 
-            for (int i = 0; i < pos.Last().OpenOrders.Count; i++)
+            for (int i = 0; i < pos[0].OpenOrders.Count; i++)
             {
                 if (pos[0].OpenOrders[i].State == OrderStateType.None)
                 {
@@ -2085,22 +2104,22 @@ namespace OsEngine.Robots
 
                 if (i == 0)
                 {
-                    priceOrder = pos.Last().OpenOrders[i].Price;
+                    priceOrder = pos[0].OpenOrders[i].Price;
                 }
                 else
                 {
                     if (side == Side.Buy)
                     {
-                        if (priceOrder < pos.Last().OpenOrders[i].Price)
+                        if (priceOrder < pos[0].OpenOrders[i].Price)
                         {
-                            priceOrder = pos.Last().OpenOrders[i].Price;
+                            priceOrder = pos[0].OpenOrders[i].Price;
                         }
                     }
                     else
                     {
-                        if (priceOrder > pos.Last().OpenOrders[i].Price)
+                        if (priceOrder > pos[0].OpenOrders[i].Price)
                         {
-                            priceOrder = pos.Last().OpenOrders[i].Price;
+                            priceOrder = pos[0].OpenOrders[i].Price;
                         }
                     }
                 }
@@ -2184,10 +2203,8 @@ namespace OsEngine.Robots
 
             for (int i = 0; i < pos[0].OpenOrders.Count; i++)
             {
-                if (pos[0].OpenOrders[i].State == OrderStateType.Activ ||
-                    pos[0].OpenOrders[i].State == OrderStateType.Active ||
+                if (pos[0].OpenOrders[i].State == OrderStateType.Active ||
                     pos[0].OpenOrders[i].State == OrderStateType.Partial ||
-                    pos[0].OpenOrders[i].State == OrderStateType.Patrial ||
                     pos[0].OpenOrders[i].State == OrderStateType.Pending)
                 {
                     SendNewLogMessage("Для подтяжки сетки удаляем открытый ордер " + pos[0].Direction + ": Price = " + pos[0].OpenOrders[i].Price + ", Vol = " + pos[0].OpenOrders[i].Volume, Logging.LogMessageType.User);
@@ -2582,12 +2599,14 @@ namespace OsEngine.Robots
                 }
                 else
                 {
-                    decimal calc = firstListVolume[firstListVolume.Count - 1] + firstListVolume[firstListVolume.Count - 1] * _percentMartingale.ValueDecimal / 100;
+                    decimal calc = firstListVolume[^1] + firstListVolume[^1] * _percentMartingale.ValueDecimal / 100;
                     firstListVolume.Add(calc);
                 }
 
                 sum += listOrders[i] * firstListVolume[i];
             }
+
+            if (sum == 0) return null;
 
             // пересчитываем объем с учетом величины депозита
             decimal scale = generalVolume / sum;
@@ -2700,7 +2719,7 @@ namespace OsEngine.Robots
                     }                   
                     else
                     {
-                        _tab.SellAtLimitToPositionUnsafe(_tab.PositionOpenShort.Last(), _listOrdersSell[i].Price, _listOrdersSell[i].Volume);                        
+                        _tab.SellAtLimitToPositionUnsafe(_tab.PositionOpenShort[0], _listOrdersSell[i].Price, _listOrdersSell[i].Volume);                        
                     }
                     _listOrdersSell.RemoveAt(i);
                     i--;
@@ -2741,7 +2760,7 @@ namespace OsEngine.Robots
                     } 
                     else
                     {
-                        _tab.BuyAtLimitToPositionUnsafe(_tab.PositionOpenLong.Last(), _listOrdersBuy[i].Price, _listOrdersBuy[i].Volume);
+                        _tab.BuyAtLimitToPositionUnsafe(_tab.PositionOpenLong[0], _listOrdersBuy[i].Price, _listOrdersBuy[i].Volume);
                     }
 					
 					_listOrdersBuy.RemoveAt(i);
@@ -2764,30 +2783,24 @@ namespace OsEngine.Robots
         {
             DialogResult result = MessageBox.Show("Остановить бота?", "Сообщение", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1);
 
-            _checkExecuteOpenBuy = false;
-            _checkExecuteOpenSell = false;
-            _needRearrangeBuy = false;
-            _needRearrangeSell = false;
-            _workCycle = false;
-
             for (int i = 0; i < _tab.PositionsOpenAll.Count; i++)
             {
 
                 for (int j = 0; j < _tab.PositionsOpenAll[i].OpenOrders.Count; j++)
                 {
-                    if (_tab.PositionsOpenAll[i].OpenOrders[j].State == OrderStateType.Active ||
-                        _tab.PositionsOpenAll[i].OpenOrders[j].State == OrderStateType.Activ)
+                    if (_tab.PositionsOpenAll[i].OpenOrders[j].State == OrderStateType.Active)
                     {
                         _tab.CloseOrder(_tab.PositionsOpenAll[i].OpenOrders[j]);
                     }
                 }
             }
 
+            SetFalseAllFlags();
+
             switch (result)
             {
                 case DialogResult.Yes:
-                    _checkCloseOrderBuy = false;
-                    _checkCloseOrderSell = false;
+                    
                     _status = Status.NoWork;
                     break;
 
@@ -2813,7 +2826,7 @@ namespace OsEngine.Robots
                 if (_tab.PositionsOpenAll[i].CloseOrders != null &&
                     _tab.PositionsOpenAll[i].CloseOrders.Count > 0)
                 {
-                    _tab.CloseOrder(_tab.PositionsOpenAll[i].CloseOrders.Last());
+                    _tab.CloseOrder(_tab.PositionsOpenAll[i].CloseOrders[^1]);
 
                     decimal price = _lastPrice + _tab.Security.PriceStep * 100;
 
@@ -2834,17 +2847,9 @@ namespace OsEngine.Robots
             switch (result)
             {
                 case DialogResult.Yes:
-                    _checkCloseOrderBuy = false;
-                    _checkCloseOrderSell = false;
-                    _workCycle = false;
-                    _checkExecuteOpenBuy = false;
-                    _checkExecuteOpenSell = false;
-                    _tryOpenOrderBuy = false;
-                    _tryOpenOrderSell = false;
+                    
                     _status = Status.NoWork;
-
-                    _needRearrangeBuy = false;
-                    _needRearrangeSell = false;
+                    SetFalseAllFlags();
 
                     for (int i = 0; i < _tab.PositionsOpenAll.Count; i++)
                     {
