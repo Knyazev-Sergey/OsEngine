@@ -2618,7 +2618,7 @@ namespace OsEngine.Robots
             for (int i = 0; i < firstListVolume.Count; i++)
             {
                 decimal scaleVolume = Math.Round(firstListVolume[i] * scale / _tab.Security.Lot, _tab.Security.DecimalsVolume, MidpointRounding.ToNegativeInfinity) * _tab.Security.Lot;
-                decimal truncateVolume = Math.Floor(scaleVolume / _tab.Security.VolumeStep) * _tab.Security.VolumeStep;
+                decimal truncateVolume = Math.Round(Math.Floor(scaleVolume / _tab.Security.VolumeStep) * _tab.Security.VolumeStep, _tab.Security.DecimalsVolume, MidpointRounding.ToNegativeInfinity);
                 secondListVolume.Add(truncateVolume);
             }
 
