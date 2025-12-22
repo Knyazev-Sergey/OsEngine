@@ -325,9 +325,9 @@ namespace OsEngine.Market.Servers.TraderNet
                     newSecurity.PriceStep = item.step_price.ToDecimal();
                     newSecurity.PriceStepCost = newSecurity.PriceStep;
                     newSecurity.State = SecurityStateType.Activ;
-                    newSecurity.MinTradeAmount = item.quotes.x_lot.ToDecimal();
+                    newSecurity.MinTradeAmount = item.lot_size_q.ToDecimal();
                     newSecurity.MinTradeAmountType = MinTradeAmountType.Contract;
-                    newSecurity.VolumeStep = item.quotes.x_lot.ToDecimal();
+                    newSecurity.VolumeStep = item.lot_size_q.ToDecimal();
 
                     _securities.Add(newSecurity);
                 }
