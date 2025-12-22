@@ -42,6 +42,22 @@ namespace OsEngine.Entity
                         
             GetDefaultLeverageParameters();
 
+            Title = OsLocalization.Entity.TitleSetLeverageUi + " " + serverNameUnique;
+
+            TabItemCommonSettings.Content = OsLocalization.Entity.TabItemCommonSettings;
+            TabItemInstrumentSettings.Content = OsLocalization.Entity.TabItemInstrumentSettings;
+
+            LabelCommonHedgeMode.Content = OsLocalization.Entity.LabelHedgeMode;
+            LabelCommonLeverage.Content = OsLocalization.Entity.LabelLeverage;
+            LabelCommonMarginMode.Content = OsLocalization.Entity.LabelMarginMode;
+            LabelClass.Content = OsLocalization.Entity.SecuritiesColumn11;
+            TextBoxSearchLeverage.Text = OsLocalization.Market.Label64;
+            LabelLeverage.Content = OsLocalization.Entity.LeverageLongColumn;
+
+            ButtonCommonHedgeMode.Content = OsLocalization.Entity.ButtonAccept;
+            ButtonCommonLeverage.Content = OsLocalization.Entity.ButtonAccept;
+            ButtonCommonMarginMode.Content = OsLocalization.Entity.ButtonAccept;
+
             TextBoxLeverage.Text = _defaultLeverage.ToString();
             TextBoxLeverage.TextChanged += TextBoxLeverage_TextChanged;
 
@@ -52,11 +68,7 @@ namespace OsEngine.Entity
             ComboBoxClass.SelectionChanged += ComboBoxClass_SelectionChanged;
 
             CreateTable();
-            PaintLeverageTable();
-
-            Title = OsLocalization.Entity.TitleSetLeverageUi + " " + _server.ServerType;
-            LabelClass.Content = OsLocalization.Entity.SecuritiesColumn11;
-            TextBoxSearchLeverage.Text = OsLocalization.Market.Label64;
+            PaintLeverageTable();            
 
             this.Activate();
             this.Focus();
@@ -161,7 +173,7 @@ namespace OsEngine.Entity
                 _dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
                 _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
               
-                _dgv.ColumnCount = 7;
+                _dgv.ColumnCount = 8;
                 _dgv.RowCount = 0;
 
                 _dgv.Columns[0].HeaderText = "#";
@@ -170,7 +182,8 @@ namespace OsEngine.Entity
                 _dgv.Columns[3].HeaderText = OsLocalization.Entity.SecuritiesColumn10; // Name ID
                 _dgv.Columns[4].HeaderText = OsLocalization.Entity.SecuritiesColumn11; // Class
                 _dgv.Columns[5].HeaderText = OsLocalization.Entity.SecuritiesColumn2; // Type
-                _dgv.Columns[6].HeaderText = OsLocalization.Entity.LeverageColumn; // Leverage
+                _dgv.Columns[6].HeaderText = OsLocalization.Entity.LeverageLongColumn; // Leverage Long
+                _dgv.Columns[7].HeaderText = OsLocalization.Entity.LeverageShortColumn; // Leverage Short
 
                 DataGridViewButtonColumn button = new();
                 _dgv.Columns.Add(button);
