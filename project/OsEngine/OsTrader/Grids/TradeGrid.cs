@@ -66,6 +66,7 @@ namespace OsEngine.OsTrader.Grids
             if (StartProgram == StartProgram.IsOsTrader)
             {
                 Thread worker = new Thread(ThreadWorkerPlace);
+                worker.Name = "GridThread." + tab.TabName;
                 worker.Start();
 
                 RegimeLogicEntry = TradeGridLogicEntryRegime.OncePerSecond;
@@ -682,11 +683,6 @@ namespace OsEngine.OsTrader.Grids
                         return;
                     }
 
-                    if(Tab == null)
-                    {
-                        return;
-                    }
-
                     if(RegimeLogicEntry == TradeGridLogicEntryRegime.OncePerSecond)
                     {
                         Process();
@@ -700,6 +696,7 @@ namespace OsEngine.OsTrader.Grids
                 }
                 catch(Exception e)
                 {
+                    Thread.Sleep(1000);
                     SendNewLogMessage(e.ToString(),LogMessageType.Error);
                 }
             }
@@ -2032,6 +2029,59 @@ namespace OsEngine.OsTrader.Grids
             }
         }
         private int _openPositionsBySession;
+
+        public decimal OpenVolumeByLines
+        {
+            get
+            {
+                // 1 берём позиции по сетке
+
+                List<TradeGridLine> linesWithPositions = GetLinesWithOpenPosition();
+
+                if (linesWithPositions == null
+                    || linesWithPositions.Count == 0)
+                {
+                    return 0;
+                }
+
+                decimal result = 0;
+
+                for(int i = 0;i < linesWithPositions.Count;i++)
+                {
+                    if(linesWithPositions[i].Position == null)
+                    {
+                        continue;
+                    }
+
+                    result += linesWithPositions[i].Position.OpenVolume;
+                }
+
+                return result;
+            }
+        }
+
+        public decimal AllVolumeInLines
+        {
+            get
+            {
+                List<TradeGridLine> lines = GridCreator.Lines;
+
+                if (lines == null
+                    || lines.Count == 0)
+                {
+                    return 0;
+                }
+
+                decimal result = 0;
+
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    result += lines[i].Volume;
+                }
+
+                return result;
+            }
+        }
 
         public DateTime FirstTradeTime
         {

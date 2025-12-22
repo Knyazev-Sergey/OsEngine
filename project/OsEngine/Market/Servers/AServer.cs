@@ -36,6 +36,8 @@ namespace OsEngine.Market.Servers
 
         public void Delete()
         {
+            IsDeleted = true;
+
             try
             {
                 if (File.Exists(@"Engine\" + ServerNameUnique + @"Params.txt"))
@@ -52,14 +54,102 @@ namespace OsEngine.Market.Servers
                 {
                     File.Delete(@"Engine\" + ServerNameUnique + @"nonTradePeriod.txt");
                 }
+            }
+            catch
+            {
+                // ignore
+            }
 
-                ServerRealization.Dispose();
+            try
+            {
+                if (_serverRealization != null)
+                {
+                    _serverRealization.NewTradesEvent -= ServerRealization_NewTradesEvent;
+                    _serverRealization.ConnectEvent -= _serverRealization_Connected;
+                    _serverRealization.DisconnectEvent -= _serverRealization_Disconnected;
+                    _serverRealization.MarketDepthEvent -= _serverRealization_MarketDepthEvent;
+                    _serverRealization.MyOrderEvent -= _serverRealization_MyOrderEvent;
+                    _serverRealization.MyTradeEvent -= _serverRealization_MyTradeEvent;
+                    _serverRealization.PortfolioEvent -= _serverRealization_PortfolioEvent;
+                    _serverRealization.SecurityEvent -= _serverRealization_SecurityEvent;
+                    _serverRealization.LogMessageEvent -= SendLogMessage;
+                    _serverRealization.ForceCheckOrdersAfterReconnectEvent -= _serverRealization_ForceCheckOrdersAfterReconnect;
+                    _serverRealization.NewsEvent -= _serverRealization_NewsEvent;
+                    _serverRealization.AdditionalMarketDataEvent -= _serverRealization_AdditionalMarketDataEvent;
+                    _serverRealization.FundingUpdateEvent -= _serverRealization_FundingUpdateEvent;
+                    _serverRealization.Volume24hUpdateEvent -= _serverRealization_Volume24hUpdateEvent;
+
+                    if (_serverRealization.ServerStatus == ServerConnectStatus.Connect)
+                    {
+                        _serverRealization.Dispose();
+                    }
+
+                    //_serverRealization = null;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            try
+            {
+                if (_ordersHub != null)
+                {
+                    _ordersHub.LogMessageEvent -= SendLogMessage;
+                    _ordersHub.GetAllActiveOrdersOnReconnectEvent -= _ordersHub_GetAllActiveOrdersOnReconnectEvent;
+                    _ordersHub.ActiveStateOrderCheckStatusEvent -= _ordersHub_ActiveStateOrderCheckStatusEvent;
+                    _ordersHub.LostOrderEvent -= _ordersHub_LostOrderEvent;
+                    _ordersHub.LostMyTradesEvent -= _ordersHub_LostMyTradesEvent;
+                    _ordersHub = null;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            try
+            {
+                if (_tickStorage != null)
+                {
+                    _tickStorage.TickLoadedEvent -= _tickStorage_TickLoadedEvent;
+                    _tickStorage.LogMessageEvent -= SendLogMessage;
+                    _tickStorage = null;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            try
+            {
+                if (_candleStorage != null)
+                {
+                    _candleStorage.LogMessageEvent -= SendLogMessage;
+                    _candleStorage = null;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            try
+            {
+                if (Log != null)
+                {
+                    Log.Delete();
+                }
             }
             catch
             {
                 // ignore
             }
         }
+
+        public bool IsDeleted = false;
 
         #region Instead of a constructor
 
@@ -82,9 +172,7 @@ namespace OsEngine.Market.Servers
                 _serverRealization.SecurityEvent += _serverRealization_SecurityEvent;
                 _serverRealization.LogMessageEvent += SendLogMessage;
                 _serverRealization.ForceCheckOrdersAfterReconnectEvent += _serverRealization_ForceCheckOrdersAfterReconnect;
-
                 _serverRealization.NewsEvent += _serverRealization_NewsEvent;
-
                 _serverRealization.AdditionalMarketDataEvent += _serverRealization_AdditionalMarketDataEvent;
                 _serverRealization.FundingUpdateEvent += _serverRealization_FundingUpdateEvent;
                 _serverRealization.Volume24hUpdateEvent += _serverRealization_Volume24hUpdateEvent;
@@ -175,8 +263,8 @@ namespace OsEngine.Market.Servers
                 if (ServerPermission != null
                     && ServerPermission.IsSupports_CheckDataFeedLogic)
                 {
-                    Task task4 = new Task(CheckDataFlowThread);
-                    task4.Start();
+                    Task task5 = new Task(CheckDataFlowThread);
+                    task5.Start();
 
                     CreateParameterBoolean(OsLocalization.Market.Label242, false);
                     _needToCheckDataFeedOnDisconnect = (ServerParameterBool)ServerParameters[ServerParameters.Count - 1];
@@ -206,20 +294,23 @@ namespace OsEngine.Market.Servers
 
                 _loadDataLocker = "lockerData_" + ServerType.ToString();
 
-                Task task0 = new Task(ExecutorOrdersThreadArea);
-                task0.Start();
+                Task task1 = new Task(PrimeThreadArea);
+                task1.Start();
 
-                Task task = new Task(PrimeThreadArea);
-                task.Start();
+                Task task2 = new Task(AnalysisServerAndNonTradePeriodsCheckThread);
+                task2.Start();
+
+                Task task3 = new Task(ExecutorOrdersThreadArea);
+                task3.Start();
+
+                Task task4 = new Task(MyTradesBeepThread);
+                task4.Start();
 
                 Task.Run(() => HighPriorityDataThreadArea());
 
                 Task.Run(() => MediumPriorityDataThreadArea());
 
                 Task.Run(() => LowPriorityDataThreadArea());
-
-                Task task3 = new Task(MyTradesBeepThread);
-                task3.Start();
 
                 _serverIsCreated = true;
 
@@ -808,6 +899,7 @@ namespace OsEngine.Market.Servers
                 {
                     _serverConnectStatus = value;
                     SendLogMessage(_serverConnectStatus + " " + OsLocalization.Market.Message7, LogMessageType.Connect);
+
                     if (ConnectStatusChangeEvent != null)
                     {
                         ConnectStatusChangeEvent(_serverConnectStatus.ToString());
@@ -988,18 +1080,20 @@ namespace OsEngine.Market.Servers
         /// </summary>
         private void _serverRealization_Disconnected()
         {
-            if (ServerStatus == ServerConnectStatus.Disconnect)
-            {
-                return;
-            }
-            SendLogMessage(OsLocalization.Market.Message12, LogMessageType.System);
-            ServerStatus = ServerConnectStatus.Disconnect;
-
             if (_serverRealization.ServerStatus != ServerConnectStatus.Disconnect)
             {
                 _serverRealization.ServerStatus = ServerConnectStatus.Disconnect;
             }
 
+            if (ServerStatus == ServerConnectStatus.Disconnect)
+            {
+                return;
+            }
+
+            SendLogMessage(OsLocalization.Market.Message12, LogMessageType.System);
+
+            ServerStatus = ServerConnectStatus.Disconnect;
+            
             if (NeedToReconnectEvent != null)
             {
                 NeedToReconnectEvent();
@@ -1092,7 +1186,14 @@ namespace OsEngine.Market.Servers
                         continue;
                     }
 
-                    if ((ServerRealization.ServerStatus != ServerConnectStatus.Connect)
+                    if (IsDeleted == true)
+                    {
+                        return;
+                    }
+
+                    if ((ServerRealization.ServerStatus != ServerConnectStatus.Connect
+                        || ServerStatus != ServerConnectStatus.Connect)
+
                         && _serverStatusNeed == ServerConnectStatus.Connect &&
                        LastStartServerTime.AddSeconds(100) < DateTime.Now)
                     {
@@ -1141,7 +1242,6 @@ namespace OsEngine.Market.Servers
                     {
                         SendLogMessage(OsLocalization.Market.Message9, LogMessageType.System);
                         ServerRealization.Dispose();
-
                         DeleteCandleManager();
 
                         continue;
@@ -1167,23 +1267,6 @@ namespace OsEngine.Market.Servers
                     if (_securities == null || Securities.Count == 0)
                     {
                         ServerRealization.GetSecurities();
-                        
-                    }
-
-                    //throw new Exception("");
-
-                    GetNonTradePeriod();
-
-                    if (_lastDateTimeServer.Date != DateTime.Now.Date)
-                    {
-                        HasConnectionMessageBeenSent = false;
-                        HasFirstOrderMessageBeenSent = false;
-                        _lastDateTimeServer = DateTime.Now.Date;
-                    }
-
-                    if (HasConnectionMessageBeenSent == false)
-                    {
-                        SendMessageConnectorConnectInAnalysisServer();
                     }
                 }
                 catch (Exception error)
@@ -1280,6 +1363,11 @@ namespace OsEngine.Market.Servers
             {
                 try
                 {
+                    if (IsDeleted == true)
+                    {
+                        return;
+                    }
+
                     bool workDone = false;
 
                     if (!_ordersToSend.IsEmpty)
@@ -1387,6 +1475,11 @@ namespace OsEngine.Market.Servers
             {
                 try
                 {
+                    if (IsDeleted == true)
+                    {
+                        return;
+                    }
+
                     bool workDone = false;
 
                     if (!_tradesToSend.IsEmpty)
@@ -1591,6 +1684,11 @@ namespace OsEngine.Market.Servers
             {
                 try
                 {
+                    if (IsDeleted == true)
+                    {
+                        return;
+                    }
+
                     bool workDone = false;
 
                     if (!_securitiesToSend.IsEmpty)
@@ -2720,6 +2818,11 @@ namespace OsEngine.Market.Servers
                 {
                     Thread.Sleep(1000);
 
+                    if (IsDeleted == true)
+                    {
+                        return;
+                    }
+
                     if (MainWindow.ProccesIsWorked == false)
                     {
                         return;
@@ -3467,6 +3570,12 @@ namespace OsEngine.Market.Servers
             while (true)
             {
                 await Task.Delay(2000);
+
+                if (IsDeleted == true)
+                {
+                    return;
+                }
+
                 if (MainWindow.ProccesIsWorked == false)
                 {
                     return;
@@ -3518,6 +3627,11 @@ namespace OsEngine.Market.Servers
             {
                 try
                 {
+                    if (IsDeleted == true)
+                    {
+                        return;
+                    }
+
                     if (_ordersToExecute.IsEmpty == true)
                     {
                         await Task.Delay(1);
@@ -4443,6 +4557,46 @@ namespace OsEngine.Market.Servers
 
         #region SendMessageAnalysisServer
 
+        private async void AnalysisServerAndNonTradePeriodsCheckThread()
+        {
+            while (true)
+            {
+                try
+                {
+                    await Task.Delay(1000);
+
+                    if (IsDeleted == true)
+                    {
+                        return;
+                    }
+
+                    if (this.ServerStatus != ServerConnectStatus.Connect)
+                    {
+                        continue;
+                    }
+
+                    GetNonTradePeriod();
+
+                    if (_lastDateTimeServer.Date != DateTime.Now.Date)
+                    {
+                        HasConnectionMessageBeenSent = false;
+                        HasFirstOrderMessageBeenSent = false;
+                        _lastDateTimeServer = DateTime.Now.Date;
+                    }
+
+                    if (HasConnectionMessageBeenSent == false)
+                    {
+                        SendMessageConnectorConnectInAnalysisServer();
+                    }
+                }
+                catch(Exception ex)
+                {
+                    SendLogMessage(ex.ToString(), LogMessageType.Error);
+                    await Task.Delay(5000);
+                }
+            }
+        }
+
         private bool HasConnectionMessageBeenSent = false;
 
         private bool HasFirstOrderMessageBeenSent = false;
@@ -4587,17 +4741,22 @@ namespace OsEngine.Market.Servers
 
         private ConcurrentQueue<SecurityLeverageData> _queueLeverage = new();
 
-        private void GetListLeverageTask()
-        {
-            try
+        private async void GetListLeverageTask()
+        {            
+            while (true)
             {
-                while (true)
+                try
                 {
+                    if(IsDeleted == true)
+                    {
+                        return;
+                    }
+
                     if (ListLeverageData == null
                         || _securities == null
                         || _securities.Count == 0)
                     {
-                        Thread.Sleep(1000);
+                        await Task.Delay(1000);
                         continue;
                     }
 
@@ -4608,14 +4767,14 @@ namespace OsEngine.Market.Servers
 
                     if (_serverRealization.ServerStatus == ServerConnectStatus.Disconnect)
                     {
-                        Thread.Sleep(1000);
+                        await Task.Delay(1000);
                         continue;
                     }
 
                     if (_queueLeverage == null ||
                          _queueLeverage.Count == 0)
                     {
-                        Thread.Sleep(1000);
+                        await Task.Delay(1000);
                         continue;
                     }
 
@@ -4623,19 +4782,20 @@ namespace OsEngine.Market.Servers
 
                     if (!_queueLeverage.TryDequeue(out data))
                     {
-                        Thread.Sleep(1);
+                        await Task.Delay(1);
                         continue;
                     }
 
                     SetLeverage(data.Security, data.Leverage);
 
-                    Thread.Sleep(1);
+                    await Task.Delay(1);
                 }
-            }
-            catch (Exception ex)
-            {
-                SendLogMessage(ex.ToString(), LogMessageType.Error);
-            }
+                catch (Exception ex)
+                {
+                    SendLogMessage(ex.ToString(), LogMessageType.Error);
+                    await Task.Delay(5000);
+                }
+            }            
         }
 
         private void GetListLeverage()

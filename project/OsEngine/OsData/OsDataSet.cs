@@ -103,6 +103,20 @@ namespace OsEngine.OsData
 
                     reader.Close();
                 }
+
+                if (File.Exists("Data\\" + SetName + @"\\DublicateSettings.txt"))
+                {
+                    IsThereDublicate = true;
+
+                    Dublicator = new SetDublicator();
+                    Dublicator.LoadDublicateSettings("Data\\" + SetName + @"\\DublicateSettings.txt");
+                }
+
+                if (File.Exists("Data\\" + SetName + @"\\UpdateSettings.txt"))
+                {
+                    Updater = new SetUpdater();
+                    Updater.LoadUpdateSettings("Data\\" + SetName + @"\\UpdateSettings.txt");
+                }
             }
             catch (Exception ex)
             {
@@ -148,6 +162,11 @@ namespace OsEngine.OsData
                 Dublicator = null;
 
                 IsThereDublicate = false;
+            }
+
+            if (Updater != null)
+            {
+                Updater = null;
             }
         }
 
@@ -399,6 +418,8 @@ namespace OsEngine.OsData
 
         public bool IsThereDublicate { get; set; }
 
+        public SetUpdater Updater { get; set; }
+
         #endregion
 
         #region Data loading
@@ -491,16 +512,82 @@ namespace OsEngine.OsData
             {
                 if (Dublicator.TimeLastCheckSet.Add(Dublicator.UpdatePeriod) < DateTime.Now)
                 {
-                    DateTime timeLastCheck = Directory.GetLastWriteTime("Data\\" + SetName);
+                    DateTime timeLastChange = Dublicator.GetLatestFileTime("Data\\" + SetName);
 
-                    if (timeLastCheck > Dublicator.TimeWriteOriginalSet)
+                    if (timeLastChange != DateTime.MinValue && timeLastChange > Dublicator.TimeWriteOriginalSet)
                     {
                         Dublicator.UpdateDublicate(SetName);
 
-                        Dublicator.TimeWriteOriginalSet = timeLastCheck;
+                        Dublicator.TimeWriteOriginalSet = timeLastChange;
+
+                        Dublicator.SaveDublicateSettings("Data\\" + SetName + @"\\DublicateSettings.txt");
                     }
 
                     Dublicator.TimeLastCheckSet = DateTime.Now;
+                }
+            }
+
+            if (Updater != null && Updater.Regime == "On")
+            {
+                if (!Updater.IsUpdateProcess)
+                {
+                    if (DateTime.Now >= Updater.TimeNextUpdate)
+                    {
+                        if (BaseSettings.TimeEnd < DateTime.Now.Date)
+                        {
+                            BaseSettings.TimeEnd = DateTime.Today;
+                        }
+
+                        BaseSettings.NeedToUpdate = true;
+
+                        if (SecuritiesLoad != null)
+                        {
+                            for (int i = 0; i < SecuritiesLoad.Count; i++)
+                            {
+                                SecuritiesLoad[i].CopySettingsFromParam(BaseSettings);
+                            }
+                        }
+
+                        Save();
+
+                        Updater.IsUpdateProcess = true;
+
+                        Updater.TimeNextUpdate = Updater.TimeNextUpdate.Add(Updater.UpdatePeriod);
+
+                        Updater.SaveUpdateSettings("Data\\" + SetName + @"\\UpdateSettings.txt");
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < SecuritiesLoad.Count; i++)
+                    {
+                        for (int j = 0; j < SecuritiesLoad[i].SecLoaders.Count; j++)
+                        {
+                            if (SecuritiesLoad[i].SecLoaders[j].Status == SecurityLoadStatus.Loading
+                                || SecuritiesLoad[i].SecLoaders[j].Status == SecurityLoadStatus.Activate)
+                                return;
+
+                            for (int k = 0; k < SecuritiesLoad[i].SecLoaders[j].DataPies.Count; k++)
+                            {
+                                if (SecuritiesLoad[i].SecLoaders[j].DataPies[k].Status == DataPieStatus.InProcess)
+                                    return;
+                            }
+                        }
+                    }
+
+                    BaseSettings.NeedToUpdate = false;
+
+                    if (SecuritiesLoad != null)
+                    {
+                        for (int i = 0; i < SecuritiesLoad.Count; i++)
+                        {
+                            SecuritiesLoad[i].CopySettingsFromParam(BaseSettings);
+                        }
+                    }
+
+                    Save();
+
+                    Updater.IsUpdateProcess = false;
                 }
             }
         }
@@ -2115,14 +2202,11 @@ namespace OsEngine.OsData
 
             OffStream();
 
-            _dealsStream = null;
-
             if (MarketDepthSource != null)
             {
                 MarketDepthSource.Clear();
                 MarketDepthSource.Delete();
                 MarketDepthSource.MarketDepthUpdateEvent -= MarketDepthSource_MarketDepthUpdateEvent;
-                MarketDepthSource.NewTickEvent -= MarketDepthSource_NewTickEvent;
                 MarketDepthSource.LogMessageEvent -= SendNewLogMessage;
                 MarketDepthSource = null;
             }
@@ -2130,7 +2214,6 @@ namespace OsEngine.OsData
             MarketDepthQueue.Clear();
             MarketDepthQueue = null;
             _lastMarketDepth = null;
-            _lastTrade = null;
         }
 
         private void CreateSource()
@@ -2149,7 +2232,6 @@ namespace OsEngine.OsData
             MarketDepthSource.TimeFrameBuilder.TimeFrame = TimeFrame.MarketDepth;
 
             MarketDepthSource.MarketDepthUpdateEvent += MarketDepthSource_MarketDepthUpdateEvent;
-            MarketDepthSource.NewTickEvent += MarketDepthSource_NewTickEvent;
             MarketDepthSource.LogMessageEvent += SendNewLogMessage;
 
             Task.Run(() => UpdateMarketDataAsync());
@@ -2171,14 +2253,12 @@ namespace OsEngine.OsData
 
                 writer.Write(startTicks);
 
-                byte streamCount = (byte)2;
+                byte streamCount = (byte)1;
                 writer.Write(streamCount);
 
                 string instrumentCode = $"{_serverType.ToString()}:{_secName}:{_secClass}:1:{_priceStep}";
 
                 writer.Write(GetStreamId(StreamType.Quotes));
-                WriteString(writer, instrumentCode);
-                writer.Write(GetStreamId(StreamType.Deals));
                 WriteString(writer, instrumentCode);
 
                 writer.Flush();
@@ -2228,24 +2308,12 @@ namespace OsEngine.OsData
         {
             try
             {
-                byte streamNumber = 0;
-
-                if (streamType == StreamType.Quotes)
-                {
-                    streamNumber = 0;
-                }
-                else if (streamType == StreamType.Deals)
-                {
-                    streamNumber = 1;
-                }
-
                 long timeStamp = TimeManager.GetTimeStampMillisecondsFromStartTime(time);
 
                 long diff = timeStamp - lastTimeStamp;
                 lastTimeStamp = timeStamp;
 
                 writer.WriteGrowing(diff);
-                writer.Write(streamNumber);
             }
             catch (Exception ex)
             {
@@ -2261,11 +2329,6 @@ namespace OsEngine.OsData
         {
             _fileStream = new FileStream(_filePath, FileMode.Create, FileAccess.Write);
             _binaryWriter = new DataBinaryWriter(_fileStream);
-
-            if (_dealsStream == null)
-            {
-                _dealsStream = new DealsStream();
-            }
 
             CreateHeader(_binaryWriter);
         }
@@ -2292,16 +2355,16 @@ namespace OsEngine.OsData
 
                     if (MarketDepthQueue.IsEmpty == false)
                     {
-                        (MarketDepth, Trade) md = (null, null);
+                        MarketDepth md = null;
 
                         if (MarketDepthQueue.TryDequeue(out md))
                         {
-                            if (md.Item1 != null)
+                            if (md != null)
                             {
                                 MarketDepth marketDepth = null;
                                 try
                                 {
-                                    marketDepth = md.Item1.GetCopy();
+                                    marketDepth = md.GetCopy();
                                 }
                                 catch
                                 {
@@ -2310,7 +2373,7 @@ namespace OsEngine.OsData
 
                                 if (marketDepth == null) continue;
 
-                                _filePath = _pathSecurityFolder + "\\" + SecName.RemoveExcessFromSecurityName() + "." + marketDepth.Time.ToString("yyyy-MM-dd") + ".QuotesDeals" + ".qsh";
+                                _filePath = _pathSecurityFolder + "\\" + SecName.RemoveExcessFromSecurityName() + "." + DateTime.UtcNow.ToString("yyyy-MM-dd") + ".Quotes" + ".qsh";
 
                                 if (File.Exists(_filePath) == false)
                                 {
@@ -2321,10 +2384,9 @@ namespace OsEngine.OsData
                                     OffStream();
                                     CreateStream();
                                 }
-                                else if (_lastTrade == null && _lastMarketDepth == null && File.Exists(_filePath))
+                                else if (_lastMarketDepth == null && File.Exists(_filePath))
                                 {
                                     OffStream();
-
                                     ReadBinaryFile();
                                 }
 
@@ -2346,47 +2408,6 @@ namespace OsEngine.OsData
                                     WriteSecondMarketDepthData(_binaryWriter, marketDepth);
                                 }
                             }
-                            else if (md.Item2 != null)
-                            {
-                                Trade trade = md.Item2;
-                                _filePath = _pathSecurityFolder + "\\" + SecName.RemoveExcessFromSecurityName() + "." + trade.Time.ToString("yyyy-MM-dd") + ".QuotesDeals" + ".qsh";
-
-                                if (_lastMarketDepth == null ||
-                                    (_lastMarketDepth != null && trade.Time.AddSeconds(5) < _lastMarketDepth.Time))
-                                {
-                                    continue;
-                                }
-
-                                if (File.Exists(_filePath) == false)
-                                {
-                                    _lastTrade = null;
-                                    _lastTradePrice = 0;
-                                    _lastTimeStamp = 0;
-
-                                    OffStream();
-                                    CreateStream();
-                                }
-                                else if (_lastTrade == null && _lastMarketDepth == null && File.Exists(_filePath))
-                                {
-                                    OffStream();
-
-                                    ReadBinaryFile();
-                                }
-
-                                if (_fileStream == null)
-                                    _fileStream = new FileStream(_filePath, FileMode.Append, FileAccess.Write);
-
-                                if (_binaryWriter == null)
-                                    _binaryWriter = new DataBinaryWriter(_fileStream);
-
-                                if (_dealsStream == null)
-                                    _dealsStream = new DealsStream();
-
-                                WriteFrameHeader(_binaryWriter, DateTime.UtcNow, ref _lastTimeStamp, StreamType.Deals);
-                                WriteTradesData(_binaryWriter, trade);
-
-                                _lastTrade = trade;
-                            }
                         }
                     }
                 }
@@ -2395,9 +2416,7 @@ namespace OsEngine.OsData
                     SendNewLogMessage(ex.ToString(), LogMessageType.Error);
 
                     _lastMarketDepth = null;
-                    _lastTrade = null;
                     _lastMarketDepthPrice = 0;
-                    _lastTradePrice = 0;
                     _lastTimeStamp = 0;
 
                     OffStream();
@@ -2429,6 +2448,13 @@ namespace OsEngine.OsData
             try
             {
                 List<QuoteChange> changes = new List<QuoteChange>();
+
+                if(md.Asks.Count == 0 || md.Bids.Count == 0 ||
+                    (md.Asks.Count > 0 && md.Bids.Count > 0 &&
+                    md.Asks[0].Price < md.Bids[0].Price))
+                {
+                    return;
+                }
 
                 if (ProcessAsksChanges(_lastMarketDepth.Asks, md.Asks, ref changes) == false) return;
                 if (ProcessBidsChanges(_lastMarketDepth.Bids, md.Bids, ref changes) == false) return;
@@ -2471,7 +2497,11 @@ namespace OsEngine.OsData
                 oldAsksDict[ask.Price] = ask.Ask;
             }
 
-            if (oldAsksDict.Count != oldAsks.Count) return false;
+            int diffOldAsk = 0;
+            if(oldAsks.Count > _depth)
+                diffOldAsk = oldAsks.Count - _depth;
+
+            if (oldAsksDict.Count != oldAsks.Count - diffOldAsk) return false;
 
             Dictionary<double, double> newAsksDict = new Dictionary<double, double>();
             int newCount = newAsks.Count;
@@ -2481,7 +2511,11 @@ namespace OsEngine.OsData
                 newAsksDict[ask.Price] = ask.Ask;
             }
 
-            if (newAsksDict.Count != newAsks.Count) return false;
+            int diffNewAsk = 0;
+            if (newAsks.Count > _depth)
+                diffNewAsk = newAsks.Count - _depth;
+
+            if (newAsksDict.Count != newAsks.Count - diffNewAsk) return false;
 
             List<MarketDepthLevel> changesDepth = new List<MarketDepthLevel>();
 
@@ -2543,7 +2577,11 @@ namespace OsEngine.OsData
                 oldBidsDict[bid.Price] = bid.Bid;
             }
 
-            if (oldBidsDict.Count != oldBids.Count) return false;
+            int diffOldBid = 0;
+            if (oldBids.Count > _depth)
+                diffOldBid = oldBids.Count - _depth;
+
+            if (oldBidsDict.Count != oldBids.Count - diffOldBid) return false;
 
             Dictionary<double, double> newBidsDict = new Dictionary<double, double>();
             for (int i = 0; i < newBids.Count && i < _depth; i++)
@@ -2554,7 +2592,11 @@ namespace OsEngine.OsData
                 newBidsDict[bid.Price] = bid.Bid;
             }
 
-            if (newBidsDict.Count != newBids.Count) return false;
+            int diffNewBid = 0;
+            if (newBids.Count > _depth)
+                diffNewBid = newBids.Count - _depth;
+
+            if (newBidsDict.Count != newBids.Count - diffNewBid) return false;
 
             for (int i = 0; i < oldBids.Count && i < _depth; i++)
             {
@@ -2636,17 +2678,6 @@ namespace OsEngine.OsData
 
         #endregion
 
-        #region Trades
-
-        private void WriteTradesData(DataBinaryWriter binaryWriterTrades, Trade trade)
-        {
-            if (_dealsStream == null) return;
-
-            _dealsStream.Write(binaryWriterTrades, trade, _priceStep, _volumeStep);
-        }
-
-        #endregion
-
         #region Read files
 
         private bool ReadBinaryFile()
@@ -2663,13 +2694,6 @@ namespace OsEngine.OsData
                     }
 
                     DataBinaryReader dataReader = new DataBinaryReader(stream);
-
-                    if (_dealsStream != null)
-                    {
-                        _dealsStream = null;
-                    }
-
-                    _dealsStream = new DealsStream();
 
                     int version = stream.ReadByte();
 
@@ -2703,14 +2727,11 @@ namespace OsEngine.OsData
 
                             int streamCount = dataReader.ReadByte();
 
-                            if (streamCount != 2) return false;
+                            if (streamCount != 1) return false;
 
                             StreamType streamType = (StreamType)dataReader.ReadByte();
                             if (streamType != StreamType.Quotes) return false;
                             string securityName = dataReader.ReadString();
-                            StreamType streamType2 = (StreamType)dataReader.ReadByte();
-                            if (streamType2 != StreamType.Deals) return false;
-                            string securityName2 = dataReader.ReadString();
 
                             string[] step = securityName.Split(':');
 
@@ -2741,19 +2762,10 @@ namespace OsEngine.OsData
                             _lastTimeStamp = dataReader.ReadGrowing(_lastTimeStamp);
                             DateTime time = TimeManager.GetDateTimeFromStartTimeMilliseconds(_lastTimeStamp);
 
-                            byte streamNumber = dataReader.ReadByte();
-
-                            if (streamNumber == 0)
-                            {
-                                marketDepth.SetMarketDepthFromBinaryFile(dataReader, _priceStep, _volumeStep, _lastTimeStamp);
-                                _lastMarketDepth = marketDepth;
-                                _lastMarketDepthPrice = marketDepth.LastBinaryPrice;
-                            }
-                            else if (streamNumber == 1)
-                            {
-                                _lastTrade = _dealsStream.Read(dataReader, _priceStep, _volumeStep);
-                                _lastTrade.Time = TimeManager.GetDateTimeFromStartTimeMilliseconds(_lastTimeStamp);
-                            }
+                            marketDepth.SetMarketDepthFromBinaryFile(dataReader, _priceStep, _volumeStep, _lastTimeStamp);
+                            marketDepth.Time = time;
+                            _lastMarketDepth = marketDepth;
+                            _lastMarketDepthPrice = marketDepth.LastBinaryPrice;
                         }
                     }
                     catch (EndOfStreamException)
@@ -2846,27 +2858,21 @@ namespace OsEngine.OsData
 
         public BotTabSimple MarketDepthSource;
 
-        private ConcurrentQueue<(MarketDepth, Trade)> MarketDepthQueue = new ConcurrentQueue<(MarketDepth, Trade)>();
+        private ConcurrentQueue<MarketDepth> MarketDepthQueue = new ConcurrentQueue<MarketDepth>();
 
         public event Action<string, LogMessageType> NewLogMessageEvent;
 
         private MarketDepth _lastMarketDepth;
 
-        private Trade _lastTrade;
-
         private FileStream _fileStream;
 
         private DataBinaryWriter _binaryWriter;
-
-        private DealsStream _dealsStream;
 
         private decimal _priceStep;
 
         private decimal _volumeStep;
 
         private long _lastMarketDepthPrice;
-
-        private long _lastTradePrice;
 
         private long _lastTimeStamp;
 
@@ -2906,16 +2912,7 @@ namespace OsEngine.OsData
 
             if (IsLoad == false) return;
 
-            MarketDepthQueue.Enqueue((md, null));
-        }
-
-        private void MarketDepthSource_NewTickEvent(Trade trade)
-        {
-            if (_isDeleted == true) return;
-
-            if (IsLoad == false) return;
-
-            MarketDepthQueue.Enqueue((null, trade));
+            MarketDepthQueue.Enqueue(md);
         }
 
         #endregion
@@ -3616,9 +3613,9 @@ namespace OsEngine.OsData
             {
                 File.WriteAllText(pathSettings, result);
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore
+                SendNewLogMessage(ex.Message, LogMessageType.Error);
             }
         }
 
@@ -3637,11 +3634,10 @@ namespace OsEngine.OsData
                     UpdatePeriod = new TimeSpan(0, Convert.ToInt32(setParts[2]), 0);
                     TimeWriteOriginalSet = Convert.ToDateTime(setParts[3], CultureInfo.InvariantCulture);
                 }
-
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // ignore
+                SendNewLogMessage(ex.Message, LogMessageType.Error);
             }
         }
 
@@ -3659,10 +3655,155 @@ namespace OsEngine.OsData
 
                 Microsoft.VisualBasic.FileIO.FileSystem.CopyDirectory(sourcePath, destinationPath, true);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // ignore
+                SendNewLogMessage(ex.Message, LogMessageType.Error);
             }
         }
+
+        public DateTime GetLatestFileTime(string setPath)
+        {
+            List<DateTime> filesTimes = [];
+
+            DateTime latestTime = DateTime.MinValue;
+
+            try
+            {
+                string[] secFolders = Directory.GetDirectories(setPath);
+
+                for (int i = 0; i < secFolders.Length; i++)
+                {
+                    string securityFolder = secFolders[i];
+
+                    string[] timeFrameFolders = Directory.GetDirectories(securityFolder);
+
+                    for (int j = 0; j < timeFrameFolders.Length; j++)
+                    {
+                        string timeFrameFolder = timeFrameFolders[j];
+
+                        string[] secFiles = Directory.GetFiles(timeFrameFolder, "*.txt");
+
+                        if (secFiles.Length > 0)
+                        {
+                            filesTimes.Add(File.GetLastWriteTime(secFiles[0]));
+                        }
+                    }
+                }
+
+                for (int i = 0; i < filesTimes.Count; i++)
+                {
+                    if (filesTimes[i] > latestTime)
+                        latestTime = filesTimes[i];
+                }
+
+                return latestTime;
+
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.Message, LogMessageType.Error);
+                return latestTime;
+            }
+        }
+
+        public void SendNewLogMessage(string message, LogMessageType type)
+        {
+            if (NewLogMessageEvent != null)
+            {
+                NewLogMessageEvent(message, type);
+            }
+            else
+            {
+                System.Windows.MessageBox.Show(message);
+            }
+        }
+
+        public event Action<string, LogMessageType> NewLogMessageEvent;
+    }
+
+    public class SetUpdater()
+    {
+        public string Regime { get; set; }
+
+        public string Period { get; set; }
+
+        public int HourUpdate { get; set; }
+
+        public TimeSpan UpdatePeriod { get; set; }
+
+        public DateTime TimeNextUpdate { get; set; }
+
+        public bool IsUpdateProcess { get; set; }
+
+        public void SaveUpdateSettings(string pathSettings)
+        {
+            string result = "";
+
+            result += Regime + "%";
+            result += Period + "%";
+            result += HourUpdate + "%";
+            result += TimeNextUpdate.ToString(CultureInfo.InvariantCulture);
+
+            try
+            {
+                File.WriteAllText(pathSettings, result);
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.Message, LogMessageType.Error);
+            }
+        }
+
+        public void LoadUpdateSettings(string pathSettings)
+        {
+            try
+            {
+                string settings = File.ReadAllText(pathSettings);
+
+                if (!string.IsNullOrEmpty(settings))
+                {
+                    string[] setParts = settings.Split('%');
+
+                    Regime = setParts[0];
+                    Period = setParts[1];
+                    HourUpdate = int.Parse(setParts[2]);
+
+                    DateTime timeNextUpdate = Convert.ToDateTime(setParts[3], CultureInfo.InvariantCulture);
+
+                    if (Period == "Day")
+                    {
+                        UpdatePeriod = new TimeSpan(1, 0, 0, 0, 0);
+
+                        TimeNextUpdate = timeNextUpdate < DateTime.Now ? DateTime.Now.Date.AddDays(1).AddHours(HourUpdate) : timeNextUpdate;
+                    }
+                    else
+                    {
+                        UpdatePeriod = new TimeSpan(1, 0, 0);
+
+                        TimeNextUpdate = DateTime.Now.Date.AddHours(DateTime.Now.Hour + 1);
+                    }
+
+                    IsUpdateProcess = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.Message, LogMessageType.Error);
+            }
+        }
+
+        public void SendNewLogMessage(string message, LogMessageType type)
+        {
+            if (NewLogMessageEvent != null)
+            {
+                NewLogMessageEvent(message, type);
+            }
+            else
+            {
+                System.Windows.MessageBox.Show(message);
+            }
+        }
+
+        public event Action<string, LogMessageType> NewLogMessageEvent;
     }
 }
