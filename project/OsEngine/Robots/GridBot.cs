@@ -1709,6 +1709,8 @@ namespace OsEngine.Robots
                 }
             }
 
+            volume = Math.Round(volume, _tab.Security.DecimalsVolume, MidpointRounding.ToNegativeInfinity);
+
             if (volume == 0) return;
 
             if (pos[0].CloseOrders != null && pos[0].CloseOrders.Count > 0)
