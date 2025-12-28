@@ -42,10 +42,84 @@ namespace OsEngine.Market.Servers.TraderNet
             threadMessageReader.Name = "MessageReader";
             threadMessageReader.Start();
 
-            /*Thread threadUpdateSubscribe = new Thread(ThreadUpdateSubscribe);
+            Thread threadUpdateSubscribe = new Thread(ThreadUpdatePortfolio);
             threadUpdateSubscribe.IsBackground = true;
-            threadUpdateSubscribe.Name = "ThreadUpdateSubscribe";
-            threadUpdateSubscribe.Start();*/
+            threadUpdateSubscribe.Name = "ThreadUpdatePortfolio";
+            threadUpdateSubscribe.Start();
+        }
+
+        private void ThreadUpdatePortfolio()
+        {
+            while (true)
+            {
+                try
+                {
+                    UpdatePortfolio();
+                    Thread.Sleep(5000);
+                }
+                catch (Exception exception)
+                {
+                    SendLogMessage(exception.ToString(), LogMessageType.Error);                   
+                }
+            }
+        }
+
+        private void UpdatePortfolio()
+        {
+            try
+            {
+                RequestSecurity reqData = new RequestSecurity();
+                reqData.q = new RequestSecurity.Q();
+                reqData.q.cmd = "getPositionJson";
+                reqData.q.@params = new RequestSecurity.Params();
+
+                HttpResponseMessage responseMessage = CreateQuery("/api/", "POST", null, reqData);
+                string jsonResponse = responseMessage.Content.ReadAsStringAsync().Result;
+
+                if (jsonResponse != null)
+                {
+                    ConvertJsonPortfolio(jsonResponse);
+                }
+            }
+            catch (Exception exception)
+            {
+                SendLogMessage(exception.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void ConvertJsonPortfolio(string jsonResponse)
+        {
+            RestResponsePortfolio response = JsonConvert.DeserializeObject<RestResponsePortfolio>(jsonResponse);
+
+            if (response == null)
+            {
+                return;
+            }
+
+            decimal valueCurrent = 0;
+
+            List<PosRest> item = response.result.ps.pos;
+
+            for (int i = 0; i < item.Count; i++)
+            {
+                decimal open_bal = 0;
+                decimal.TryParse(item[i].open_bal, out open_bal);
+
+                /*decimal curr = 0;
+                decimal.TryParse(item[i].curr, out curr);*/
+
+                decimal currval = 0;
+                decimal.TryParse(item[i].currval, out currval);
+
+                valueCurrent += open_bal * currval;
+            }
+
+            Portfolio portfolio = new Portfolio();
+            portfolio.Number = "TraderNet";
+            portfolio.ValueBegin = 1;
+            portfolio.ValueCurrent = valueCurrent;
+
+            PortfolioEvent(new List<Portfolio> { portfolio });
         }
 
         public void Connect(WebProxy proxy)
