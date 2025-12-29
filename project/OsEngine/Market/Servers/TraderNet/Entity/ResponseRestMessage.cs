@@ -85,7 +85,9 @@ namespace OsEngine.Market.Servers.TraderNet.Entity
 
     public class AccRest
     {
-
+        public string currval;
+        public string curr;
+        public string s;
     }
 
     public class PosRest
