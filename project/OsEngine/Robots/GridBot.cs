@@ -1882,7 +1882,8 @@ namespace OsEngine.Robots
 				if (side == Side.Buy)
 				{
 					_checkCloseOrderBuy = false;
-					_timeCycleBuy = DateTime.Now.AddMinutes((double)_delayAfterCycle.ValueDecimal);
+                    _checkExecuteOpenBuy = false;
+                    _timeCycleBuy = DateTime.Now.AddMinutes((double)_delayAfterCycle.ValueDecimal);
 					_tryOpenOrderBuy = true;
 					_unrealizPnLBuy = 0;
 					_averagePriceBuy = 0;
@@ -1891,7 +1892,8 @@ namespace OsEngine.Robots
 				else
 				{
 					_checkCloseOrderSell = false;
-					_timeCycleSell = DateTime.Now.AddMinutes((double)_delayAfterCycle.ValueDecimal);
+                    _checkExecuteOpenSell = false;
+                    _timeCycleSell = DateTime.Now.AddMinutes((double)_delayAfterCycle.ValueDecimal);
 					_tryOpenOrderSell = true;
 					_unrealizPnLSell = 0;
 					_averagePriceSell = 0;
@@ -1911,6 +1913,7 @@ namespace OsEngine.Robots
             if (side == Side.Buy)
             {
                 _checkCloseOrderBuy = false;
+                _checkExecuteOpenBuy = false;
                 _timeCycleBuy = DateTime.Now.AddMinutes((double)_delayAfterCycle.ValueDecimal);
                 _tryOpenOrderBuy = true;
                 _unrealizPnLBuy = 0;
@@ -1920,6 +1923,7 @@ namespace OsEngine.Robots
             else
             {
                 _checkCloseOrderSell = false;
+                _checkExecuteOpenSell = false;
                 _timeCycleSell = DateTime.Now.AddMinutes((double)_delayAfterCycle.ValueDecimal);
                 _tryOpenOrderSell = true;
                 _unrealizPnLSell = 0;
