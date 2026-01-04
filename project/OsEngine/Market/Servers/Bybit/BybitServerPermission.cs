@@ -3,6 +3,8 @@
  *Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
 */
 
+using System.Collections.Generic;
+
 namespace OsEngine.Market.Servers.Bybit
 {
     public class BybitServerPermission : IServerPermission
@@ -301,11 +303,6 @@ namespace OsEngine.Market.Servers.Bybit
             }
         }
 
-        public bool Leverage_IsSupports
-        {
-            get { return true; }
-        }
-
         public decimal Leverage_StandardValue
         {
             get { return 10; }
@@ -325,6 +322,68 @@ namespace OsEngine.Market.Servers.Bybit
                 };
 
                 return listClasses;
+            }
+        }
+
+        public bool Leverage_IsSupports
+        {
+            get { return true; }
+        }
+
+        public Dictionary<string, LeveragePermission> Leverage_Permission
+        {
+            get
+            {
+                {
+                    return new Dictionary<string, LeveragePermission>()
+                    {
+                        {
+                            "LinearPerpetual", new LeveragePermission
+                            {
+                                Leverage_StandardValue = 10,
+                                Leverage_CommonMode = true,
+                                Leverage_IndividualLongShort = true,
+                                Leverage_CheckOpenPosition = true
+                            }
+                        },
+                        {
+                            "LinearPerpetual_PERP", new LeveragePermission
+                            {
+                                Leverage_StandardValue = 10,
+                                Leverage_CommonMode = true,
+                                Leverage_IndividualLongShort = true,
+                                Leverage_CheckOpenPosition = true
+                            }
+                        },
+                        {
+                            "InversePerpetual", new LeveragePermission
+                            {
+                                Leverage_StandardValue = 10,
+                                Leverage_CommonMode = true,
+                                Leverage_IndividualLongShort = true,
+                                Leverage_CheckOpenPosition = true
+                            }
+                        },
+                        {
+                            "LinearFutures", new LeveragePermission
+                            {
+                                Leverage_StandardValue = 10,
+                                Leverage_CommonMode = true,
+                                Leverage_IndividualLongShort = true,
+                                Leverage_CheckOpenPosition = true
+                            }
+                        },
+                        {
+                            "InverseFutures", new LeveragePermission
+                            {
+                                Leverage_StandardValue = 10,
+                                Leverage_CommonMode = true,
+                                Leverage_IndividualLongShort = true,
+                                Leverage_CheckOpenPosition = true
+                            }
+                        }
+                    };
+                }
             }
         }
 

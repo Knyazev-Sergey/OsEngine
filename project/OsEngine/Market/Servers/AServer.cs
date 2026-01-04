@@ -4802,7 +4802,7 @@ namespace OsEngine.Market.Servers
         {
             _listLeverageData.Clear();
 
-            string[] leverageSupportClasses = ServerPermission.Leverage_SupportClasses;
+            string[] leverageSupportClasses = ServerPermission.Leverage_Permission.Keys.ToArray();
 
             for (int i = 0; i < _securities.Count; i++)
             {

@@ -1,5 +1,8 @@
 ﻿
 
+using System.Collections.Generic;
+using static OsEngine.Market.Servers.Bybit.BybitServerPermission;
+
 namespace OsEngine.Market.Servers
 {
     public interface IServerPermission
@@ -101,14 +104,27 @@ namespace OsEngine.Market.Servers
         int AsyncCandlesStarter_RateGateLimitMls { get; }
 
         string[] IpAddressServer { get; }
-
-        bool Leverage_IsSupports { get; }
+                
+        string[] Leverage_SupportClasses { get; }
 
         decimal Leverage_StandardValue { get; }
 
-        string[] Leverage_SupportClasses { get; }
+        bool Leverage_IsSupports { get; }
+
+        Dictionary<string, LeveragePermission> Leverage_Permission { get; }
 
         #endregion
+    }
+
+    public class LeveragePermission
+    {
+        public decimal Leverage_StandardValue { get; set; }
+
+        public bool Leverage_CommonMode { get; set; }
+
+        public bool Leverage_IndividualLongShort { get; set; }
+
+        public bool Leverage_CheckOpenPosition { get; set; }
     }
 
     public class TimeFramePermission
