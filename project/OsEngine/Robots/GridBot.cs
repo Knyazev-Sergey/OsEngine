@@ -1019,6 +1019,19 @@ namespace OsEngine.Robots
                 SendNewLogMessage("Запускаем Автостарт на восстановлении работы", Logging.LogMessageType.User);
 
                 LoadRecoveryGrid();
+
+                if (_tab.PositionOpenLong.Count > 0 && _listOrdersBuy == null)
+                {
+                    SendNewLogMessage("При автостарте не загрузились данные по сетке Buy", Logging.LogMessageType.User);
+                    return;
+                }
+
+                if (_tab.PositionOpenShort.Count > 0 && _listOrdersSell == null)
+                {
+                    SendNewLogMessage("При автостарте не загрузились данные по сетке Sell", Logging.LogMessageType.User);
+                    return;
+                }
+
                 RecoveryMethod();
             }
             else
@@ -1809,7 +1822,7 @@ namespace OsEngine.Robots
                 if (count < _countOrdersOnExchange.ValueInt)
                 {
                     SendNewLogMessage("Добавляем ордер на биржу из сетки: " + side + " " + _listOrdersBuy[0].Price + " - " + _listOrdersBuy[0].Volume, Logging.LogMessageType.User);
-                    _tab.BuyAtLimitToPositionUnsafe(_tab.PositionOpenLong.Last(), _listOrdersBuy[0].Price, _listOrdersBuy[0].Volume);
+                    _tab.BuyAtLimitToPositionUnsafe(_tab.PositionOpenLong[0], _listOrdersBuy[0].Price, _listOrdersBuy[0].Volume);
                     _listOrdersBuy.RemoveAt(0);
 
                     if (_boolTimerTwapOrders)
