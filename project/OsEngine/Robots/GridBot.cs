@@ -1262,6 +1262,8 @@ namespace OsEngine.Robots
         {
             SendNewLogMessage("-----------------------------------------------------------------------------------------------------------------------------------", Logging.LogMessageType.User);
 
+            SetFalseAllFlags();
+
             if (_status == Status.Stop)
             {
                 _status = Status.Work;
@@ -1287,8 +1289,6 @@ namespace OsEngine.Robots
                     if (_tab.PositionOpenLong.Count > 0 || _tab.PositionOpenShort.Count > 0)
                     {
 						DialogResult result = MessageBox.Show("Восстановить работу предыдущей сетки?", "Сообщение", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1);
-
-                        SetFalseAllFlags();
 
                         if (result == DialogResult.Yes)
                         {                            
@@ -1637,19 +1637,15 @@ namespace OsEngine.Robots
             WriteLogOrders();
 
             if (_regime.ValueString == GetDescription(Regime.LongShort))
-            {
-                _checkExecuteOpenBuy = true;
-                _checkExecuteOpenSell = true;
+            {              
                 PlacingOrders(Side.None);                
             }
             else if (_regime.ValueString == GetDescription(Regime.OnlyLong))
             {
-                _checkExecuteOpenBuy = true;
                 PlacingOrders(Side.Buy);
             }
             else
             {
-                _checkExecuteOpenSell = true;
                 PlacingOrders(Side.Sell);                
             }
         }
@@ -2719,8 +2715,7 @@ namespace OsEngine.Robots
         private void SendSellOrder()
         {
             if (_listOrdersSell != null)
-            {
-                
+            {                
                 int count = 1;
 
                 for (int i = 0; i < _listOrdersSell.Count; i++)
@@ -2753,7 +2748,6 @@ namespace OsEngine.Robots
                 }
 
                 SaveRecoveryGrid();
-
                 _checkExecuteOpenSell = true;
             }
         }
