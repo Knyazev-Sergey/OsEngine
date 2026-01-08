@@ -330,9 +330,9 @@ namespace OsEngine.Market.Servers.TraderNet
                     newSecurity.PriceStep = item.step_price.ToDecimal();
                     newSecurity.PriceStepCost = newSecurity.PriceStep;
                     newSecurity.State = SecurityStateType.Activ;
-                    newSecurity.MinTradeAmount = item.lot_size_q.ToDecimal();
+                    newSecurity.MinTradeAmount = 1;
                     newSecurity.MinTradeAmountType = MinTradeAmountType.Contract;
-                    newSecurity.VolumeStep = item.lot_size_q.ToDecimal();
+                    newSecurity.VolumeStep = 1;
                     newSecurity.Lot = Math.Round(item.lot_size_q.ToDecimal(), newSecurity.DecimalsVolume);
 
                     _securities.Add(newSecurity);
@@ -1324,10 +1324,13 @@ namespace OsEngine.Market.Servers.TraderNet
                 {
                     for (int i = 0; i < positions.pos.Count; i++)
                     {
+                        decimal lot = GetLotSecurity(positions.pos[i].i);
+                        decimal volume = positions.pos[i].q.ToDecimal() / lot;
+
                         PositionOnBoard pos = new PositionOnBoard();
                         pos.PortfolioName = "TraderNet";
                         pos.SecurityNameCode = positions.pos[i].i;
-                        pos.ValueCurrent = positions.pos[i].q.ToDecimal();
+                        pos.ValueCurrent = volume;
                         pos.ValueBlocked = 0;
 
                         if (_portfolioIsStarted == false)
@@ -1366,12 +1369,15 @@ namespace OsEngine.Market.Servers.TraderNet
                     {
                         for (int j = 0; j < responseOrder[i].trade.Count; j++)
                         {
+                            decimal lot = GetLotSecurity(responseOrder[i].instr);
+                            decimal volume = responseOrder[i].trade[j].q.ToDecimal() / lot;
+
                             MyTrade myTrade = new MyTrade();
                             DateTime.TryParse(responseOrder[i].trade[j].date, out myTrade.Time);
                             myTrade.SecurityNameCode = responseOrder[i].instr;
                             myTrade.NumberOrderParent = responseOrder[i].id.ToString();
                             myTrade.NumberTrade = responseOrder[i].trade[j].id;
-                            myTrade.Volume = responseOrder[i].trade[j].q.ToDecimal();
+                            myTrade.Volume = volume;
                             myTrade.Price = responseOrder[i].trade[j].p.ToDecimal();
                             myTrade.Side = GetOrderSide(responseOrder[i].oper);
 
@@ -1624,11 +1630,13 @@ namespace OsEngine.Market.Servers.TraderNet
                 Dictionary<string, dynamic> data = new Dictionary<string, dynamic>();
 
                 Dictionary<string, dynamic> paramsDict = new Dictionary<string, dynamic>();
+                                
+                decimal volume = order.Volume * GetLotSecurity(order.SecurityNameCode);
 
                 paramsDict.Add("instr_name", order.SecurityNameCode);
                 paramsDict.Add("action_id", order.Side == Side.Buy ? "1" : "3");
                 paramsDict.Add("order_type_id", order.TypeOrder == OrderPriceType.Market ? "1" : "2");
-                paramsDict.Add("qty", order.Volume.ToString());
+                paramsDict.Add("qty", volume.ToString());
                 paramsDict.Add("limit_price", order.Price.ToString().Replace(",", "."));
                 paramsDict.Add("user_order_id", order.NumberUser.ToString());
 
@@ -1655,6 +1663,19 @@ namespace OsEngine.Market.Servers.TraderNet
             {
                 SendLogMessage(ex.ToString(), LogMessageType.Error);
             }
+        }
+
+        private decimal GetLotSecurity(string securityNameCode)
+        {          
+            for (int i = 0; i < _securities.Count; i++)
+            {
+                if (_securities[i].Name == securityNameCode)
+                {
+                    return _securities[i].Lot;
+                }
+            }
+
+            return 1;
         }
 
         public bool CancelOrder(Order order)
@@ -1768,12 +1789,15 @@ namespace OsEngine.Market.Servers.TraderNet
                     {
                         for (int j = 0; j < item.trade.Count; j++)
                         {
+                            decimal lot = GetLotSecurity(item.instr);
+                            decimal volume = item.trade[j].q.ToDecimal() / lot;
+
                             MyTrade myTrade = new MyTrade();
                             DateTime.TryParse(item.trade[j].date, out myTrade.Time);
                             myTrade.SecurityNameCode = item.instr;
                             myTrade.NumberOrderParent = item.id.ToString();
                             myTrade.NumberTrade = item.trade[j].id;
-                            myTrade.Volume = item.trade[j].q.ToDecimal();
+                            myTrade.Volume = volume;
                             myTrade.Price = item.trade[j].p.ToDecimal();
                             myTrade.Side = GetOrderSide(item.oper);
 
@@ -1816,6 +1840,9 @@ namespace OsEngine.Market.Servers.TraderNet
                 return null;
             }
 
+            decimal lot = GetLotSecurity(responseOrder.instr);
+            decimal volume = responseOrder.q.ToDecimal() / lot;
+
             Order newOrder = new Order();
 
             newOrder.SecurityNameCode = responseOrder.instr;
@@ -1824,7 +1851,7 @@ namespace OsEngine.Market.Servers.TraderNet
             newOrder.NumberMarket = responseOrder.id.ToString();
             newOrder.Side = GetOrderSide(responseOrder.oper);
             newOrder.State = GetOrderState(responseOrder.stat);
-            newOrder.Volume = responseOrder.q.ToDecimal();
+            newOrder.Volume = volume;
             newOrder.Price = responseOrder.p.ToDecimal();
             newOrder.ServerType = ServerType.TraderNet;
             newOrder.PortfolioNumber = "TraderNet";
