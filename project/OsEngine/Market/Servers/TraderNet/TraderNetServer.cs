@@ -145,6 +145,8 @@ namespace OsEngine.Market.Servers.TraderNet
 
         public event Action ForceCheckOrdersAfterReconnectEvent { add { } remove { } }
 
+        public bool IsCompletelyDeleted { get; set; }
+
         #endregion
 
         #region 2 Properties
@@ -475,10 +477,10 @@ namespace OsEngine.Market.Servers.TraderNet
             {
                 for (int i = 0; i < posRest.Count; i++)
                 {
-                    decimal.TryParse(posRest[i].open_bal, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal open_bal);
+                    decimal.TryParse(posRest[i].mkt_price, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal mkt_price);
                     decimal.TryParse(posRest[i].currval, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal currval);
 
-                    valueCurrent += open_bal * currval;
+                    valueCurrent += mkt_price * currval;
                 }
             }
 
@@ -673,6 +675,23 @@ namespace OsEngine.Market.Servers.TraderNet
                 return BuildCandles(allCandles, needTf, tfTotalMinutes);
             }
 
+            if (allCandles.Count > 1)
+            {
+                for (int i = 0; i < allCandles.Count; i++)
+                {
+                    if (allCandles[i].TimeStart.Date > endTime)
+                    {
+                        allCandles.RemoveAt(i);
+                        i--;
+                    }
+                }
+            }
+
+            if (needTf > 0)
+            {
+                return BuildCandles(allCandles, needTf, tfTotalMinutes);
+            }
+
             return allCandles;
         }
 
@@ -800,7 +819,7 @@ namespace OsEngine.Market.Servers.TraderNet
             return false;
         }
 
-        private readonly RateGate _rgCandleData = new RateGate(1, TimeSpan.FromMilliseconds(3000));
+        private readonly RateGate _rgCandleData = new RateGate(1, TimeSpan.FromMilliseconds(700));
 
         private List<Candle> RequestCandleHistory(Security security, int interval, DateTime startTime, DateTime endTime)
         {
@@ -900,6 +919,16 @@ namespace OsEngine.Market.Servers.TraderNet
                 SendLogMessage($"ConvertCandles: {ex.Message}", LogMessageType.Error);
                 return null;
             }
+        }
+
+        private int GetTimeShift(string nameClass)
+        {
+            if (nameClass == "FIX_Stock")
+            {
+                return 11;
+            }
+
+            return 3;
         }
 
         private int GetTimeShift(string nameClass)
@@ -1474,6 +1503,22 @@ namespace OsEngine.Market.Servers.TraderNet
             return 0;
         }
 
+        private int GetTimeShiftToSecurity(string name)
+        {
+            for (int i = 0; i < _securities.Count; i++)
+            {
+                if (_securities[i].Name == name)
+                {
+                    if (_securities[i].NameClass == "FIX_Stock")
+                    {
+                        return 8;
+                    }
+                }
+            }
+
+            return 0;
+        }
+
         private void GetSnapshotTrades(ResponseTrade responseTrade)
         {
             if (!_listTrades.ContainsKey(responseTrade.c))
@@ -1638,6 +1683,7 @@ namespace OsEngine.Market.Servers.TraderNet
                 paramsDict.Add("order_type_id", order.TypeOrder == OrderPriceType.Market ? "1" : "2");
                 paramsDict.Add("qty", volume.ToString());
                 paramsDict.Add("limit_price", order.Price.ToString().Replace(",", "."));
+                paramsDict.Add("expiration_id", "3");
                 paramsDict.Add("user_order_id", order.NumberUser.ToString());
 
                 data.Add("apiKey", _publicKey);

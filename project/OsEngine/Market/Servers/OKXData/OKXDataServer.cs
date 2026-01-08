@@ -83,6 +83,8 @@ namespace OsEngine.Market.Servers.OKXData
 
         public event Action ForceCheckOrdersAfterReconnectEvent { add { } remove { } }
 
+        public bool IsCompletelyDeleted { get; set; }
+
         #endregion
 
         #region 2 Properties
@@ -558,10 +560,12 @@ namespace OsEngine.Market.Servers.OKXData
                         string csvFilePath = GetSCVFileFromArchive(zipArchivePath);
 
                         trades.AddRange(ParseCsvFileToTrades(csvFilePath, security.Name));
+
+                        SendLogMessage($"Load data. File: " + path, LogMessageType.System);
                     }
                     else
                     {
-                        return null;
+                        SendLogMessage($"No data. File: " + path, LogMessageType.System);
                     }
 
                     startLoop = startLoop.AddDays(1);

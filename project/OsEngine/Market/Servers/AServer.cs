@@ -84,6 +84,8 @@ namespace OsEngine.Market.Servers
                         _serverRealization.Dispose();
                     }
 
+                    _serverRealization.IsCompletelyDeleted = true;
+
                     //_serverRealization = null;
                 }
             }
@@ -2123,6 +2125,8 @@ namespace OsEngine.Market.Servers
             ServerRealization.GetSecurities();
         }
 
+        private Dictionary<string, Security> _securitiesDictionary = new Dictionary<string, Security>();
+
         /// <summary>
         /// often used securities. optimizes access to securities
         /// </summary>
@@ -2160,12 +2164,18 @@ namespace OsEngine.Market.Servers
                 }
             }
 
-            for (int i = 0; i < _securities.Count; i++)
+            try
             {
-                if (_securities[i].Name == securityName)
+                Security mySecurity = null;
+
+                if (_securitiesDictionary.TryGetValue(securityName, out mySecurity))
                 {
-                    return _securities[i];
+                    return mySecurity;
                 }
+            }
+            catch
+            {
+                // ignore
             }
 
             return null;
@@ -2249,6 +2259,13 @@ namespace OsEngine.Market.Servers
                         if (isInArray == false)
                         {
                             _securities.Add(securities[i]);
+                        }
+
+                        Security mySecurity;
+
+                        if (_securitiesDictionary.TryGetValue(securities[i].Name, out mySecurity) == false)
+                        {
+                            _securitiesDictionary.Add(securities[i].Name, securities[i]);
                         }
                     }
                     else
@@ -2338,6 +2355,7 @@ namespace OsEngine.Market.Servers
                             securities[j].PriceLimitHigh = curSaveSec.PriceLimitHigh;
                             securities[j].PriceLimitLow = curSaveSec.PriceLimitLow;
                             securities[j].MarginBuy = curSaveSec.MarginBuy;
+                            securities[j].MarginSell = curSaveSec.MarginSell;
                             securities[j].Strike = curSaveSec.Strike;
 
                             break;
@@ -3157,6 +3175,82 @@ namespace OsEngine.Market.Servers
             }
         }
 
+        /// <summary>
+        /// take historical depths .qsh format
+        /// взять исторические стаканы в формате .qsh
+        /// </summary>
+        List<string> IServer.GetQshHistoryFileToSecurity(string securityName, string securityClass, DateTime startTime, DateTime endTime, DateTime actualTime, bool needToUpdete)
+        {
+            try
+            {
+                if (Securities == null)
+                {
+                    return null;
+                }
+
+                if (LastStartServerTime != DateTime.MinValue &&
+                    LastStartServerTime.AddSeconds(5) > DateTime.Now)
+                {
+                    return null;
+                }
+
+                if (actualTime == DateTime.MinValue)
+                {
+                    actualTime = startTime;
+                }
+
+                if (ServerStatus != ServerConnectStatus.Connect)
+                {
+                    return null;
+                }
+
+                Security security = null;
+
+                for (int i = 0; _securities != null && i < _securities.Count; i++)
+                {
+                    if (_securities[i].Name == securityName &&
+                        _securities[i].NameClass == securityClass)
+                    {
+                        security = _securities[i];
+                        break;
+                    }
+                }
+
+                if (security == null)
+                {
+                    for (int i = 0; _securities != null && i < _securities.Count; i++)
+                    {
+                        if (string.IsNullOrEmpty(_securities[i].NameId) == false &&
+                            _securities[i].NameId == securityName)
+                        {
+                            security = _securities[i];
+                            break;
+                        }
+                    }
+                    if (security == null)
+                    {
+                        return null;
+                    }
+                }
+
+                List<string> qshFilesPaths = null;
+
+                lock (_loadDataLocker)
+                {
+                    qshFilesPaths = ServerRealization.GetQshHistoryFileToSecurity(security, startTime, endTime, actualTime);
+                }
+                return qshFilesPaths;
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(
+                    "AServer. GetQshHistoryFileToSecurity method error: " + ex.ToString(),
+                    LogMessageType.Error);
+
+                return null;
+            }
+        }
+
         #endregion
 
         #region Market depth
@@ -3171,10 +3265,7 @@ namespace OsEngine.Market.Servers
         /// </summary>
         private string _depthsArrayLocker = "depthsLocker";
 
-        /// <summary>
-        /// last bid and ask values by securities
-        /// </summary>
-        private List<BidAskSender> _lastBidAskValues = new List<BidAskSender>();
+        private Dictionary<string, BidAskSender> _lastBidAskValuesDictionary = new Dictionary<string, BidAskSender>();
 
         /// <summary>
         /// new depth event
@@ -3281,48 +3372,26 @@ namespace OsEngine.Market.Servers
                 return;
             }
 
-            Security sec = GetSecurityForName(newMarketDepth.SecurityNameCode, "");
+            BidAskSender newSender = null;
 
-            if (sec == null)
+            if (!_lastBidAskValuesDictionary.TryGetValue(newMarketDepth.SecurityNameCode, out newSender))
             {
-                return;
-            }
+                Security sec = GetSecurityForName(newMarketDepth.SecurityNameCode, "");
 
-            for (int i = 0; i < _lastBidAskValues.Count; i++)
-            {
-                if (_lastBidAskValues[i].Security.Name == sec.Name)
+                if (sec == null)
                 {
-                    if (_lastBidAskValues[i].Bid == bestBid &&
-                        _lastBidAskValues[i].Ask == bestAsk)
-                    {
-                        return;
-                    }
+                    return;
                 }
+
+                newSender = new BidAskSender();
+                newSender.Security = sec;
+                _lastBidAskValuesDictionary.Add(sec.Name, newSender);
             }
 
-            BidAskSender newSender = new BidAskSender();
             newSender.Bid = bestBid;
             newSender.Ask = bestAsk;
-            newSender.Security = sec;
 
             _bidAskToSend.Enqueue(newSender);
-
-            bool isInArray = false;
-
-            for (int i = 0; i < _lastBidAskValues.Count; i++)
-            {
-                if (_lastBidAskValues[i].Security.Name == sec.Name)
-                {
-                    _lastBidAskValues[i] = newSender;
-                    isInArray = true;
-                    break;
-                }
-            }
-
-            if (isInArray == false)
-            {
-                _lastBidAskValues.Add(newSender);
-            }
         }
 
         /// <summary>
@@ -4702,11 +4771,27 @@ namespace OsEngine.Market.Servers
 
                 if (!_nonTradePeriods.CanTradeThisTime(DateTime.Now))
                 {
-                    _isNonTradingPeriodNow = true;
+                    if(_isNonTradingPeriodNow != true)
+                    {
+                        _isNonTradingPeriodNow = true;
+
+                        if (ConnectStatusChangeEvent != null)
+                        {
+                            ConnectStatusChangeEvent(_serverConnectStatus.ToString());
+                        }
+                    }
                 }
                 else
                 {
-                    _isNonTradingPeriodNow = false;
+                    if (_isNonTradingPeriodNow != false)
+                    {
+                        _isNonTradingPeriodNow = false;
+
+                        if (ConnectStatusChangeEvent != null)
+                        {
+                            ConnectStatusChangeEvent(_serverConnectStatus.ToString());
+                        }
+                    }
                 }
             }
             catch (Exception ex)

@@ -51,6 +51,11 @@ namespace OsEngine.Market.Servers
         void Dispose();
 
         /// <summary>
+        /// Connector object has been completely deleted
+        /// </summary>
+        bool IsCompletelyDeleted { get; set; }
+
+        /// <summary>
         /// API connection established
         /// </summary>
         event Action ConnectEvent;
@@ -161,6 +166,14 @@ namespace OsEngine.Market.Servers
         /// Take ticks data for period
         /// </summary>
         List<Trade> GetTickDataToSecurity(Security security, DateTime startTime, DateTime endTime, DateTime actualTime);
+
+        /// <summary>
+        /// take historical depths .qsh format
+        /// </summary>
+        List<string> GetQshHistoryFileToSecurity(Security security, DateTime startTime, DateTime endTime, DateTime actualTime)
+        {
+            return null;
+        }
 
         #endregion
 

@@ -104,7 +104,7 @@ namespace OsEngine.OsTrader.Panels.Tab
 
                 LoadSecurityOnBox();
 
-                LoadPortfolioOnBox();
+                LoadPortfolioOnBox(true);
 
                 ComboBoxClass.SelectionChanged += ComboBoxClass_SelectionChanged;
 
@@ -366,6 +366,11 @@ namespace OsEngine.OsTrader.Panels.Tab
                     securities.Add(sec);
                 }
 
+                if (CheckRemoveSecurity(_screener.SecuritiesNames, securities))
+                {
+                    return;
+                }
+
                 _screener.SecuritiesNames = securities;
                 _screener.SaveSettings();
 
@@ -377,6 +382,50 @@ namespace OsEngine.OsTrader.Panels.Tab
             {
                 SendNewLogMessage(error.ToString(), LogMessageType.Error);
             }
+        }
+
+
+        private bool CheckRemoveSecurity(List<ActivatedSecurity> oldSecurities, List<ActivatedSecurity> newSecurities)
+        {
+            List<ActivatedSecurity> securitiesToRemove = new List<ActivatedSecurity>();
+
+            for (int i = 0; i < oldSecurities.Count; i++)
+            {
+                ActivatedSecurity security = oldSecurities[i];
+
+                if (security.IsOn == false)
+                {
+                    continue;
+                }
+
+                if (newSecurities.Find(s =>
+                s.SecurityName == security.SecurityName
+                && s.IsOn == true) == null)
+                {
+                    securitiesToRemove.Add(security);
+                }
+            }
+
+            if (securitiesToRemove.Count > 0)
+            {
+                string message = OsLocalization.Trader.Label637 + " \n";
+
+                for (int i = 0; i < securitiesToRemove.Count; i++)
+                {
+                    message += securitiesToRemove[i].SecurityName + ", ";
+                }
+
+                AcceptDialogUi ui = new AcceptDialogUi(message);
+
+                ui.ShowDialog();
+
+                if (ui.UserAcceptAction == false)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void ComboBoxCandleMarketDataType_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -481,7 +530,7 @@ namespace OsEngine.OsTrader.Panels.Tab
                     server.PortfoliosChangeEvent += server_PortfoliosChangeEvent;
                 }
 
-                LoadPortfolioOnBox();
+                LoadPortfolioOnBox(true);
                 LoadClassOnBox();
                 LoadSecurityOnBox();
             }
@@ -523,7 +572,7 @@ namespace OsEngine.OsTrader.Panels.Tab
 
         private void server_PortfoliosChangeEvent(List<Portfolio> portfolios)
         {
-            LoadPortfolioOnBox();
+            LoadPortfolioOnBox(false);
         }
 
         private void server_SecuritiesChangeEvent(List<Security> securities)
@@ -538,7 +587,7 @@ namespace OsEngine.OsTrader.Panels.Tab
             TryUpdateTimeFramePermissions();
         }
 
-        private void LoadPortfolioOnBox()
+        private void LoadPortfolioOnBox(bool hard)
         {
             try
             {
@@ -557,9 +606,42 @@ namespace OsEngine.OsTrader.Panels.Tab
 
                 if (!ComboBoxClass.CheckAccess())
                 {
-                    ComboBoxClass.Dispatcher.Invoke(LoadPortfolioOnBox);
+                    ComboBoxClass.Dispatcher.Invoke(new Action<bool>(LoadPortfolioOnBox), hard);
                     return;
                 }
+
+                // 1 проверяем, что список портфелей обновился. Если нет - выходим из метода
+
+                if (hard == false)
+                {
+                    List<string> portfoliosInComboBox = new List<string>();
+
+                    for (int i = 0; i < ComboBoxPortfolio.Items.Count; i++)
+                    {
+                        portfoliosInComboBox.Add(ComboBoxPortfolio.Items[i].ToString());
+                    }
+
+                    List<Portfolio> portfoliosInServer = server.Portfolios;
+
+                    bool haveMistPortfolio = false;
+
+                    for (int i = 0; portfoliosInServer != null && i < portfoliosInServer.Count; i++)
+                    {
+                        string currentPort = portfoliosInServer[i].Number.ToString();
+
+                        if (portfoliosInComboBox.Find(p => p == currentPort) == null)
+                        {
+                            haveMistPortfolio = true;
+                        }
+                    }
+
+                    if (haveMistPortfolio == false)
+                    {
+                        return;
+                    }
+                }
+
+                // 2 устанавливаем новый список порфелей в комбо-бокс
 
                 string curPortfolio = null;
 

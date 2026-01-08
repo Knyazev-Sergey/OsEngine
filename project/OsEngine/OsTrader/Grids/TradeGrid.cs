@@ -32,7 +32,8 @@ namespace OsEngine.OsTrader.Grids
             }
            
             Tab.NewTickEvent += Tab_NewTickEvent;
-            Tab.PositionOpeningSuccesEvent += Tab_PositionOpeningSuccesEvent; 
+            Tab.PositionOpeningSuccesEvent += Tab_PositionOpeningSuccesEvent;
+            Tab.PositionClosingSuccesEvent += Tab_PositionClosingSuccesEvent;
             Tab.PositionStopActivateEvent += Tab_PositionStopActivateEvent;
             Tab.PositionProfitActivateEvent += Tab_PositionProfitActivateEvent;
             Tab.Connector.TestStartEvent += Connector_TestStartEvent;
@@ -249,6 +250,7 @@ namespace OsEngine.OsTrader.Grids
             {
                 Tab.NewTickEvent -= Tab_NewTickEvent;
                 Tab.PositionOpeningSuccesEvent -= Tab_PositionOpeningSuccesEvent;
+                Tab.PositionClosingSuccesEvent -= Tab_PositionClosingSuccesEvent;
                 Tab.PositionStopActivateEvent -= Tab_PositionStopActivateEvent;
                 Tab.PositionProfitActivateEvent -= Tab_PositionProfitActivateEvent;
                 Tab.Connector.TestStartEvent -= Connector_TestStartEvent;
@@ -706,6 +708,7 @@ namespace OsEngine.OsTrader.Grids
         {
             if (Regime != TradeGridRegime.Off)
             {
+                
                 bool isInArray = false;
 
                 for(int i = 0;i < GridCreator.Lines.Count;i++)
@@ -725,6 +728,27 @@ namespace OsEngine.OsTrader.Grids
                     _openPositionsBySession++;
                     _needToSave = true;
                 }
+            }
+
+            if(Regime == TradeGridRegime.On)
+            {
+                _firstPositionIsOpen = true;
+            }
+            else
+            {
+                _firstPositionIsOpen = false;
+            }
+        }
+
+        private void Tab_PositionClosingSuccesEvent(Position position)
+        {
+            if (Regime == TradeGridRegime.On)
+            {
+                _firstPositionIsOpen = true;
+            }
+            else
+            {
+                _firstPositionIsOpen = false;
             }
         }
 
@@ -804,6 +828,8 @@ namespace OsEngine.OsTrader.Grids
             if (baseRegime == TradeGridRegime.Off ||
                 baseRegime == TradeGridRegime.OffAndCancelOrders)
             {
+                _firstPositionIsOpen = false;
+
                 if (StartProgram == StartProgram.IsOsTrader)
                 {
                     if (_vacationTime > DateTime.Now)
@@ -1048,7 +1074,7 @@ namespace OsEngine.OsTrader.Grids
 
             TryFindPositionsInJournalAfterReconnect();
             TryDeleteOpeningFailPositions();
-
+            
             // 2 удаляем ордера стоящие не на своём месте
 
             int countRejectOrders = TryRemoveWrongOrders();
@@ -1073,6 +1099,21 @@ namespace OsEngine.OsTrader.Grids
 
                     // 3 проверяем выставлены ли закрытия
                     TrySetStopAndProfit();
+
+                    // 4 проверяем лимитки за закрытие по профиту
+                    if(StopAndProfit.ProfitRegime == OnOffRegime.On)
+                    {
+                        TrySetLimitProfit();
+
+                        if (StopAndProfit.StopTradingAfterProfit == true)
+                        {
+                            CheckStopTradingAfterProfit();
+                        }
+                        else
+                        {
+                            TryDeleteDonePositions();
+                        }
+                    }
                 }
                 else if(_firstStopIsActivate == true)
                 {
@@ -1184,6 +1225,8 @@ namespace OsEngine.OsTrader.Grids
 
         private DateTime _firstStopActivateTime;
 
+        private bool _firstPositionIsOpen = false;
+
         private void Tab_PositionProfitActivateEvent(Position obj)
         {
             if (_firstStopIsActivate == false)
@@ -1199,6 +1242,134 @@ namespace OsEngine.OsTrader.Grids
             {
                 _firstStopIsActivate = true;
                 _firstStopActivateTime = Tab.TimeServerCurrent;
+            }
+        }
+
+        private void TrySetLimitProfit()
+        {
+            // 1 проверяем отзыв не правильных лимиток
+
+            int countRejectOrders  = TryCancelWrongCloseProfitOrders();
+
+            if (countRejectOrders > 0)
+            {
+                _vacationTime = DateTime.Now.AddMilliseconds(DelayInReal * countRejectOrders);
+                return;
+            }
+
+            // 2 выставляем лимитки 
+
+            TrySetClosingProfitOrders(Tab.PriceBestAsk);
+
+        }
+
+        private int TryCancelWrongCloseProfitOrders()
+        {
+            List<TradeGridLine> lines = GetLinesWithClosingOrdersFact();
+
+            int cancelledOrders = 0;
+
+            for (int i = 0; i < lines.Count; i++)
+            {
+                TradeGridLine line = lines[i];
+
+                if (line.Position == null
+                    || line.Position.CloseActive == false)
+                {
+                    continue;
+                }
+
+                Order order = lines[i].Position.CloseOrders[^1];
+
+                if (order.NumberMarket != null
+                    && order.LastCancelTryLocalTime.AddSeconds(5) < DateTime.Now)
+                {
+                    if(order.Price != line.Position.ProfitOrderPrice
+                        || order.Volume - order.VolumeExecute != line.Position.OpenVolume)
+                    {
+                        Tab.CloseOrder(order);
+                        cancelledOrders++;
+                    }
+                }
+            }
+           
+            return cancelledOrders;
+        }
+
+        private void TrySetClosingProfitOrders(decimal lastPrice)
+        {
+            List<TradeGridLine> linesOpenPoses = GetLinesWithOpenPosition();
+
+            for (int i = 0; i < linesOpenPoses.Count; i++)
+            {
+                Position pos = linesOpenPoses[i].Position;
+                TradeGridLine line = linesOpenPoses[i];
+
+                if (pos.CloseActive == true)
+                {
+                    continue;
+                }
+
+                if(pos.ProfitOrderPrice == 0)
+                {
+                    continue;
+                }
+
+                decimal volume = pos.OpenVolume;
+
+                if (CheckMicroVolumes == true
+                    && Tab.CanTradeThisVolume(volume) == false)
+                {
+                    continue;
+                }
+
+                if (Tab.Security.PriceLimitHigh != 0
+                 && Tab.Security.PriceLimitLow != 0)
+                {
+                    if (line.PriceExit > Tab.Security.PriceLimitHigh
+                        || line.PriceExit < Tab.Security.PriceLimitLow)
+                    {
+                        continue;
+                    }
+                }
+
+                if (Tab.StartProgram == StartProgram.IsOsTrader
+                    && MaxDistanceToOrdersPercent != 0
+                    && lastPrice != 0)
+                {
+                    decimal maxPriceUp = lastPrice + lastPrice * (MaxDistanceToOrdersPercent / 100);
+                    decimal minPriceDown = lastPrice - lastPrice * (MaxDistanceToOrdersPercent / 100);
+
+                    if (line.PriceExit > maxPriceUp
+                     || line.PriceExit < minPriceDown)
+                    {
+                        continue;
+                    }
+                }
+
+                Tab.CloseAtLimitUnsafe(pos, pos.ProfitOrderPrice, volume);
+            }
+        }
+
+        private void CheckStopTradingAfterProfit()
+        {
+            List<TradeGridLine> linesOpenPoses = GetLinesWithOpenPosition();
+
+            // И если линий с открытыми позами нет - переключаемся в CloseForced
+
+            if(linesOpenPoses == null
+                || linesOpenPoses.Count == 0)
+            {
+                if(_firstPositionIsOpen == true)
+                {
+                    Regime = TradeGridRegime.CloseForced;
+
+                    string message = "Grid is stop by Profit. \n";
+                    message += "Stop trading" + "\n";
+                    message += "New regime: CloseForced";
+
+                    SendNewLogMessage(message, LogMessageType.Signal);
+                }
             }
         }
 
@@ -1629,7 +1800,6 @@ namespace OsEngine.OsTrader.Grids
             }
         }
 
-
         private void CheckWrongCloseOrders()
         {
             if(Tab.StartProgram != StartProgram.IsOsTrader)
@@ -1750,11 +1920,29 @@ namespace OsEngine.OsTrader.Grids
 
                 if (curLineNeed.Side == Side.Buy)
                 {
-                    newPosition = Tab.BuyAtLimit(volume, curLineNeed.PriceEnter);
+                    decimal price = curLineNeed.PriceEnter;
+
+                    if(OpenOrdersMakerOnly == false
+                        && Tab.Security.PriceLimitHigh != 0
+                        && price >= Tab.Security.PriceLimitHigh)
+                    {
+                        price = Tab.Security.PriceLimitHigh - (Tab.Security.PriceStep*10);
+                    }
+
+                    newPosition = Tab.BuyAtLimit(volume, price);
                 }
                 else if (curLineNeed.Side == Side.Sell)
                 {
-                    newPosition = Tab.SellAtLimit(volume, curLineNeed.PriceEnter);
+                    decimal price = curLineNeed.PriceEnter;
+
+                    if (OpenOrdersMakerOnly == false
+                        && Tab.Security.PriceLimitLow != 0
+                        && price <= Tab.Security.PriceLimitLow)
+                    {
+                        price = Tab.Security.PriceLimitLow + (Tab.Security.PriceStep * 10);
+                    }
+
+                    newPosition = Tab.SellAtLimit(volume, price);
                 }
 
                 if (newPosition != null)
@@ -2379,8 +2567,23 @@ namespace OsEngine.OsTrader.Grids
                     if(Tab.Security.PriceLimitHigh != 0 
                         && Tab.Security.PriceLimitLow != 0)
                     {
-                        if(curLine.PriceEnter > Tab.Security.PriceLimitHigh 
-                            || curLine.PriceEnter <  Tab.Security.PriceLimitLow)
+                        if(OpenOrdersMakerOnly == true
+                            &&
+                            (curLine.PriceEnter > Tab.Security.PriceLimitHigh 
+                            || curLine.PriceEnter <  Tab.Security.PriceLimitLow))
+                        {
+                            continue;
+                        }
+
+                        if(OpenOrdersMakerOnly == false 
+                            && curLine.Side == Side.Buy
+                            && curLine.PriceEnter < Tab.Security.PriceLimitLow)
+                        {
+                            continue;
+                        }
+                        if (OpenOrdersMakerOnly == false
+                            && curLine.Side == Side.Sell
+                            && curLine.PriceEnter > Tab.Security.PriceLimitHigh)
                         {
                             continue;
                         }

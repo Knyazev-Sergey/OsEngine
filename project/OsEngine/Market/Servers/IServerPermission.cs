@@ -46,6 +46,12 @@ namespace OsEngine.Market.Servers
 
         bool DataFeedTfMarketDepthCanLoad { get; }
 
+        bool DataFeedTfMarketDepthHistoryCanLoad
+        {
+            get { return false; }
+
+        }
+
         #endregion
 
         #region Trade Permissions
@@ -107,6 +113,8 @@ namespace OsEngine.Market.Servers
         decimal Leverage_StandardValue { get; }
 
         string[] Leverage_SupportClasses { get; }
+
+        bool CanChangeOrderMarketNumber { get; }
 
         #endregion
     }

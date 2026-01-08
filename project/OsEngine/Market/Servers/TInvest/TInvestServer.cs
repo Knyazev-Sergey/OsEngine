@@ -396,6 +396,8 @@ namespace OsEngine.Market.Servers.TInvest
 
         public event Action DisconnectEvent;
 
+        public bool IsCompletelyDeleted { get; set; }
+
         #endregion
 
         #region 2 Properties
@@ -585,6 +587,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     newSecurity.State = SecurityStateType.Activ;
                     _securities.Add(newSecurity);
+                    _securitiesDictionary.Add(newSecurity.NameId, newSecurity);
                 }
 
             }
@@ -639,6 +642,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     newSecurity.State = SecurityStateType.Activ;
                     _securities.Add(newSecurity);
+                    _securitiesDictionary.Add(newSecurity.NameId, newSecurity);
                 }
 
             }
@@ -692,6 +696,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     newSecurity.State = SecurityStateType.Activ;
                     _securities.Add(newSecurity);
+                    _securitiesDictionary.Add(newSecurity.NameId, newSecurity);
                 }
             }
             catch (Exception e)
@@ -732,6 +737,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     newSecurity.State = SecurityStateType.Activ;
                     _securities.Add(newSecurity);
+                    _securitiesDictionary.Add(newSecurity.NameId, newSecurity);
                 }
 
             }
@@ -787,6 +793,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     newSecurity.State = SecurityStateType.Activ;
                     _securities.Add(newSecurity);
+                    _securitiesDictionary.Add(newSecurity.NameId, newSecurity);
                 }
 
             }
@@ -852,6 +859,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     newSecurity.State = SecurityStateType.Activ;
                     _securities.Add(newSecurity);
+                    _securitiesDictionary.Add(newSecurity.NameId, newSecurity);
                 }
 
             }
@@ -907,6 +915,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     newSecurity.State = SecurityStateType.Activ;
                     _securities.Add(newSecurity);
+                    _securitiesDictionary.Add(newSecurity.NameId, newSecurity);
                 }
             }
             catch (Exception e)
@@ -916,6 +925,20 @@ namespace OsEngine.Market.Servers.TInvest
         }
 
         private List<Security> _securities = new List<Security>();
+
+        private Dictionary<string, Security> _securitiesDictionary = new Dictionary<string, Security>();
+
+        private Security GetSecurityByIdFast(string instrumentId)
+        {
+            Security mySecurity = null;
+
+            if (_securitiesDictionary.TryGetValue(instrumentId, out mySecurity))
+            {
+                return mySecurity;
+            }
+
+            return null;
+        }
 
         public event Action<List<Security>> SecurityEvent;
 
@@ -2313,7 +2336,7 @@ namespace OsEngine.Market.Servers.TInvest
 
         private Dictionary<string, OpenInterest> _openInterestData = new Dictionary<string, OpenInterest>(); // save open interest data to use later in trade updates
 
-        private async void DataMessageReader()
+        private void DataMessageReader()
         {
             Thread.Sleep(1000);
 
@@ -2333,7 +2356,7 @@ namespace OsEngine.Market.Servers.TInvest
                         continue;
                     }
 
-                    if (await _marketDataStream.ResponseStream.MoveNext() == false)
+                    if (_marketDataStream.ResponseStream.MoveNext().Result == false)
                     {
                         Thread.Sleep(1);
                         continue;
@@ -2363,7 +2386,7 @@ namespace OsEngine.Market.Servers.TInvest
                     
                     if (marketDataResponse.OpenInterest != null)
                     {
-                        Security security = GetSecurity(marketDataResponse.OpenInterest.InstrumentUid);
+                        Security security = GetSecurityByIdFast(marketDataResponse.OpenInterest.InstrumentUid);
                         if (security == null)
                             continue;
 
@@ -2378,7 +2401,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     if (marketDataResponse.Trade != null)
                     {
-                        Security security = GetSecurity(marketDataResponse.Trade.InstrumentUid);
+                        Security security = GetSecurityByIdFast(marketDataResponse.Trade.InstrumentUid);
                         if (security == null)
                             continue;
 
@@ -2430,7 +2453,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     if (marketDataResponse.Orderbook != null)
                     {
-                        Security security = GetSecurity(marketDataResponse.Orderbook.InstrumentUid);
+                        Security security = GetSecurityByIdFast(marketDataResponse.Orderbook.InstrumentUid);
                         if (security == null)
                             continue;
 
@@ -2639,7 +2662,7 @@ namespace OsEngine.Market.Servers.TInvest
 
         private void ProcessLastPrice(LastPrice price)
         {
-            Security mySec = GetSecurity(price.InstrumentUid);
+            Security mySec = GetSecurityByIdFast(price.InstrumentUid);
 
             if (price.Price == null)
                 return;
@@ -3136,7 +3159,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     if (orderStateResponse.OrderState != null)
                     {
-                        Security security = GetSecurity(orderStateResponse.OrderState.InstrumentUid);
+                        Security security = GetSecurityByIdFast(orderStateResponse.OrderState.InstrumentUid);
                         OrderStateStreamResponse.Types.OrderState state = orderStateResponse.OrderState;
 
                         if (security == null)
@@ -3233,6 +3256,20 @@ namespace OsEngine.Market.Servers.TInvest
                             }
                         }
 
+                       /* SendLogMessage("New order state. Security: " + order.SecurityNameCode
+                            + "\n NumberUser: " + order.NumberUser
+                            + "\n State: " + order.State
+                            + "\n NumberMarket: " + order.NumberMarket, LogMessageType.System);*/
+
+                        if (IsCancelOrderInClearing(order))
+                        {   // это у нас отзыв ордера в клиринг вечерний. Фьючерсная площадка
+                            // после этого ордера должны будут восстановиться
+                           /* SendLogMessage("Ордер пропущен в клиринг. Security: " + order.SecurityNameCode
+                              + "\n NumberUser: " + order.NumberUser
+                              + "\n NumberMarket: " + order.NumberMarket, LogMessageType.System);*/
+                            continue;
+                        }
+
                         if (order.State == OrderStateType.Done ||
                             order.State == OrderStateType.Fail ||
                             order.State == OrderStateType.Cancel)
@@ -3325,6 +3362,35 @@ namespace OsEngine.Market.Servers.TInvest
                     Thread.Sleep(5000);
                 }
             }
+        }
+
+        private bool IsCancelOrderInClearing(Order order)
+        {
+            if(order.State != OrderStateType.Cancel)
+            {
+                return false;
+            }
+
+            DateTime time = DateTime.Now.ToUniversalTime().AddHours(3);
+
+            if(time.DayOfWeek == DayOfWeek.Sunday
+                || time.DayOfWeek == DayOfWeek.Saturday)
+            {
+                return false;
+            }
+
+            if(time.Hour == 18 
+                && time.Minute >= 50)
+            {
+                return true;
+            }
+            else if(time.Hour == 19 
+                && time.Minute < 4)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private DateTime _lastErrorMessageOnReconnectTime;
@@ -3931,7 +3997,7 @@ namespace OsEngine.Market.Servers.TInvest
                     for (int i = 0; i < response.Orders.Count; i++)
                     {
                         OrderState state = response.Orders[i];
-                        Security security = GetSecurity(state.InstrumentUid);
+                        Security security = GetSecurityByIdFast(state.InstrumentUid);
 
                         if(security == null)
                         {
@@ -4168,18 +4234,6 @@ namespace OsEngine.Market.Servers.TInvest
             }
 
             return message;
-        }
-        private Security GetSecurity(string instrumentId)
-        {
-            for (int i = 0; i < _securities.Count; i++)
-            {
-                if (_securities[i].NameId == instrumentId)
-                {
-                    return _securities[i];
-                }
-            }
-
-            return null;
         }
 
         private Quotation ConvertToQuotation(decimal value)

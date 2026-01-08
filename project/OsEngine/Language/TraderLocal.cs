@@ -2446,5 +2446,37 @@ namespace OsEngine.Language
         public string Label636 => OsLocalization.ConvertToLocString(
          "Eng:Single activation mode_" +
          "Ru:Режим одиночной активации_");
+
+        public string Label637 => OsLocalization.ConvertToLocString(
+         "Eng:Are you sure you want to delete the securities listed below? All data will be lost!_" +
+         "Ru:Вы уверены что хотите удалить бумаги перечисленные ниже? Все данные по ним будут утеряны!_");
+
+        public string Label638 => OsLocalization.ConvertToLocString(
+         "Eng:Active >_" +
+         "Ru:Активен >_");
+
+        public string Label639 => OsLocalization.ConvertToLocString(
+         "Eng:Posts collection_" +
+         "Ru:Сборник статей_");
+
+        public string Label640 => OsLocalization.ConvertToLocString(
+         "Eng:Description_" +
+         "Ru:Описание_");
+
+        public string Label641 => OsLocalization.ConvertToLocString(
+         "Eng:Link_" +
+         "Ru:Ссылка_");
+
+        public string Label642 => OsLocalization.ConvertToLocString(
+         "Eng:Open_" +
+         "Ru:Перейти_");
+
+        public string Label643 => OsLocalization.ConvertToLocString(
+         "Eng:Instruction_" +
+         "Ru:Инструкции_");
+
+        public string Label644 => OsLocalization.ConvertToLocString(
+         "Eng:Stop trade by profit_" +
+         "Ru:Стоп-торги после профита_");
     }
 }

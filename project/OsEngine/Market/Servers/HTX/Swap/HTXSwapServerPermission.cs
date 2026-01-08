@@ -253,7 +253,7 @@ namespace OsEngine.Market.Servers.HTX.Swap
 
         public bool IsSupports_ProxyFor_MultipleInstances
         {
-            get { return false; }
+            get { return true; }
         }
 
         public bool IsSupports_AsyncOrderSending
@@ -300,6 +300,11 @@ namespace OsEngine.Market.Servers.HTX.Swap
         }
 
         public string[] Leverage_SupportClasses { get; }
+
+        public bool CanChangeOrderMarketNumber
+        {
+            get { return false; }
+        }
 
         #endregion
     }

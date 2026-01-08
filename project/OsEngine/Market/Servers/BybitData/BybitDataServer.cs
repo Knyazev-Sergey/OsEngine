@@ -80,6 +80,8 @@ namespace OsEngine.Market.Servers.BybitData
 
         public event Action ForceCheckOrdersAfterReconnectEvent { add { } remove { } }
 
+        public bool IsCompletelyDeleted { get; set; }
+
         #endregion
 
         #region 2 Properties
@@ -440,10 +442,12 @@ namespace OsEngine.Market.Servers.BybitData
                         string csvFilePath = GetSCVFileFromArchive(gzipArchivePath);
 
                         trades.AddRange(ParseCsvFileToTrades(csvFilePath, security));
+
+                        SendLogMessage($"Load data. File: " + archivesNames[i], LogMessageType.System);
                     }
                     else
                     {
-                        return null;
+                        SendLogMessage($"No data. File: " + archivesNames[i], LogMessageType.System);
                     }
                 }
 

@@ -63,29 +63,32 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
             ServerStatus = ServerConnectStatus.Disconnect;
 
             Thread threadForPublicMessages = new Thread(PublicMessageReader);
-            threadForPublicMessages.IsBackground = true;
             threadForPublicMessages.Name = "PublicMessageReaderKuCoin";
             threadForPublicMessages.Start();
 
             Thread threadForPrivateMessages = new Thread(PrivateMessageReader);
-            threadForPrivateMessages.IsBackground = true;
             threadForPrivateMessages.Name = "PrivateMessageReaderKuCoin";
             threadForPrivateMessages.Start();
 
             Thread threadCheckAliveWebSocket = new Thread(CheckAliveWebSocket);
-            threadCheckAliveWebSocket.IsBackground = true;
             threadCheckAliveWebSocket.Name = "CheckAliveWebSocketKuCoinFutures";
             threadCheckAliveWebSocket.Start();
 
             Thread threadGetPortfolios = new Thread(ThreadGetPortfolios);
-            threadGetPortfolios.IsBackground = true;
             threadGetPortfolios.Name = "ThreadKuCoinFuturesPortfolios";
             threadGetPortfolios.Start();
 
             Thread threadExtendedData = new Thread(ThreadExtendedData);
-            threadExtendedData.IsBackground = true;
             threadExtendedData.Name = "ThreadKuCoinFuturesExtendedData";
             threadExtendedData.Start();
+
+            Thread threadMarketDepthParsing = new Thread(ThreadMarketDepthParsing);
+            threadMarketDepthParsing.Name = "ThreadKuCoinFuturesMarketDepthParsing";
+            threadMarketDepthParsing.Start();
+
+            Thread threadTradesParsing = new Thread(ThreadTradesParsing);
+            threadTradesParsing.Name = "ThreadKuCoinFuturesTradesParsing";
+            threadTradesParsing.Start();
         }
 
         public void Connect(WebProxy proxy)
@@ -171,6 +174,8 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
 
             _webSocketPublicMessages = new ConcurrentQueue<string>();
             _webSocketPrivateMessages = new ConcurrentQueue<string>();
+            _queueMarketDepths = new ConcurrentQueue<string>();
+            _queueTrades = new ConcurrentQueue<string>();
 
             Disconnect();
         }
@@ -198,6 +203,8 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
         public event Action DisconnectEvent;
 
         public event Action ForceCheckOrdersAfterReconnectEvent { add { } remove { } }
+
+        public bool IsCompletelyDeleted { get; set; }
 
         #endregion
 
@@ -343,7 +350,7 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
                             }
                         }
 
-                        SecurityEvent(_securities);
+                        SecurityEvent?.Invoke(_securities);
                     }
                     else
                     {
@@ -371,13 +378,15 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
 
         private void ThreadGetPortfolios()
         {
-            Thread.Sleep(10000);
-
             while (true)
             {
+                if (IsCompletelyDeleted == true)
+                {
+                    return;
+                }
+
                 if (ServerStatus != ServerConnectStatus.Connect)
                 {
-                    Thread.Sleep(3000);
                     continue;
                 }
 
@@ -414,7 +423,7 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
 
                 Portfolios.Add(portfolioInitial);
 
-                PortfolioEvent(Portfolios);
+                PortfolioEvent?.Invoke(Portfolios);
             }
 
             for (int i = 0; i < _listCurrency.Count; i++)
@@ -458,7 +467,8 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
                         }
 
                         portfolio.SetNewPosition(pos);
-                        PortfolioEvent(Portfolios);
+
+                        PortfolioEvent?.Invoke(Portfolios);
                     }
                     else
                     {
@@ -521,7 +531,7 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
                             portfolio.SetNewPosition(pos);
                         }
 
-                        PortfolioEvent(Portfolios);
+                        PortfolioEvent?.Invoke(Portfolios);
                     }
                     else
                     {
@@ -1184,11 +1194,15 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
             {
                 try
                 {
+                    if (IsCompletelyDeleted == true)
+                    {
+                        return;
+                    }
+
                     Thread.Sleep(10000);
 
                     if (ServerStatus == ServerConnectStatus.Disconnect)
                     {
-                        Thread.Sleep(1000);
                         continue;
                     }
 
@@ -1429,9 +1443,13 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
         {
             while (true)
             {
+                if (IsCompletelyDeleted == true)
+                {
+                    return;
+                }
+
                 if (ServerStatus == ServerConnectStatus.Disconnect)
                 {
-                    Thread.Sleep(3000);
                     continue;
                 }
 
@@ -1559,131 +1577,212 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
 
         private ConcurrentQueue<string> _webSocketPublicMessages = new ConcurrentQueue<string>();
 
+        private ConcurrentQueue<string> _queueMarketDepths = new ConcurrentQueue<string>();
+
+        private ConcurrentQueue<string> _queueTrades = new ConcurrentQueue<string>();
+
         private ConcurrentQueue<string> _webSocketPrivateMessages = new ConcurrentQueue<string>();
 
         private void PublicMessageReader()
         {
-            Thread.Sleep(1000);
-
             while (true)
             {
                 try
                 {
-                    if (ServerStatus == ServerConnectStatus.Disconnect)
-                    {
-                        Thread.Sleep(2000);
-                        continue;
-                    }
-
                     if (_webSocketPublicMessages.IsEmpty)
                     {
+                        if (IsCompletelyDeleted == true)
+                        {
+                            return;
+                        }
+
                         Thread.Sleep(1);
-                        continue;
                     }
-
-                    string message;
-
-                    _webSocketPublicMessages.TryDequeue(out message);
-
-                    if (message == null)
+                    else
                     {
-                        continue;
-                    }
+                        string message;
 
-                    if (message.Equals("pong"))
-                    {
-                        continue;
-                    }
+                        _webSocketPublicMessages.TryDequeue(out message);
 
-                    ResponseWebSocketMessageAction<object> action = JsonConvert.DeserializeAnonymousType(message, new ResponseWebSocketMessageAction<object>());
-
-                    if (action.subject != null && action.type != "welcome")
-                    {
-                        if (action.subject.Equals("level2"))
+                        if (message == null)
                         {
-                            UpdateDepth(message);
                             continue;
                         }
-                        else if (action.subject.Equals("match"))
+
+                        if (message.Equals("pong"))
                         {
-                            UpdateTrade(message);
                             continue;
                         }
-                        else if (action.subject.Equals("funding.rate"))
+                        else if (message.Contains("welcome") == false)
                         {
-                            UpdateFundingRate(message);
-                            continue;
+                            if (message.Contains("level2"))
+                            {
+                                _queueMarketDepths.Enqueue(message);
+                            }
+                            else if (message.Contains("match"))
+                            {
+                                _queueTrades.Enqueue(message);
+                            }
+                            else
+                            {
+                                ResponseWebSocketMessageAction<object> action = JsonConvert.DeserializeAnonymousType(message, new ResponseWebSocketMessageAction<object>());
+
+                                if (action.subject != null && action.type != "welcome")
+                                {
+                                    if (action.subject.Equals("funding.rate"))
+                                    {
+                                        UpdateFundingRate(message);
+                                        continue;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
                 catch (Exception exception)
                 {
-                    Thread.Sleep(5000);
                     SendLogMessage(exception.ToString(), LogMessageType.Error);
+                    Thread.Sleep(5000);
+                }
+            }
+        }
+
+        private void ThreadTradesParsing()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (_queueTrades.IsEmpty)
+                    {
+                        if (IsCompletelyDeleted == true)
+                        {
+                            return;
+                        }
+
+                        Thread.Sleep(1);
+                    }
+                    else
+                    {
+                        string message = null;
+
+                        _queueTrades.TryDequeue(out message);
+
+                        if (message == null)
+                        {
+                            continue;
+                        }
+
+                        UpdateTrade(message);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    SendLogMessage(exception.ToString(), LogMessageType.Error);
+                    Thread.Sleep(5000);
+                }
+            }
+        }
+
+        private void ThreadMarketDepthParsing()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (_queueMarketDepths.IsEmpty)
+                    {
+                        if (IsCompletelyDeleted == true)
+                        {
+                            return;
+                        }
+
+                        Thread.Sleep(1);
+                    }
+                    else
+                    {
+                        string message = null;
+
+                        _queueMarketDepths.TryDequeue(out message);
+
+                        if (message == null)
+                        {
+                            continue;
+                        }
+
+                        MarketDepth marketDepth = UpdateDepth(message);
+
+                        if (marketDepth == null) continue;
+
+                        MarketDepthEvent?.Invoke(marketDepth);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    SendLogMessage(exception.ToString(), LogMessageType.Error);
+                    Thread.Sleep(5000);
                 }
             }
         }
 
         private void PrivateMessageReader()
         {
-            Thread.Sleep(1000);
-
             while (true)
             {
                 try
                 {
-                    if (ServerStatus == ServerConnectStatus.Disconnect)
-                    {
-                        Thread.Sleep(2000);
-                        continue;
-                    }
-
                     if (_webSocketPrivateMessages.IsEmpty)
                     {
+                        if (IsCompletelyDeleted == true)
+                        {
+                            return;
+                        }
+
                         Thread.Sleep(1);
-                        continue;
                     }
-
-                    string message;
-
-                    _webSocketPrivateMessages.TryDequeue(out message);
-
-                    if (message == null)
+                    else
                     {
-                        continue;
-                    }
+                        string message;
 
-                    if (message.Equals("pong"))
-                    {
-                        continue;
-                    }
+                        _webSocketPrivateMessages.TryDequeue(out message);
 
-                    ResponseWebSocketMessageAction<object> action = JsonConvert.DeserializeAnonymousType(message, new ResponseWebSocketMessageAction<object>());
-
-                    if (action.subject != null && action.type != "welcome")
-                    {
-                        if (action.subject.Equals("orderChange"))
+                        if (message == null)
                         {
-                            UpdateOrder(message);
                             continue;
                         }
 
-                        if (action.subject.Equals("symbolOrderChange"))
+                        if (message.Equals("pong"))
                         {
-                            UpdateOrder(message);
                             continue;
                         }
 
-                        if (action.subject.Equals("position.change"))
-                        {
-                            UpdatePosition(message);
-                            continue;
-                        }
+                        ResponseWebSocketMessageAction<object> action = JsonConvert.DeserializeAnonymousType(message, new ResponseWebSocketMessageAction<object>());
 
-                        if (action.subject.Equals("walletBalance.change"))
+                        if (action.subject != null && action.type != "welcome")
                         {
-                            UpdatePortfolio(message);
-                            continue;
+                            if (action.subject.Equals("orderChange"))
+                            {
+                                UpdateOrder(message);
+                                continue;
+                            }
+
+                            if (action.subject.Equals("symbolOrderChange"))
+                            {
+                                UpdateOrder(message);
+                                continue;
+                            }
+
+                            if (action.subject.Equals("position.change"))
+                            {
+                                UpdatePosition(message);
+                                continue;
+                            }
+
+                            if (action.subject.Equals("walletBalance.change"))
+                            {
+                                UpdatePortfolio(message);
+                                continue;
+                            }
                         }
                     }
                 }
@@ -1728,7 +1827,7 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
                     trade.OpenInterest = GetOpenInterestValue(trade.SecurityNameCode);
                 }
 
-                NewTradesEvent(trade);
+                NewTradesEvent?.Invoke(trade);
             }
             catch (Exception ex)
             {
@@ -1755,7 +1854,7 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
             return 0;
         }
 
-        private void UpdateDepth(string message)
+        private MarketDepth UpdateDepth(string message)
         {
             try
             {
@@ -1763,7 +1862,7 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
 
                 if (responseDepth.data == null)
                 {
-                    return;
+                    return null;
                 }
 
                 MarketDepth marketDepth = new MarketDepth();
@@ -1795,13 +1894,28 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
 
                 marketDepth.Time = TimeManager.GetDateTimeFromTimeStamp(Convert.ToInt64(responseDepth.data.timestamp));
 
-                MarketDepthEvent(marketDepth);
+                if (marketDepth.Time == DateTime.MinValue)
+                {
+                    return null;
+                }
+
+                if (marketDepth.Time <= _lastTimeMd)
+                {
+                    marketDepth.Time = _lastTimeMd.AddTicks(1);
+                }
+
+                _lastTimeMd = marketDepth.Time;
+
+                return marketDepth;
             }
             catch (Exception ex)
             {
                 SendLogMessage($"{ex.Message} {ex.StackTrace}", LogMessageType.Error);
+                return null;
             }
         }
+
+        private DateTime _lastTimeMd = DateTime.MinValue;
 
         private void UpdatePortfolio(string message)
         {
@@ -1818,7 +1932,8 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
                 pos.ValueCurrent = Portfolio.data.availableBalance.ToDecimal();
 
                 portfolio.SetNewPosition(pos);
-                PortfolioEvent(Portfolios);
+
+                PortfolioEvent?.Invoke(Portfolios);
             }
             catch (Exception ex)
             {
@@ -1855,7 +1970,8 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
 
                 pos.ValueCurrent = data.currentQty.ToDecimal() * GetVolume(data.symbol);
                 portfolio.SetNewPosition(pos);
-                PortfolioEvent(Portfolios);
+
+                PortfolioEvent?.Invoke(Portfolios);
             }
             catch (Exception ex)
             {
@@ -1934,10 +2050,10 @@ namespace OsEngine.Market.Servers.KuCoin.KuCoinFutures
                     myTrade.Side = item.side.Equals("buy") ? Side.Buy : Side.Sell;
                     myTrade.Volume = item.matchSize.ToDecimal() * GetVolume(item.symbol);
 
-                    MyTradeEvent(myTrade);
+                    MyTradeEvent?.Invoke(myTrade);
                 }
 
-                MyOrderEvent(newOrder);
+                MyOrderEvent?.Invoke(newOrder);
             }
             catch (Exception ex)
             {

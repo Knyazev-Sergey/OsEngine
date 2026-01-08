@@ -16,6 +16,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using OsEngine.Entity.WebSocketOsEngine;
+using System.Linq;
 
 namespace OsEngine.Market.Servers.Alor
 {
@@ -207,6 +208,8 @@ namespace OsEngine.Market.Servers.Alor
         public event Action DisconnectEvent;
 
         public event Action ForceCheckOrdersAfterReconnectEvent { add { } remove { } }
+
+        public bool IsCompletelyDeleted { get; set; }
 
         #endregion
 
@@ -468,7 +471,8 @@ namespace OsEngine.Market.Servers.Alor
                     {
                         newSecurity.NameClass = "Currency";
                     }
-                    else if (item.type == "CS")
+                    else if (item.type == "CS"
+                        || item.type == "PS")
                     {
                         if (item.board == "TQBR")
                         {
@@ -476,20 +480,20 @@ namespace OsEngine.Market.Servers.Alor
                         }
                         else if (item.board == "FQBR")
                         {
-                            newSecurity.NameClass = "Stock World";
+                            newSecurity.NameClass = "Stock FQBR";
+                        }
+                        else if (item.board == "MTQR")
+                        {
+                            newSecurity.NameClass = "Stock MTQR";
                         }
                         else 
                         {
-                            newSecurity.NameClass = "Stock";
+                            newSecurity.NameClass = "Stock Other";
                         }
                     }
 		            else if (item.type == "CORP")
                     {
                         newSecurity.NameClass = "Bond";
-                    }
-                    else if (item.type == "PS")
-                    {
-                        newSecurity.NameClass = "Stock";
                     }
                     else if (newSecurity.SecurityType == SecurityType.Fund)
                     {
@@ -790,6 +794,11 @@ namespace OsEngine.Market.Servers.Alor
             while (startTime < endTime)
             {
                 CandlesHistoryAlor history = GetHistoryCandle(security, timeFrameBuilder, startTime, endTimeReal);
+
+                if(history == null)
+                {
+                    break;
+                }
 
                 List<Candle> newCandles = ConvertToOsEngineCandles(history, timeFrameBuilder.TimeFrameTimeSpan.Days != 1);
 
@@ -1573,7 +1582,7 @@ namespace OsEngine.Market.Servers.Alor
                 tradeSub.SubType = AlorSubType.Trades;
                 tradeSub.ServiceInfo = security.Name;
                 tradeSub.Guid = subObjTrades.guid;
-                _subscriptionsData.Add(tradeSub);
+                _subscriptionsData.Add(subObjTrades.guid, tradeSub);
 
                 _webSocketData.SendAsync(messageTradeSub);
 
@@ -1598,7 +1607,7 @@ namespace OsEngine.Market.Servers.Alor
                 mdSub.SubType = AlorSubType.MarketDepth;
                 mdSub.ServiceInfo = security.Name;
                 mdSub.Guid = subObjMarketDepth.guid;
-                _subscriptionsData.Add(mdSub);
+                _subscriptionsData.Add(subObjMarketDepth.guid, mdSub);
 
                 string messageMdSub = JsonConvert.SerializeObject(subObjMarketDepth);
 
@@ -1627,11 +1636,13 @@ namespace OsEngine.Market.Servers.Alor
 
                 List<AlorSocketSubscription> subsToRemove = new List<AlorSocketSubscription>();
 
-                for (int i = 0; i < _subscriptionsData.Count; i++)
+                KeyValuePair<string, AlorSocketSubscription>[] pair = _subscriptionsData.ToArray();
+
+                for (int i = 0; i < pair.Length; i++)
                 {
-                    if (_subscriptionsData[i].ServiceInfo == security.Name)
+                    if (pair[i].Value.ServiceInfo == security.Name)
                     {
-                        subsToRemove.Add(_subscriptionsData[i]);
+                        subsToRemove.Add(pair[i].Value);
                     }
                 }
 
@@ -1649,7 +1660,7 @@ namespace OsEngine.Market.Servers.Alor
                         _webSocketData.SendAsync(message);
                     }
 
-                    _subscriptionsData.Remove(sub);
+                    _subscriptionsData.Remove(sub.Guid);
                 }
             }
             catch (Exception exception)
@@ -1671,7 +1682,7 @@ namespace OsEngine.Market.Servers.Alor
 
         #region 10 WebSocket parsing the messages
 
-        private List<AlorSocketSubscription> _subscriptionsData = new List<AlorSocketSubscription>();
+        private Dictionary<string, AlorSocketSubscription> _subscriptionsData = new Dictionary<string, AlorSocketSubscription>();
 
         private List<AlorSocketSubscription> _subscriptionsPortfolio = new List<AlorSocketSubscription>();
 
@@ -1707,31 +1718,26 @@ namespace OsEngine.Market.Servers.Alor
                         continue;
                     }
 
-                    SocketMessageBase baseMessage = 
-                        JsonConvert.DeserializeAnonymousType(message, new SocketMessageBase());
+                    string[] guidArray = message.Replace("guid", "^").Split('^');
 
-                    if(baseMessage == null 
-                        || string.IsNullOrEmpty(baseMessage.guid))
+                    if(guidArray.Length != 2)
                     {
                         continue;
                     }
 
-                    for(int i = 0;i < _subscriptionsData.Count;i++)
-                    {
-                        if (_subscriptionsData[i].Guid != baseMessage.guid)
-                        {
-                            continue;
-                        }
+                    string guid = guidArray[1].Replace("\":\"","").Replace("\" }","");
 
-                        if (_subscriptionsData[i].SubType == AlorSubType.Trades)
+                    AlorSocketSubscription subscription;
+
+                    if (_subscriptionsData.TryGetValue(guid, out subscription))
+                    {
+                        if (subscription.SubType == AlorSubType.Trades)
                         {
-                            UpDateTrade(baseMessage.data.ToString(), _subscriptionsData[i].ServiceInfo);
-                            break;
+                            UpDateTrade(message, subscription.ServiceInfo);
                         }
-                        else if (_subscriptionsData[i].SubType == AlorSubType.MarketDepth)
+                        else if (subscription.SubType == AlorSubType.MarketDepth)
                         {
-                            UpDateMarketDepth(message, _subscriptionsData[i].ServiceInfo);
-                            break;
+                            UpDateMarketDepth(message, subscription.ServiceInfo);
                         }
                     }
                 }
@@ -1745,10 +1751,12 @@ namespace OsEngine.Market.Servers.Alor
 
         private void UpDateTrade(string data, string secName)
         {
-            QuotesAlor baseMessage =
-            JsonConvert.DeserializeAnonymousType(data, new QuotesAlor());
+            QuotesAlorFullMessage baseMessageFull =
+                JsonConvert.DeserializeAnonymousType(data, new QuotesAlorFullMessage());
 
-            if(string.IsNullOrEmpty(baseMessage.timestamp))
+            QuotesAlor baseMessage = baseMessageFull.data;
+
+            if (string.IsNullOrEmpty(baseMessage.timestamp))
             {
                 return;
             }
@@ -2059,6 +2067,12 @@ namespace OsEngine.Market.Servers.Alor
                 }
             }
 
+            if (IsCancelOrderInClearing(order))
+            {   // это у нас отзыв ордера в клиринг вечерний. Фьючерсная площадка
+                // после этого ордера должны будут восстановиться
+                 return;
+            }
+
             if (MyOrderEvent != null)
             {
                 MyOrderEvent(order);
@@ -2104,6 +2118,35 @@ namespace OsEngine.Market.Servers.Alor
                     }
                 }
             }
+        }
+
+        private bool IsCancelOrderInClearing(Order order)
+        {
+            if (order.State != OrderStateType.Cancel)
+            {
+                return false;
+            }
+
+            DateTime time = DateTime.Now.ToUniversalTime().AddHours(3);
+
+            if (time.DayOfWeek == DayOfWeek.Sunday
+                || time.DayOfWeek == DayOfWeek.Saturday)
+            {
+                return false;
+            }
+
+            if (time.Hour == 18
+                && time.Minute >= 50)
+            {
+                return true;
+            }
+            else if (time.Hour == 19
+                && time.Minute < 4)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private bool TryGenerateFakeMyTradeToOrderBySpread(Order order)

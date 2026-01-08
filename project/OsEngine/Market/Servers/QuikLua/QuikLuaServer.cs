@@ -40,6 +40,9 @@ namespace OsEngine.Market.Servers.QuikLua
             CreateParameterString("Client code", null); // 7
             CreateParameterEnum(OsLocalization.Market.Label307, "T0", new List<string> { "T0", "T1", "T2", "NotImplemented" }); // 8
             CreateParameterBoolean(OsLocalization.Market.FullLogConnector, false); // 9
+            CreateParameterInt("Port", 34130); // 10
+            CreateParameterBoolean(OsLocalization.Market.PortfolioOnlyBots, false); // 11
+            CreateParameterString(OsLocalization.Market.PortfolioSeparator, "+"); // 12
 
             ServerParameters[0].Comment = OsLocalization.Market.Label107;
             ServerParameters[1].Comment = OsLocalization.Market.Label107;
@@ -51,6 +54,9 @@ namespace OsEngine.Market.Servers.QuikLua
             ServerParameters[7].Comment = OsLocalization.Market.Label121;
             ServerParameters[8].Comment = OsLocalization.Market.Label308;
             ServerParameters[9].Comment = OsLocalization.Market.Label309;
+            ServerParameters[10].Comment = OsLocalization.Market.Label310;
+            ServerParameters[11].Comment = OsLocalization.Market.Label311;
+            ServerParameters[12].Comment = OsLocalization.Market.Label312;
 
             ((ServerParameterBool)ServerParameters[0]).ValueChange += QuikLuaServer_ParametrValueChange;
             ((ServerParameterBool)ServerParameters[1]).ValueChange += QuikLuaServer_ParametrValueChange;
@@ -135,13 +141,23 @@ namespace OsEngine.Market.Servers.QuikLua
                     _useOther = (ServerParameterBool)ServerParameters[5];
                     string tradeMode = ((ServerParameterEnum)ServerParameters[8]).Value;
                     _fullLog = ((ServerParameterBool)ServerParameters[9]).Value;
+                    int port = ((ServerParameterInt)ServerParameters[10]).Value;
+                    _isOnlyBotsPortfolio = ((ServerParameterBool)ServerParameters[11]).Value;
+
+                    string portfolioSeparatorString = ((ServerParameterString)ServerParameters[12]).Value;
+                    if (portfolioSeparatorString.Length == 0)
+                        _portfolioSeparator = "+";
+                    else if (portfolioSeparatorString.Length == 1)
+                        _portfolioSeparator = portfolioSeparatorString;
+                    else if (portfolioSeparatorString.Length > 1)
+                        _portfolioSeparator = portfolioSeparatorString.ToCharArray()[0].ToString();
 
                     if (tradeMode == "T0") _tradeMode = 0;
                     else if (tradeMode == "T1") _tradeMode = 1;
                     else if (tradeMode == "T2") _tradeMode = 2;
                     else if (tradeMode == "NotImplemented") _tradeMode = 3;
 
-                    QuikLua = new Quik(Quik.DefaultPort, new InMemoryStorage());
+                    QuikLua = new Quik(port, new InMemoryStorage());
                     QuikLua.Events.OnConnected += EventsOnOnConnected;
                     QuikLua.Events.OnDisconnected += EventsOnOnDisconnected;
                     QuikLua.Events.OnConnectedToQuik += EventsOnOnConnectedToQuik;
@@ -275,6 +291,8 @@ namespace OsEngine.Market.Servers.QuikLua
 
         public event Action ForceCheckOrdersAfterReconnectEvent { add { } remove { } }
 
+        public bool IsCompletelyDeleted { get; set; }
+
         #endregion
 
         #region 2 Properties
@@ -303,6 +321,10 @@ namespace OsEngine.Market.Servers.QuikLua
 
         public bool _changeClassUse = false;
 
+        private bool _isOnlyBotsPortfolio;
+
+        private string _portfolioSeparator;
+
         private bool _fullLog;
 
         private RateGate _rateGateSendOrder = new RateGate(1, TimeSpan.FromMilliseconds(350));
@@ -310,6 +332,8 @@ namespace OsEngine.Market.Servers.QuikLua
         private RateGate _gateToGetCandles = new RateGate(1, TimeSpan.FromMilliseconds(500));
 
         private int _tradeMode;
+
+        private bool _needRequestPositions = false;
 
         private List<string> _clientCodes;
 
@@ -626,8 +650,8 @@ namespace OsEngine.Market.Servers.QuikLua
                     return;
                 }
 
-                if (_securities == null ||
-                    (_securities != null && _securities.Count == 0))
+                if (_isOnlyBotsPortfolio == false && _securities == null ||
+                    (_isOnlyBotsPortfolio == false && _securities != null && _securities.Count == 0))
                 {
                     return;
                 }
@@ -696,7 +720,7 @@ namespace OsEngine.Market.Servers.QuikLua
                     portfolio.ServerType = ServerType.QuikLua;
                     portfolio.UnrealizedPnl = futuresLimits[i].VarMargin.ToString().Replace('.', _separator).ToDecimal();
 
-                    portfolio.Number = futuresLimits[i].TrdAccId + "+" + futuresLimits[i].FirmId;
+                    portfolio.Number = futuresLimits[i].TrdAccId + _portfolioSeparator + futuresLimits[i].FirmId;
 
                     portfolio.ValueBegin = futuresLimits[i].CbpPrevLimit.ToString().Replace('.', _separator).ToDecimal();
                     portfolio.ValueCurrent = futuresLimits[i].CbpLimit.ToString().Replace('.', _separator).ToDecimal();
@@ -812,7 +836,7 @@ namespace OsEngine.Market.Servers.QuikLua
                         {
                             Portfolio myPortfolio = new Portfolio();
 
-                            myPortfolio.Number = accaunts[i].TrdaccId + "+" + _clientCodes[i3];
+                            myPortfolio.Number = accaunts[i].TrdaccId + _portfolioSeparator + _clientCodes[i3];
                             myPortfolio.ServerType = ServerType.QuikLua;
 
                             PortfolioInfoEx qPortfolio = QuikLua.Trading.GetPortfolioInfoEx(accaunts[i].Firmid, _clientCodes[i3], _tradeMode).Result;
@@ -861,7 +885,7 @@ namespace OsEngine.Market.Servers.QuikLua
                                 myPortfolio.UnrealizedPnl = profit.Remove(profit.Length - 4).ToDecimal();
                             }
 
-                            UpdateSpotPosition(spotPos, myPortfolio, money, qPortfolio, _clientCodes[i3]);
+                            UpdateSpotPosition(spotPos, myPortfolio, money, _clientCodes[i3]);
 
                             _portfolios.Add(myPortfolio);
                         }
@@ -902,12 +926,20 @@ namespace OsEngine.Market.Servers.QuikLua
                         {
                             if (_portfolios == null) continue;
 
-                            Portfolio needPortf = _portfolios.Find(p => p.Number.Split('+')[0] == depoLimitEx.TrdAccId &&
-                                p.Number.Split('+')[1] == depoLimitEx.ClientCode);
+                            Portfolio needPortf = _portfolios.Find(p => p.Number.Split(_portfolioSeparator)[0] == depoLimitEx.TrdAccId &&
+                                p.Number.Split(_portfolioSeparator)[1] == depoLimitEx.ClientCode);
 
                             if (needPortf == null) continue;
 
-                            Security sec = _securities.Find(sec => sec.Name.Split('+')[0] == depoLimitEx.SecCode);
+                            Security sec = null;
+                            if (_isOnlyBotsPortfolio == false)
+                                sec = _securities.Find(sec => sec.Name.Split('+')[0] == depoLimitEx.SecCode);
+                            else
+                            {
+                                sec = subscribedSecurities.Find(sec => sec.Name.Split('+')[0] == depoLimitEx.SecCode);
+                            }
+
+                            if (sec == null) continue;
 
                             LimitKind limitKind = LimitKind.T0;
 
@@ -946,7 +978,7 @@ namespace OsEngine.Market.Servers.QuikLua
                             for (int i = 0; _portfolios != null && i < _portfolios.Count; i++)
                             {
                                 Portfolio portfolio = _portfolios[i];
-                                if (moneyLimitEx.ClientCode == portfolio.Number.Split('+')[1])
+                                if (moneyLimitEx.ClientCode == portfolio.Number.Split(_portfolioSeparator)[1])
                                 {
                                     PortfolioInfoEx qPortfolio = QuikLua.Trading.GetPortfolioInfoEx(moneyLimitEx.FirmId, moneyLimitEx.ClientCode, _tradeMode).Result;
 
@@ -1019,8 +1051,8 @@ namespace OsEngine.Market.Servers.QuikLua
                         {
                             if (_portfolios == null) continue;
 
-                            Portfolio needPortf = _portfolios.Find(p => p.Number.Split('+')[0] == futuresLimits.TrdAccId &&
-                            p.Number.Split('+')[1] == futuresLimits.FirmId);
+                            Portfolio needPortf = _portfolios.Find(p => p.Number.Split(_portfolioSeparator)[0] == futuresLimits.TrdAccId &&
+                            p.Number.Split(_portfolioSeparator)[1] == futuresLimits.FirmId);
 
                             if (needPortf == null) continue;
 
@@ -1043,8 +1075,8 @@ namespace OsEngine.Market.Servers.QuikLua
                         {
                             if (_portfolios == null) continue;
 
-                            Portfolio portfolio = _portfolios.Find(p => p.Number.Split('+')[0] == futuresClientHolding.trdAccId &&
-                            p.Number.Split('+')[1] == futuresClientHolding.firmId);
+                            Portfolio portfolio = _portfolios.Find(p => p.Number.Split(_portfolioSeparator)[0] == futuresClientHolding.trdAccId &&
+                            p.Number.Split(_portfolioSeparator)[1] == futuresClientHolding.firmId);
 
                             if (portfolio == null) continue;
                             else if (_securities == null) continue;
@@ -1068,6 +1100,37 @@ namespace OsEngine.Market.Servers.QuikLua
                             }
                         }
                     }
+                    else if (_needRequestPositions == true)
+                    {
+                        List<DepoLimitEx> spotPos = QuikLua.Trading.GetDepoLimits().Result;
+
+                        List<MoneyLimitEx> money = QuikLua.Trading.GetMoneyLimits().Result;
+
+                        if (_portfolios == null || (_portfolios != null && _portfolios.Count == 0))
+                        {
+                            Thread.Sleep(1000);
+                            continue;
+                        }
+
+                        for (int i = 0; i < _portfolios.Count; i++)
+                        {
+                            for (int i3 = 0; _clientCodes != null && i3 < _clientCodes.Count; i3++)
+                            {
+                                Portfolio portfolio = _portfolios[i];
+                                UpdateSpotPosition(spotPos, portfolio, money, _clientCodes[i3]);
+                            }
+                        }
+
+                        if (_needRequestPositions == false)
+                        {
+                            if (PortfolioEvent != null)
+                            {
+                                PortfolioEvent(_portfolios);
+                            }
+                        }
+
+                        Thread.Sleep(1000);
+                    }
                     else
                     {
                         Thread.Sleep(200);
@@ -1081,7 +1144,7 @@ namespace OsEngine.Market.Servers.QuikLua
             }
         }
 
-        private void UpdateSpotPosition(List<DepoLimitEx> spotPos, Portfolio needPortf, List<MoneyLimitEx> money, PortfolioInfoEx portfolioEx, string clientCode)
+        private void UpdateSpotPosition(List<DepoLimitEx> spotPos, Portfolio needPortf, List<MoneyLimitEx> money, string clientCode)
         {
             try
             {
@@ -1091,11 +1154,27 @@ namespace OsEngine.Market.Servers.QuikLua
                 {
                     DepoLimitEx pos = spotPos[i];
 
-                    if (needPortf.Number.Split('+')[0] != pos.TrdAccId ||
-                        needPortf.Number.Split('+')[1] != pos.ClientCode) continue;
+                    if (needPortf.Number.Split(_portfolioSeparator)[0] != pos.TrdAccId ||
+                        needPortf.Number.Split(_portfolioSeparator)[1] != pos.ClientCode) continue;
                     else if (_securities == null) continue;
 
-                    Security sec = _securities.Find(sec => sec.Name.Split('+')[0] == pos.SecCode);
+                    Security sec = null;
+                    if (_isOnlyBotsPortfolio == false)
+                        sec = _securities.Find(sec => sec.Name.Split('+')[0] == pos.SecCode);
+                    else
+                    {
+                        sec = subscribedSecurities.Find(sec => sec.Name.Split('+')[0] == pos.SecCode);
+                    }
+
+                    if (sec == null)
+                    {
+                        _needRequestPositions = true;
+                        continue;
+                    }
+                    else
+                    {
+                        _needRequestPositions = false;
+                    }
 
                     LimitKind limitKind = LimitKind.T0;
 
@@ -1116,28 +1195,23 @@ namespace OsEngine.Market.Servers.QuikLua
 
                         needPortf.SetNewPosition(position);
                     }
-
-                    PositionOnBoard positionRub = new PositionOnBoard();
-
-                    for (int i2 = 0; i2 < money.Count; i2++)
-                    {
-                        if (clientCode != money[i2].ClientCode || _tradeMode != money[i2].LimitKind) continue;
-
-                        positionRub.PortfolioName = needPortf.Number;
-                        positionRub.SecurityNameCode = "rub";
-                        positionRub.ValueBlocked = 0;
-                        positionRub.ValueCurrent = money[i2].CurrentBal.ToDecimal();
-                        positionRub.ValueBegin = money[i2].OpenBal.ToDecimal();
-
-                        needPortf.SetNewPosition(positionRub);
-
-                        break;
-                    }
                 }
 
-                if (PortfolioEvent != null)
+                PositionOnBoard positionRub = new PositionOnBoard();
+
+                for (int i2 = 0; i2 < money.Count; i2++)
                 {
-                    PortfolioEvent(_portfolios);
+                    if (clientCode != money[i2].ClientCode || _tradeMode != money[i2].LimitKind) continue;
+
+                    positionRub.PortfolioName = needPortf.Number;
+                    positionRub.SecurityNameCode = "rub";
+                    positionRub.ValueBlocked = 0;
+                    positionRub.ValueCurrent = money[i2].CurrentBal.ToDecimal();
+                    positionRub.ValueBegin = money[i2].OpenBal.ToDecimal();
+
+                    needPortf.SetNewPosition(positionRub);
+
+                    break;
                 }
             }
             catch (Exception error)
@@ -1763,7 +1837,7 @@ namespace OsEngine.Market.Servers.QuikLua
                 order.Price = qOrder.Price;
                 order.Volume = qOrder.Quantity;
                 order.VolumeExecute = qOrder.Quantity - qOrder.Balance;
-                order.PortfolioNumber = qOrder.Account + "+" + qOrder.ClientCode;
+                order.PortfolioNumber = qOrder.Account + _portfolioSeparator + qOrder.ClientCode;
                 order.TypeOrder = qOrder.Flags.ToString().Contains("IsLimit")
                     ? OrderPriceType.Limit
                     : OrderPriceType.Market;
@@ -1972,7 +2046,7 @@ namespace OsEngine.Market.Servers.QuikLua
                 order.State = OrderStateType.Fail;
                 order.SecurityNameCode = transReply.SecCode;
                 order.SecurityClassCode = transReply.ClassCode;
-                order.PortfolioNumber = transReply.Account + "+" + transReply.ClientCode;
+                order.PortfolioNumber = transReply.Account + _portfolioSeparator + transReply.ClientCode;
                 order.Price = transReply.Price.ToString().ToDecimal();
                 order.Volume = transReply.Quantity.ToString().ToDecimal();
                 order.TimeCallBack = TimeManager.GetDateTimeFromTimeStamp(transReply.LuaTimeStamp);
@@ -2073,9 +2147,9 @@ namespace OsEngine.Market.Servers.QuikLua
                 QuikSharp.DataStructures.Transaction.Order qOrder = new QuikSharp.DataStructures.Transaction.Order();
 
                 qOrder.SecCode = order.SecurityNameCode.Split('+')[0];
-                qOrder.Account = order.PortfolioNumber.Split('+')[0];
+                qOrder.Account = order.PortfolioNumber.Split(_portfolioSeparator)[0];
 
-                qOrder.ClientCode = order.PortfolioNumber.Split('+')[1];
+                qOrder.ClientCode = order.PortfolioNumber.Split(_portfolioSeparator)[1];
                 qOrder.ClassCode = _securities.Find(sec => sec.Name == order.SecurityNameCode).NameClass;
                 qOrder.Quantity = Convert.ToInt32(order.Volume);
                 qOrder.Operation = order.Side == Side.Buy ? Operation.Buy : Operation.Sell;
@@ -2087,7 +2161,7 @@ namespace OsEngine.Market.Servers.QuikLua
                 }
                 else if (((ServerParameterBool)ServerParameters[6]).Value == true)
                 {
-                    qOrder.Comment = order.PortfolioNumber.Split('+')[0] + "//" + order.NumberUser.ToString();
+                    qOrder.Comment = order.PortfolioNumber.Split(_portfolioSeparator)[1] + "//" + order.NumberUser.ToString();
                 }
 
                 lock (_serverLocker)
@@ -2214,7 +2288,7 @@ namespace OsEngine.Market.Servers.QuikLua
                     order.Price = foundOrder.Price;
                     order.Volume = foundOrder.Quantity;
                     order.VolumeExecute = foundOrder.Quantity - foundOrder.Balance;
-                    order.PortfolioNumber = foundOrder.Account + "+" + foundOrder.ClientCode;
+                    order.PortfolioNumber = foundOrder.Account + _portfolioSeparator + foundOrder.ClientCode;
                     order.TypeOrder = foundOrder.Flags.ToString().Contains("IsLimit")
                         ? OrderPriceType.Limit
                         : OrderPriceType.Market;
