@@ -182,6 +182,8 @@ namespace OsEngine.Market.Servers.TraderNet
             {
                 List<string> listSecurities = GetSecList(_sid);
 
+                _securities = new List<Security>();
+
                 if (listSecurities == null)
                 {
                     return;
@@ -207,6 +209,11 @@ namespace OsEngine.Market.Servers.TraderNet
                         strListSec += ", ";
                     }
                 }
+
+                if (_securities != null)
+                {
+                    SecurityEvent(_securities);
+                }                
             }
             catch (Exception ex)
             {
@@ -270,7 +277,7 @@ namespace OsEngine.Market.Servers.TraderNet
         {
             try
             {
-                _rateGateSecurity.WaitToProceed(100);
+                _rateGateSecurity.WaitToProceed(10);
 
                 RequestSecurity reqData = new RequestSecurity();
                 reqData.q = new RequestSecurity.Q();
@@ -278,7 +285,7 @@ namespace OsEngine.Market.Servers.TraderNet
                 reqData.q.@params = new RequestSecurity.Params();
                 reqData.q.@params.take = 50;
                 reqData.q.@params.filter = new RequestSecurity.Filter();
-                reqData.q.@params.filter.filters = new List<RequestSecurity.FilterItem>();                
+                reqData.q.@params.filter.filters = new List<RequestSecurity.FilterItem>();
                 reqData.q.@params.filter.filters.Add(new RequestSecurity.FilterItem());
                 reqData.q.@params.filter.filters[0].field = "ticker";
                 reqData.q.@params.filter.filters[0].@operator = "in";
@@ -302,8 +309,6 @@ namespace OsEngine.Market.Servers.TraderNet
             try
             {
                 ResponseMessageSecurities result = JsonConvert.DeserializeObject<ResponseMessageSecurities>(jsonResponse);
-
-                _securities = new List<Security>();
 
                 if (result == null)
                 {
@@ -338,8 +343,7 @@ namespace OsEngine.Market.Servers.TraderNet
                     newSecurity.Lot = Math.Round(item.lot_size_q.ToDecimal(), newSecurity.DecimalsVolume);
 
                     _securities.Add(newSecurity);
-                }
-                SecurityEvent(_securities);
+                }                
             }
             catch (Exception ex)
             {
@@ -477,10 +481,10 @@ namespace OsEngine.Market.Servers.TraderNet
             {
                 for (int i = 0; i < posRest.Count; i++)
                 {
-                    decimal.TryParse(posRest[i].mkt_price, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal mkt_price);
+                    decimal.TryParse(posRest[i].market_value, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal market_value);
                     decimal.TryParse(posRest[i].currval, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal currval);
 
-                    valueCurrent += mkt_price * currval;
+                    valueCurrent += market_value * currval;
                 }
             }
 
@@ -489,9 +493,11 @@ namespace OsEngine.Market.Servers.TraderNet
                 valueCurrent = valueCurrent / kurs;
             }
 
+            _portfolioValueCurrent = Math.Round(valueCurrent, 2);
+
             Portfolio portfolio = new Portfolio();
             portfolio.Number = "TraderNet";
-            portfolio.ValueCurrent = Math.Round(valueCurrent, 2);
+            portfolio.ValueCurrent = _portfolioValueCurrent;
 
             if (_boolSetPortfolioValueBegin)
             {
@@ -507,6 +513,8 @@ namespace OsEngine.Market.Servers.TraderNet
         private bool _boolSetPortfolioValueBegin = true;
 
         private decimal _portfolioValueBegin;
+
+        private decimal _portfolioValueCurrent;
 
         private bool _portfolioIsStarted = false;
 
@@ -931,16 +939,6 @@ namespace OsEngine.Market.Servers.TraderNet
             return 3;
         }
 
-        private int GetTimeShift(string nameClass)
-        {
-            if (nameClass == "FIX_Stock")
-            {
-                return 11;
-            }
-
-            return 3;
-        }
-
         private bool CheckCandlesToZeroData(List<string> item)
         {
             if (item[0].ToDecimal() == 0 ||
@@ -1204,28 +1202,6 @@ namespace OsEngine.Market.Servers.TraderNet
 
         private bool _portfolioReceived = false;
 
-        private void ThreadUpdateSubscribe(object obj)
-        {
-            /*while (true)
-            {
-                try
-                {
-                    if (_securities == null)
-                    {
-                        Thread.Sleep(1000);
-                        continue;
-                    }
-
-                    if (this.GetPortfolios)
-                }
-                catch (Exception ex)
-                {
-                    SendLogMessage(ex.Message, LogMessageType.Error);
-                    Thread.Sleep(5000);
-                }
-            }*/
-        }
-
         public bool SubscribeNews()
         {
             return false;
@@ -1327,7 +1303,7 @@ namespace OsEngine.Market.Servers.TraderNet
                 Portfolio portfolio = new Portfolio();
                 portfolio.Number = "TraderNet";
                 portfolio.ValueBegin = _portfolioValueBegin;
-                portfolio.ValueCurrent = 0;
+                portfolio.ValueCurrent = _portfolioValueCurrent;
 
                 if (positions.acc.Count > 0)
                 {
@@ -1485,22 +1461,6 @@ namespace OsEngine.Market.Servers.TraderNet
             {
                 SendLogMessage("TraderNet - UpdateTrade: " + ex.Message, LogMessageType.Error);
             }
-        }
-
-        private int GetTimeShiftToSecurity(string name)
-        {
-            for (int i = 0; i < _securities.Count; i++)
-            {
-                if (_securities[i].Name == name)
-                {
-                    if (_securities[i].NameClass == "FIX_Stock")
-                    {
-                        return 8;
-                    }
-                }
-            }
-
-            return 0;
         }
 
         private int GetTimeShiftToSecurity(string name)
