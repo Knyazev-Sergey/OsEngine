@@ -683,23 +683,6 @@ namespace OsEngine.Market.Servers.TraderNet
                 return BuildCandles(allCandles, needTf, tfTotalMinutes);
             }
 
-            if (allCandles.Count > 1)
-            {
-                for (int i = 0; i < allCandles.Count; i++)
-                {
-                    if (allCandles[i].TimeStart.Date > endTime)
-                    {
-                        allCandles.RemoveAt(i);
-                        i--;
-                    }
-                }
-            }
-
-            if (needTf > 0)
-            {
-                return BuildCandles(allCandles, needTf, tfTotalMinutes);
-            }
-
             return allCandles;
         }
 
