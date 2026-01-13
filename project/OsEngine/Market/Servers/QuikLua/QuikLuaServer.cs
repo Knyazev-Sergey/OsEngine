@@ -167,6 +167,7 @@ namespace OsEngine.Market.Servers.QuikLua
                     QuikLua.Events.OnMoneyLimit += Events_OnMoneyLimit;
                     QuikLua.Events.OnTrade += EventsOnOnTrade;
                     QuikLua.Events.OnOrder += EventsOnOnOrder;
+                    QuikLua.Events.OnAllTrade += EventsOnOnAllTrade;
                     QuikLua.Events.OnQuote += EventsOnOnQuote;
                     QuikLua.Events.OnFuturesClientHolding += EventsOnOnFuturesClientHolding;
                     QuikLua.Events.OnFuturesLimitChange += EventsOnOnFuturesLimitChange;
@@ -230,6 +231,7 @@ namespace OsEngine.Market.Servers.QuikLua
                     QuikLua.Events.OnTrade -= EventsOnOnTrade;
                     QuikLua.Events.OnOrder -= EventsOnOnOrder;
                     QuikLua.Events.OnQuote -= EventsOnOnQuote;
+                    QuikLua.Events.OnAllTrade -= EventsOnOnAllTrade;
                     QuikLua.Events.OnFuturesClientHolding -= EventsOnOnFuturesClientHolding;
                     QuikLua.Events.OnFuturesLimitChange -= EventsOnOnFuturesLimitChange;
                     QuikLua.Events.OnTransReply -= Events_OnTransReply;
@@ -669,6 +671,21 @@ namespace OsEngine.Market.Servers.QuikLua
 
                 UpdateSpotPortfolio();
                 UpdateFuturesPortfolio();
+
+                string message = "";
+                for (int i = 0; i < _portfolios.Count; i++)
+                {
+                    if (i + 1 < _portfolios.Count)
+                    {
+                        message += "\n" + _portfolios[i].Number + ";";
+                    }
+                    else
+                    {
+                        message += "\n" + _portfolios[i].Number + ".";
+                    }
+                }
+
+                SendLogMessage($"Подгружены портфели: {message}", LogMessageType.System);
 
                 if (PortfolioEvent != null)
                 {
@@ -1199,7 +1216,7 @@ namespace OsEngine.Market.Servers.QuikLua
 
                 PositionOnBoard positionRub = new PositionOnBoard();
 
-                for (int i2 = 0; i2 < money.Count; i2++)
+                for (int i2 = 0; money != null && i2 < money.Count; i2++)
                 {
                     if (clientCode != money[i2].ClientCode || _tradeMode != money[i2].LimitKind) continue;
 
@@ -1448,6 +1465,8 @@ namespace OsEngine.Market.Servers.QuikLua
         {
             try
             {
+                _gateToGetCandles.WaitToProceed();
+
                 if (subscribedSecurities.Find(sec => sec.Name == security.Name) != null)
                 {
                     return;
@@ -1462,8 +1481,6 @@ namespace OsEngine.Market.Servers.QuikLua
                 {
                     QuikLua.OrderBook.Subscribe(security.NameClass, security.Name.Split('+')[0]);
                     subscribedSecurities.Add(security);
-                    QuikLua.Events.OnAllTrade -= EventsOnOnAllTrade;
-                    QuikLua.Events.OnAllTrade += EventsOnOnAllTrade;
                 }
             }
             catch (Exception error)

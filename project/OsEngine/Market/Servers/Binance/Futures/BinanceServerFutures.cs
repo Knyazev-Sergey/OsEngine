@@ -113,11 +113,17 @@ namespace OsEngine.Market.Servers.Binance.Futures
             }
 
             // check server availability for HTTP communication with it / проверяем доступность сервера для HTTP общения с ним
-            Uri uri = new Uri(_baseUrl + "/" + type_str_selector + "/v1/time");
+            //Uri uri = new Uri(_baseUrl + "/" + type_str_selector + "/v1/time");
             try
             {
                 RestRequest requestRest = new RestRequest("/" + type_str_selector + "/v1/time", Method.GET);
                 RestClient client = new RestClient(_baseUrl);
+
+                if (_myProxy != null)
+                {
+                    client.Proxy = _myProxy;
+                }
+
                 IRestResponse response = client.Execute(requestRest);
 
                 if (response.StatusCode != HttpStatusCode.OK)
@@ -590,19 +596,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     newPortf.UnrealizedPnl =
                         onePortf.unrealizedProfit.ToDecimal();
 
-                    decimal lockedBalanceUSDT = 0m;
-
-                    if (onePortf.asset.Equals("USDT"))
-                    {
-                        foreach (var position in portfs.positions)
-                        {
-                            if (position.symbol == "USDTUSDT") continue;
-
-                            lockedBalanceUSDT += (position.initialMargin.ToDecimal() + position.maintMargin.ToDecimal());
-                        }
-                    }
-
-                    newPortf.ValueBlocked = lockedBalanceUSDT;
+                    newPortf.ValueBlocked = onePortf.initialMargin.ToDecimal() + onePortf.maintMargin.ToDecimal();
 
                     myPortfolio.SetNewPosition(newPortf);
 
@@ -3021,7 +3015,12 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 param.Add("symbol=", oldOrder.SecurityNameCode.ToUpper());
                 //param.Add("&recvWindow=" , "100");
                 //param.Add("&limit=", GetNonce());
-                param.Add("&limit=", "500");
+
+                if (((ServerParameterEnum)ServerParameters[2]).Value == "USDT-M")
+                {
+                    param.Add("&limit=", "500");
+                }
+
                 //"symbol={symbol.ToUpper()}&recvWindow={recvWindow}"
 
                 string res = CreateQuery(Method.GET, endPoint, param, true);

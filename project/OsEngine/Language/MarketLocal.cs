@@ -1282,6 +1282,10 @@ namespace OsEngine.Language
           "Eng:Important! No trading periods!_" +
           "Ru:ВАЖНО! Неторговые периоды!_");
 
+        public string Label314 => OsLocalization.ConvertToLocString(
+          "Eng:Are you sure you want to clear the log? Data will be lost!_" +
+          "Ru:Вы уверены что хотите очистить лог? Данные будут потеряны!_");
+
         public string LabelCommissionType => OsLocalization.ConvertToLocString(
             "Eng:Commission type_" +
             "Ru:Тип комиссии_");
@@ -1721,6 +1725,10 @@ namespace OsEngine.Language
         public string Message102 => OsLocalization.ConvertToLocString(
             "Eng:The program automatically went into reconnect mode. _" +
             "Ru:Программа автоматически перешла в режим повторного подключения. _");
+
+        public string Message103 => OsLocalization.ConvertToLocString(
+            "Eng:One of the sources does not have data connected. Do you want to continue? _" +
+            "Ru:В одном из источников не подключены данные. Вы хотите продолжить? _");
 
         public string TitleTester => OsLocalization.ConvertToLocString(
             "Eng:Exchange emulator_" +
