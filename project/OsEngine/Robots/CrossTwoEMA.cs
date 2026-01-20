@@ -6,6 +6,7 @@ using OsEngine.OsTrader.Panels.Tab;
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace OsEngine.Robots
 {
@@ -31,7 +32,7 @@ namespace OsEngine.Robots
         private Aindicator _emaFast;
         private Aindicator _emaSlow;
 
-        private int _decimalsPriceSecurity;
+        //private int _decimalsPriceSecurity;
         private decimal _valueSL;
 
         public CrossTwoEMA(string name, StartProgram startProgram) : base(name, startProgram)
@@ -52,12 +53,12 @@ namespace OsEngine.Robots
             _fastEMA = CreateParameter("Быстрая EMA", 14, 0, 0, 0, tabNameParameters);
             _slowEMA = CreateParameter("Медленная EMA", 50, 0, 0, 0, tabNameParameters);
             _countCandles = CreateParameter("Количество свечей (SL)", 10, 0, 0, 0, tabNameParameters);
-            _distanceToStopLoss = CreateParameter("Расстояние от локального уровня до SL", 2m, 0m, 0m, 0m, tabNameParameters);
-            _riskDeal = CreateParameter("Риск на сделку, %", 10m, 0m, 0m, 0m, tabNameParameters);
+            _distanceToStopLoss = CreateParameter("Расстояние от локального уровня до SL (в %)", 2m, 0m, 0m, 0m, tabNameParameters);
+            _riskDeal = CreateParameter("Риск на сделку (в %)", 10m, 0m, 0m, 0m, tabNameParameters);
             _tradeAssetInPortfolio = CreateParameter("Asset in portfolio", "Prime", tabNameParameters);
             _typeTP = CreateParameter("Тип TP", TypeTP.Coeficient.ToString(), new string[] { TypeTP.Coeficient.ToString(), TypeTP.CrossEMA.ToString() }, tabNameParameters);
             _coefTP = CreateParameter("Коэффициент TP", 1m, 0m, 0m, 0m, tabNameParameters);
-            _lostDealOfSL = CreateParameter("Пропускаем сделку, если SL >", 1m, 0m, 0m, 0m, tabNameParameters);
+            _lostDealOfSL = CreateParameter("Пропускаем сделку, если SL > (в %)", 1m, 0m, 0m, 0m, tabNameParameters);
 
             _emaFast = IndicatorsFactory.CreateIndicatorByName("Ema", name + "EmaFast", false);
             _emaFast = (Aindicator)_tab.CreateCandleIndicator(_emaFast, "Prime");
@@ -146,7 +147,7 @@ namespace OsEngine.Robots
                 }
                 catch (Exception ex)
                 {
-                    SendNewLogMessage(ex.Message, Logging.LogMessageType.Error);
+                    SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
                     Thread.Sleep(5000);
                 }
             }
@@ -208,11 +209,14 @@ namespace OsEngine.Robots
             }
             else
             {
-                if (!_isCloseOrderLong && _tab.PositionsCloseAll[^1].State == PositionStateType.Done)
+                if (_tab.PositionsCloseAll.Count > 0)
                 {
-                    SendNewLogMessage($"Позиция Long закрылась, по цене {_tab.PositionsCloseAll[^1].ClosePrice}", _logTelegram);
-                    _isOpenOrderLong = false;
-                    _isCloseOrderLong = true;
+                    if (!_isCloseOrderLong && _tab.PositionsCloseAll[^1].State == PositionStateType.Done)
+                    {
+                        SendNewLogMessage($"Позиция Long закрылась, по цене {_tab.PositionsCloseAll[^1].ClosePrice}", _logTelegram);
+                        _isOpenOrderLong = false;
+                        _isCloseOrderLong = true;
+                    }
                 }
             }
         }
@@ -270,7 +274,7 @@ namespace OsEngine.Robots
                 SetShortSL();
                 SetShortTP();
 
-                if (!_isOpenOrderShort)
+                if (!_isOpenOrderShort && _tab.PositionOpenShort[0].State == PositionStateType.Open)
                 {
                     SendNewLogMessage($"Позиция Short открылась, по цене {_tab.PositionOpenShort[0].EntryPrice}, объем {_tab.PositionOpenShort[0].OpenVolume}", _logTelegram);
                     _isOpenOrderShort = true;
@@ -279,11 +283,14 @@ namespace OsEngine.Robots
             }
             else
             {
-                if (!_isCloseOrderShort)
+                if (_tab.PositionsCloseAll.Count > 0)
                 {
-                    SendNewLogMessage($"Позиция Short закрылась, по цене {_tab.PositionsCloseAll[^1].ClosePrice}", _logTelegram);
-                    _isOpenOrderShort = false;
-                    _isCloseOrderShort = true;
+                    if (!_isCloseOrderShort && _tab.PositionsCloseAll[^1].State == PositionStateType.Done)
+                    {
+                        SendNewLogMessage($"Позиция Short закрылась, по цене {_tab.PositionsCloseAll[^1].ClosePrice}", _logTelegram);
+                        _isOpenOrderShort = false;
+                        _isCloseOrderShort = true;
+                    }
                 }
             }            
         }
@@ -330,14 +337,14 @@ namespace OsEngine.Robots
                 if (_regime == "Off") return;
                 if (_emaFast.DataSeries[0].Values[^1] == 0 || _emaSlow.DataSeries[0].Values[^1] == 0) return;
 
-                if (_startProgram == StartProgram.IsOsTrader)
+                /*if (_startProgram == StartProgram.IsOsTrader)
                 {
                     _decimalsPriceSecurity = _tab.Security.Decimals;
                 }
                 else
                 {
                     _decimalsPriceSecurity = 2;
-                }
+                }*/
 
                 if (_sideOrder == Side.Buy.ToString())
                 {
@@ -375,7 +382,7 @@ namespace OsEngine.Robots
                     if (_valueSL < propusk)
                     {
                         SendNewLogMessage($"Пропускаем сделку Long. StopLoss ({_valueSL}) меньше чем уровень пропуска ({propusk}).", _logTelegram);
-                        SendNewLogMessage($"Пропускаем сделку Long. StopLoss ({_valueSL}) меньше чем уровень пропуска ({propusk}).", _logType);
+                        SendNewLogMessage($"{candles[^1].TimeStart}: Пропускаем сделку Long. StopLoss ({_valueSL}) меньше чем уровень пропуска ({propusk}).", _logType);
                         return;
                     }
 
@@ -411,7 +418,7 @@ namespace OsEngine.Robots
 
             if (candles.Count < _countCandles) return 0;
 
-            for (int i = candles.Count - 1; i >= _countCandles; i--)
+            for (int i = candles.Count - 1; i >= candles.Count - 1 - _countCandles; i--)
             {
                 if (candles[i].Low < valueMin)
                 {
@@ -421,7 +428,7 @@ namespace OsEngine.Robots
 
             decimal delta = candles[^1].Close * _distanceToStopLoss / 100;
 
-            return Math.Round(valueMin - delta, _decimalsPriceSecurity);
+            return Math.Round(valueMin - delta, _tab.Security.Decimals);
         }
 
         private void TrySendOrderSell(List<Candle> candles)
@@ -444,7 +451,7 @@ namespace OsEngine.Robots
                     if (_valueSL > propusk)
                     {
                         SendNewLogMessage($"Пропускаем сделку Short. StopLoss ({_valueSL}) больше чем уровень пропуска ({propusk}).", _logTelegram);
-                        SendNewLogMessage($"Пропускаем сделку Short. StopLoss ({_valueSL}) больше чем уровень пропуска ({propusk}).", _logType);
+                        SendNewLogMessage($"{candles[^1].TimeStart}: Пропускаем сделку Short. StopLoss ({_valueSL}) больше чем уровень пропуска ({propusk}).", _logType);
                         return;
                     }
 
@@ -480,7 +487,7 @@ namespace OsEngine.Robots
 
             if (candles.Count < _countCandles) return 0;
 
-            for (int i = candles.Count - 1; i >= _countCandles; i--)
+            for (int i = candles.Count - 1; i >= candles.Count - 1 - _countCandles; i--)
             {
                 if (candles[i].High > valueMax)
                 {
@@ -490,7 +497,7 @@ namespace OsEngine.Robots
 
             decimal delta = candles[^1].Close * _distanceToStopLoss / 100;
 
-            return Math.Round(valueMax + delta, _decimalsPriceSecurity);
+            return Math.Round(valueMax + delta, _tab.Security.Decimals);
         }
 
         private decimal GetVolume()
@@ -535,24 +542,18 @@ namespace OsEngine.Robots
             decimal moneyOnPosition = portfolioPrimeAsset * (_riskDeal.ValueDecimal / 100);
 
             decimal qty = moneyOnPosition / _tab.PriceBestAsk / _tab.Security.Lot;
-
-            if (_tab.StartProgram == StartProgram.IsOsTrader)
-            {
-                if (_tab.Security.UsePriceStepCostToCalculateVolume == true
-                    && _tab.Security.PriceStep != _tab.Security.PriceStepCost
-                    && _tab.PriceBestAsk != 0
-                    && _tab.Security.PriceStep != 0
-                    && _tab.Security.PriceStepCost != 0)
-                {// расчёт количества контрактов для фьючерсов и опционов на Мосбирже
-                    qty = moneyOnPosition / (_tab.PriceBestAsk / _tab.Security.PriceStep * _tab.Security.PriceStepCost);
-                }
-
-                qty = Math.Round(qty, _tab.Security.DecimalsVolume);
+                        
+            if (_tab.Security.UsePriceStepCostToCalculateVolume == true
+                && _tab.Security.PriceStep != _tab.Security.PriceStepCost
+                && _tab.PriceBestAsk != 0
+                && _tab.Security.PriceStep != 0
+                && _tab.Security.PriceStepCost != 0)
+            {// расчёт количества контрактов для фьючерсов и опционов на Мосбирже
+                qty = moneyOnPosition / (_tab.PriceBestAsk / _tab.Security.PriceStep * _tab.Security.PriceStepCost);
             }
-            else
-            {
-                qty = Math.Round(qty, 4);
-            }
+
+            qty = Math.Round(qty, _tab.Security.DecimalsVolume);
+           
 
             return qty;
         }
