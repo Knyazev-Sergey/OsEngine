@@ -5,6 +5,7 @@ using OsEngine.OsTrader.Panels.Attributes;
 using OsEngine.OsTrader.Panels.Tab;
 using System;
 using System.Collections.Generic;
+using System.Runtime.Serialization;
 using System.Threading;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
@@ -375,6 +376,9 @@ namespace OsEngine.Robots
                     fastEmaPrev < slowEmaLast)
                 {
                     _valueSL = GetValueLongSL(candles);
+
+                    if (_valueSL == 0) return;
+
                     decimal propusk = candles[^1].Close - candles[^1].Close * _lostDealOfSL / 100;
 
                     SendNewLogMessage($"Last Price: {candles[^1].Close}, StopLoss: {_valueSL}, Уровень пропуска сделки: {propusk}", _logType);
@@ -426,6 +430,8 @@ namespace OsEngine.Robots
                 }
             }
 
+            SendNewLogMessage($"Время последней свечи: {candles[^1].TimeStart}, цена закрытия последней свечи: {candles[^1].Close} макс. значение {valueMin}, за {_countCandles.ValueInt} свечей.", _logType);
+
             decimal delta = candles[^1].Close * _distanceToStopLoss / 100;
 
             return Math.Round(valueMin - delta, _tab.Security.Decimals);
@@ -444,6 +450,9 @@ namespace OsEngine.Robots
                     fastEmaPrev > slowEmaLast)
                 {
                     _valueSL = GetValueShortSL(candles);
+
+                    if (_valueSL == 0) return;
+
                     decimal propusk = candles[^1].Close + candles[^1].Close * _lostDealOfSL / 100;
 
                     SendNewLogMessage($"Last Price: {candles[^1].Close}, StopLoss: {_valueSL}, Уровень пропуска сделки: {propusk}", _logType);
@@ -494,6 +503,8 @@ namespace OsEngine.Robots
                     valueMax = candles[i].High;
                 }
             }
+
+            SendNewLogMessage($"Время последней свечи: {candles[^1].TimeStart}, цена закрытия последней свечи: {candles[^1].Close}, макс. значение {valueMax} за {_countCandles.ValueInt} свечей.", _logType);
 
             decimal delta = candles[^1].Close * _distanceToStopLoss / 100;
 
