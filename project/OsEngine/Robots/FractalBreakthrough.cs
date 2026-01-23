@@ -4,16 +4,14 @@ using OsEngine.OsTrader.Panels.Attributes;
 using OsEngine.OsTrader.Panels.Tab;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Reflection;
 using System.Threading;
-using System.Windows.Forms;
-using System.Windows.Forms.Integration;
-using System.Globalization;
 using OsEngine.Charts.CandleChart.Indicators;
 using OsEngine.Charts.CandleChart.Elements;
 using System.Drawing;
-using System.IO;
+using OsEngine.Indicators;
+using OsEngine.Market.Servers.Tester;
+using OsEngine.Market.Servers;
+using OsEngine.Market;
 
 namespace OsEngine.Robots
 {
@@ -23,156 +21,478 @@ namespace OsEngine.Robots
         private Logging.LogMessageType _logType = Logging.LogMessageType.User;
         private StartProgram _startProgram;
         private BotTabSimple _tab;
-        private StrategyParameterString _typeVolume;
+        private StrategyParameterString _regime;
         private StrategyParameterDecimal _volume;
+        private StrategyParameterDecimal _coefTP;
         private StrategyParameterDecimal _comission;
         private StrategyParameterDecimal _coefficientComission;
-        private StrategyParameterDecimal _lengthATR;
-        private StrategyParameterDecimal _coefficientATR;
-        private StrategyParameterDecimal _2coefficientATR;
+        private StrategyParameterInt _lengthATR;
+        private StrategyParameterDecimal _kATR;
+        private StrategyParameterDecimal _k2ATR;
         private StrategyParameterDecimal _kalman1Par1;
         private StrategyParameterDecimal _kalman1Par2;
         private StrategyParameterDecimal _kalman2Par1;
         private StrategyParameterDecimal _kalman2Par2;
 
         private Fractal _fractal;
-        private decimal _upFractal;
-        private decimal _downFractal;
+        private decimal _lastUpFractal;
+        private decimal _lastDownFractal;
 
-        private decimal _lastPrice;
+        private Aindicator _atr;
+        private Aindicator _kalman1;
+        private Aindicator _kalman2;
+
+        private decimal _priceTPBuy;
+        private decimal _priceTPSell;
+        private decimal _priceSLBuy;
+        private decimal _priceSLSell;
+
+        private string _timeCandle;
 
         public FractalBreakthrough(string name, StartProgram startProgram) : base(name, startProgram)
         {
             _startProgram = startProgram;
 
+            this.ParamGuiSettings.Title = "Fractal Breakthrough";
+            this.ParamGuiSettings.Height = 600;
+            this.ParamGuiSettings.Width = 700;
+
             TabCreate(BotTabType.Simple);
             _tab = TabsSimple[0];
 
-            _fractal = new Fractal(name + "Fractal", false);
-
             string tabNameParameters = " Параметры ";
 
-            _typeVolume = CreateParameter("Режим", "Off", new string[] { "Off", "On" }, tabNameParameters);
-            _volume = CreateParameter("Объем позиции", 0m, 0m, 0m, 0m, tabNameParameters);
-            _comission = CreateParameter("Комиссия", 0m, 0m, 0m, 0m, tabNameParameters);
+            _regime = CreateParameter("Режим", "Off", new string[] { "Off", "On" }, tabNameParameters);
+            _volume = CreateParameter("Объем позиции", 1m, 0m, 0m, 0m, tabNameParameters);
+            _coefTP = CreateParameter("Коэффициент для тейк-профита к стоп-лоссу", 1.5m, 0m, 0m, 0m, tabNameParameters);
+            _comission = CreateParameter("Комиссия, %", 0m, 0m, 0m, 0m, tabNameParameters);
             _coefficientComission = CreateParameter("Коэффициент комиссии", 0m, 0m, 0m, 0m, tabNameParameters);
-            _lengthATR = CreateParameter("ATR Length", 0m, 0m, 0m, 0m, tabNameParameters);
-            _coefficientATR = CreateParameter("ATR K1", 0m, 0m, 0m, 0m, tabNameParameters);
-            _2coefficientATR = CreateParameter("ATR K2", 0m, 0m, 0m, 0m, tabNameParameters);
+            _lengthATR = CreateParameter("ATR Length", 14, 0, 0, 0, tabNameParameters);
+            _kATR = CreateParameter("ATR K1", 0m, 0m, 0m, 0m, tabNameParameters);
+            _k2ATR = CreateParameter("ATR K2", 0m, 0m, 0m, 0m, tabNameParameters);
             _kalman1Par1 = CreateParameter("Kalman1 Par1", 0m, 0m, 0m, 0m, tabNameParameters);
             _kalman1Par2 = CreateParameter("Kalman1 Par2", 0m, 0m, 0m, 0m, tabNameParameters);
             _kalman2Par1 = CreateParameter("Kalman2 Par1", 0m, 0m, 0m, 0m, tabNameParameters);
             _kalman2Par2 = CreateParameter("Kalman2 Par2", 0m, 0m, 0m, 0m, tabNameParameters);
 
-            this.ParamGuiSettings.Title = "Fractal Breakthrough";
-            this.ParamGuiSettings.Height = 600;
-            this.ParamGuiSettings.Width = 700;
+            _fractal = new Fractal(name + "Fractal", false);
 
-           
+            _atr = IndicatorsFactory.CreateIndicatorByName("ATR", name + "Atr", false);
+            _atr = (Aindicator)_tab.CreateCandleIndicator(_atr, "AtrArea");
+            ((IndicatorParameterInt)_atr.Parameters[0]).ValueInt = _lengthATR;
+            _atr.Save();
+
+            _kalman1 = IndicatorsFactory.CreateIndicatorByName("KalmanFilter", name + "Kalman1", false);
+            _kalman1 = (Aindicator)_tab.CreateCandleIndicator(_kalman1, "Prime");
+            ((IndicatorParameterDecimal)_kalman1.Parameters[0]).ValueDecimal = _kalman1Par1;
+            ((IndicatorParameterDecimal)_kalman1.Parameters[1]).ValueDecimal = _kalman1Par2;
+            _kalman1.Save();
+
+            _kalman2 = IndicatorsFactory.CreateIndicatorByName("KalmanFilter", name + "Kalman2", false);
+            _kalman2 = (Aindicator)_tab.CreateCandleIndicator(_kalman2, "Prime");
+            ((IndicatorParameterDecimal)_kalman2.Parameters[0]).ValueDecimal = _kalman2Par1;
+            ((IndicatorParameterDecimal)_kalman2.Parameters[1]).ValueDecimal = _kalman2Par2;
+            _kalman2.Save();
+
+            ParametrsChangeByUser += FractalBreakthrough_ParametrsChangeByUser;
+
             _tab.ManualPositionSupport.DisableManualSupport();
-            _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;
-            _tab.CandleUpdateEvent += _tab_CandleUpdateEvent;
+            _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;           
 
-            //_tab.PositionOpenerToStop?.Clear();
+            Thread mainThread = new Thread(MainThread);
+            mainThread.Start();
 
-            if (_startProgram == StartProgram.IsOsTrader)
+            if (StartProgram == StartProgram.IsTester
+                && ServerMaster.GetServers() != null)
             {
-                Thread mainThread = new Thread(MainThread) { IsBackground = true };
-                mainThread.Start();
+                List<IServer> servers = ServerMaster.GetServers();
+
+                if (servers != null
+                    && servers.Count > 0
+                    && servers[0].ServerType == ServerType.Tester)
+                {
+                    TesterServer server = (TesterServer)servers[0];
+                    server.TestingStartEvent += Server_TestingStartEvent;
+                }
             }
         }
 
-        private void _tab_CandleUpdateEvent(List<Candle> candels)
+        private void Server_TestingStartEvent()
         {
-            if (_startProgram == StartProgram.IsOsTrader)
-            {
-                AddFractalsToChart(candels);
-            }
+            WithdrawOrders();
+        }
+
+        private void FractalBreakthrough_ParametrsChangeByUser()
+        {
+            ((IndicatorParameterInt)_atr.Parameters[0]).ValueInt = _lengthATR;
+            _atr.Save();
+            _atr.Reload();
+
+            ((IndicatorParameterDecimal)_kalman1.Parameters[0]).ValueDecimal = _kalman1Par1;
+            ((IndicatorParameterDecimal)_kalman1.Parameters[1]).ValueDecimal = _kalman1Par2;
+            _kalman1.Reload();
+            _kalman1.Save();
+
+            ((IndicatorParameterDecimal)_kalman2.Parameters[0]).ValueDecimal = _kalman2Par1;
+            ((IndicatorParameterDecimal)_kalman2.Parameters[1]).ValueDecimal = _kalman2Par2;
+            _kalman2.Reload();
+            _kalman2.Save();
         }
 
         private void _tab_CandleFinishedEvent(List<Candle> candels)
         {
-            if (_startProgram == StartProgram.IsTester)
+            try
             {
-                _lastPrice = candels[^1].Close;
+                _timeCandle = candels[^1].TimeStart.ToString("dd.MM.yyyy HH:mm:ss");
 
                 AddFractalsToChart(candels);
                 TradeLogic();
             }
-        }
-
-        private void MainThread(object obj)
-        {
-
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+                Thread.Sleep(5000);
+            }
         }
 
         private void TradeLogic()
         {
+            if (_regime == "Off") return;
+
             // open long
             if (_downFractalIsChange || _upFractalIsChange)                
             {
-                if (_upFractal != 0 && _downFractal != 0)
-                {
-                    //проверка фильтров
-
+                if (!_upFractalIsDelete && !_downFractalIsDelete)
+                {       
                     _downFractalIsChange = false;
                     _upFractalIsChange = false;
 
-                    if (_tab.PositionOpenLong.Count == 0)
-                    {
-                        _tab.BuyAtStopCancel();
-                        _tab.BuyAtStopMarket(_volume, _upFractal, _upFractal, StopActivateType.HigherOrEqual, 0, null, PositionOpenerToStopLifeTimeType.NoLifeTime);
-                    }
+                    if (_tab.PositionOpenLong.Count == 0 && _tab.PositionOpenShort.Count == 0)
+                    {                        
+                        if (FilterBuyOrder()) //проверка фильтров
+                        {
+                            _tab.BuyAtStopCancel();
+                            _tab.BuyAtStopMarket(_volume, _lastUpFractal, _lastUpFractal, StopActivateType.HigherOrEqual, 0, null, PositionOpenerToStopLifeTimeType.NoLifeTime);
+                        }
 
-                    if (_tab.PositionOpenShort.Count == 0)
-                    {
-                        _tab.SellAtStopCancel();
-                        _tab.SellAtStopMarket(_volume, _downFractal, _downFractal, StopActivateType.LowerOrEqual, 0, null, PositionOpenerToStopLifeTimeType.NoLifeTime);
+                        if (FilterSellOrder()) //проверка фильтров
+                        {                            
+                            _tab.SellAtStopCancel();
+                            _tab.SellAtStopMarket(_volume, _lastDownFractal, _lastDownFractal, StopActivateType.LowerOrEqual, 0, null, PositionOpenerToStopLifeTimeType.NoLifeTime);
+                        }
                     }
-
                 }
             }
 
-            //open short
-            if (_upFractalIsChange && _downFractal != 0)
-            {
-                _upFractalIsChange = false;
-                //проверка фильтров
-
-                
-            }
-
-            /*if (_upFractalIsChange && _upFractal == 0)
-            {
-                // проверка на выставленный ордер
-                
-
+            if (_upFractalIsDelete)
+            {               
                 _tab.SellAtStopCancel();
             }
 
-            if (_downFractalIsChange && _downFractal == 0)
+            if (_downFractalIsDelete)
             {
-                // проверка на выставленный ордер
-
                 _tab.BuyAtStopCancel();
-            }*/
+            }
+        }
+                
+        private bool FilterBuyOrder()
+        {
+            // filter kalman
+            if (_kalman1.DataSeries[0].Values[^1] <= _kalman1.DataSeries[0].Values[^2] &&
+                _kalman2.DataSeries[0].Values[^1] <= _kalman2.DataSeries[0].Values[^2])
+            {
+                SendNewLogMessage($"{_timeCandle} Фильтр по Kalman Long: не проходим по фильтру", _logType);
+                return false; 
+            }
+
+            SendNewLogMessage($"{_timeCandle} Фильтр по Kalman Long: проходим по фильтру", _logType);
+
+            // filter TP
+            _priceTPBuy = (_tab.PriceBestAsk - _lastDownFractal) * _coefTP + _tab.PriceBestAsk;
+
+            decimal costTP = (_priceTPBuy - _tab.PriceBestAsk) * _volume;
+            decimal needTP = _tab.PriceBestAsk * _comission / 100 * _coefficientComission;
+
+            if (costTP < needTP)
+            {
+                SendNewLogMessage($"{_timeCandle} Фильтр по ТП Long: минимальная прибыль ТП = {needTP}, прибыль ТП = {costTP}, не проходим по фильтру", _logType);
+                return false;
+            }
+
+            SendNewLogMessage($"{_timeCandle} Фильтр по ТП Long: минимальная прибыль ТП = {needTP}, прибыль ТП = {costTP}, проходим по фильтру", _logType);
+
+            //filter SL
+            _priceSLBuy = _lastDownFractal - _tab.Security.PriceStep * 2;
+            decimal lastATR = _atr.DataSeries[0].Last;
+
+            if (_priceSLBuy < lastATR * _kATR)
+            {
+                SendNewLogMessage($"{_timeCandle} Фильтр по kATR Long: цена SL = {_priceSLBuy}, значение фильтра = {lastATR * _kATR}, не проходим по фильтру", _logType);
+                return false;
+            }
+
+            if (_priceSLBuy > lastATR * _k2ATR)
+            {
+                SendNewLogMessage($"{_timeCandle} Фильтр по kATR Long: цена SL = {_priceSLBuy}, значение фильтра = {lastATR * _k2ATR}, не проходим по фильтру", _logType);
+                return false;
+            }
+
+            SendNewLogMessage($"{_timeCandle} Фильтр по kATR Long: проходим по фильтру", _logType);
+
+            return true;
+        }
+
+        private bool FilterSellOrder()
+        {
+            // filter kalman
+            if (_kalman1.DataSeries[0].Values[^1] >= _kalman1.DataSeries[0].Values[^2] &&
+                _kalman2.DataSeries[0].Values[^1] >= _kalman2.DataSeries[0].Values[^2])
+            {
+                SendNewLogMessage($"{_timeCandle} Фильтр по Kalman Short: не проходим по фильтру", _logType);
+                return false;
+            }
+
+            SendNewLogMessage($"{_timeCandle} Фильтр по Kalman Short: проходим по фильтру", _logType);
+
+            // filter TP
+            _priceTPSell = _tab.PriceBestBid - (_lastUpFractal - _tab.PriceBestBid) * _coefTP;
+
+            decimal costTP = (_tab.PriceBestBid - _priceTPSell) * _volume;
+            decimal needTP = _tab.PriceBestBid * _comission / 100 * _coefficientComission;
+
+            if (costTP < needTP)
+            {
+                SendNewLogMessage($"{_timeCandle} Фильтр по ТП Short: минимальная прибыль ТП = {needTP}, прибыль ТП = {costTP}, не проходим по фильтру", _logType);
+                return false;
+            }
+
+            SendNewLogMessage($"{_timeCandle} Фильтр по ТП Short: минимальная прибыль ТП = {needTP}, прибыль ТП = {costTP}, проходим по фильтру", _logType);
+
+            //filter SL
+            _priceSLSell = _lastUpFractal + _tab.Security.PriceStep * 2;
+
+            decimal lastATR = _atr.DataSeries[0].Last;
+
+            if (_priceSLSell < lastATR * _kATR)
+            {
+                SendNewLogMessage($"{_timeCandle} Фильтр по kATR Short: цена SL = {_priceSLSell}, значение фильтра = {lastATR * _kATR}, не проходим по фильтру", _logType);
+                return false;
+            }
+
+            if (_priceSLSell > lastATR * _k2ATR)
+            {
+                SendNewLogMessage($"{_timeCandle} Фильтр по kATR Short: цена SL = {_priceSLSell}, значение фильтра = {lastATR * _k2ATR}, не проходим по фильтру", _logType);
+                return false;
+            }
+
+            SendNewLogMessage($"{_timeCandle} Фильтр по kATR Short: проходим по фильтру", _logType);
+
+            return true;
+        }
+
+        private bool _isOpenOrderLong = false;
+        private bool _isCloseOrderLong = true;
+        private bool _isOpenOrderShort = false;
+        private bool _isCloseOrderShort = true;
+
+        private void MainThread()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (_startProgram == StartProgram.IsOsTrader)
+                    {
+                        Thread.Sleep(1000);
+                    }
+                    else
+                    {
+                        Thread.Sleep(1);
+                    }
+
+                    if (_tab == null)
+                    {
+                        continue;
+                    }
+
+                    if (_tab.Security == null)
+                    {
+                        continue;
+                    }
+
+                    if (_regime == "Off")
+                    {
+                        WithdrawOrders();
+                        continue;
+                    }
+
+                    LogicLongPosition();
+                    LogicShortPosition();
+                }
+                catch (Exception ex)
+                {
+                    SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+                    Thread.Sleep(5000);
+                }
+            }
+        }
+
+        private void WithdrawOrders()
+        {
+            _tab.BuyAtStopCancel();
+            _tab.SellAtStopCancel();
+
+            if (_tab.PositionOpenLong.Count > 0)
+            {
+                if (_tab.PositionOpenLong[0].StopOrderIsActive)
+                {
+                    _tab.PositionOpenLong[0].StopOrderIsActive = false;
+                    _tab.PositionOpenLong[0].StopOrderPrice = 0;
+                    _tab.PositionOpenLong[0].StopOrderRedLine = 0;
+
+                    _tab.PositionOpenLong[0].ProfitOrderIsActive = false;
+                    _tab.PositionOpenLong[0].ProfitOrderPrice = 0;
+                    _tab.PositionOpenLong[0].ProfitOrderRedLine = 0;
+                }
+            }
+
+            if (_tab.PositionOpenShort.Count > 0)
+            {
+                _tab.PositionOpenShort[0].StopOrderIsActive = false;
+                _tab.PositionOpenShort[0].StopOrderPrice = 0;
+                _tab.PositionOpenShort[0].StopOrderRedLine = 0;
+
+                _tab.PositionOpenShort[0].ProfitOrderIsActive = false;
+                _tab.PositionOpenShort[0].ProfitOrderPrice = 0;
+                _tab.PositionOpenShort[0].ProfitOrderRedLine = 0;
+            }
+        }
+
+        private void LogicLongPosition()
+        {
+            if (_tab.PositionOpenLong.Count > 0)
+            {
+                _tab.SellAtStopCancel();
+
+                SetLongSL();
+                SetLongTP();
+
+                if (!_isOpenOrderLong && _tab.PositionOpenLong[0].State == PositionStateType.Open)
+                {
+                    _isOpenOrderLong = true;
+                    _isCloseOrderLong = false;
+                }
+            }
+            else
+            {
+                if (_tab.PositionsCloseAll.Count > 0)
+                {
+                    if (!_isCloseOrderLong && _tab.PositionsCloseAll[^1].State == PositionStateType.Done)
+                    {
+                        SendNewLogMessage($"{_timeCandle} Позиция Long закрылась, по цене {_tab.PositionsCloseAll[^1].ClosePrice}", _logType);
+                        _isOpenOrderLong = false;
+                        _isCloseOrderLong = true;
+                    }
+                }
+            }
+        }
+
+        private void SetLongSL()
+        {
+            if (!_tab.PositionOpenLong[0].StopOrderIsActive)
+            {
+                Position pos = _tab.PositionOpenLong[0];
+                decimal price = _lastDownFractal - _tab.Security.PriceStep * 2;
+                
+                _tab.CloseAtStopMarket(pos, _priceSLBuy);
+
+                SendNewLogMessage($"{_timeCandle} Выставлен StopLoss по Long, цена: {_priceSLBuy}", _logType);
+            }
+        }
+
+        private void SetLongTP()
+        {
+            if (!_tab.PositionOpenLong[0].ProfitOrderIsActive)
+            {                
+                Position pos = _tab.PositionOpenLong[0];
+                decimal price = (_tab.PriceBestAsk - _lastDownFractal) * _coefTP + _tab.PriceBestAsk;
+                _tab.CloseAtProfitMarket(pos, _priceTPBuy);
+
+                SendNewLogMessage($"{_timeCandle} Выставлен TakeProfit по Long, цена: {_priceTPBuy}", _logType);
+            }
+        }
+
+        private void LogicShortPosition()
+        {
+            if (_tab.PositionOpenShort.Count > 0)
+            {
+                _tab.BuyAtStopCancel();
+
+                SetShortSL();
+                SetShortTP();
+
+                if (!_isOpenOrderShort && _tab.PositionOpenShort[0].State == PositionStateType.Open)
+                {
+                    SendNewLogMessage($"{_timeCandle} Позиция Short открылась, по цене {_tab.PositionOpenShort[0].EntryPrice}, объем {_tab.PositionOpenShort[0].OpenVolume}", _logType);
+                    _isOpenOrderShort = true;
+                    _isCloseOrderShort = false;
+                }
+            }
+            else
+            {
+                if (_tab.PositionsCloseAll.Count > 0)
+                {
+                    if (!_isCloseOrderShort && _tab.PositionsCloseAll[^1].State == PositionStateType.Done)
+                    {
+                        SendNewLogMessage($"{_timeCandle} Позиция Short закрылась, по цене {_tab.PositionsCloseAll[^1].ClosePrice}", _logType);
+                        _isOpenOrderShort = false;
+                        _isCloseOrderShort = true;
+                    }
+                }
+            }
+        }
+
+        private void SetShortSL()
+        {
+            if (!_tab.PositionOpenShort[0].StopOrderIsActive)
+            {
+                Position pos = _tab.PositionOpenShort[0];
+                decimal price = _lastDownFractal - _tab.Security.PriceStep * 2;
+                _tab.CloseAtStopMarket(pos, _priceSLSell);
+
+                SendNewLogMessage($"{_timeCandle} Выставлен StopLoss по Long, цена: {_priceSLSell}", _logType);
+            }
+        }
+
+        private void SetShortTP()
+        {
+            if (!_tab.PositionOpenShort[0].ProfitOrderIsActive)
+            {
+                Position pos = _tab.PositionOpenShort[0];
+                decimal price = _tab.PriceBestBid - (_lastUpFractal - _tab.PriceBestBid) * _coefTP;
+                _tab.CloseAtProfitMarket(pos, _priceTPSell);
+
+                SendNewLogMessage($"{_timeCandle} Выставлен TakeProfit по Long, цена: {_priceTPSell}", _logType);
+            }
         }
 
         #region Fractal
 
         private bool _upFractalIsChange;
         private bool _downFractalIsChange;
+        private bool _upFractalIsDelete;
+        private bool _downFractalIsDelete;
 
         private void AddFractalsToChart(List<Candle> obj)
         {
             if (obj.Count < 5)
             {
-                _upFractal = 0;
-                _downFractal = 0;
+                _lastUpFractal = 0;
+                _lastDownFractal = 0;
                 _fractal.ValuesUp?.Clear();
                 _fractal.ValuesDown?.Clear();
-                //_tab.BuyAtStopCancel();
-                //_tab.SellAtStopCancel();
+                _tab.BuyAtStopCancel();
+                _tab.SellAtStopCancel();
 
                 return;
             }
@@ -187,18 +507,20 @@ namespace OsEngine.Robots
 
                     if (_fractal.ValuesUp[i] < obj[^1].Close)
                     {
-                        _upFractal = 0;
+                        _lastUpFractal = _fractal.ValuesUp[i];
                         _tab.DeleteChartElement(point);
                         _upFractalIsChange = true;
+                        _upFractalIsDelete = true;
 
                         break;
                     }
 
-                    if (_upFractal != _fractal.ValuesUp[i])
+                    if (_lastUpFractal != _fractal.ValuesUp[i])
                     {
-                        _upFractal = _fractal.ValuesUp[i];
+                        _lastUpFractal = _fractal.ValuesUp[i];
                         _upFractalIsChange = true;
-                        
+                        _upFractalIsDelete = false;
+
                         point.Y = obj[i].High + _tab.Security.PriceStep * 10;
                         point.TimePoint = obj[i].TimeStart;
                         point.Color = Color.Green;
@@ -206,7 +528,7 @@ namespace OsEngine.Robots
                         point.Size = 12;
 
                         _tab.SetChartElement(point);
-                        SendNewLogMessage("Изменился верхний фрактал: " + _upFractal, _logType);
+                        SendNewLogMessage($"{_timeCandle} Изменился верхний фрактал: " + _lastUpFractal, _logType);
                     }
 
                     break;
@@ -221,18 +543,20 @@ namespace OsEngine.Robots
 
                     if (_fractal.ValuesDown[i] > obj[^1].Close)
                     {
-                        _downFractal = 0;
+                        _lastDownFractal = _fractal.ValuesDown[i];
                         _tab.DeleteChartElement(point);
                         _downFractalIsChange = true;
+                        _downFractalIsDelete = true;
 
                         break;
                     }
 
-                    if (_downFractal != _fractal.ValuesDown[i])
+                    if (_lastDownFractal != _fractal.ValuesDown[i])
                     {
                         _downFractalIsChange = true;
+                        _downFractalIsDelete = false;
 
-                        _downFractal = _fractal.ValuesDown[i];
+                        _lastDownFractal = _fractal.ValuesDown[i];
 
                         point.Y = obj[i].Low - _tab.Security.PriceStep * 10;
                         point.TimePoint = obj[i].TimeStart;
@@ -241,7 +565,7 @@ namespace OsEngine.Robots
                         point.Size = 12;
 
                         _tab.SetChartElement(point);
-                        SendNewLogMessage("Изменился нижний фрактал: " + _downFractal, _logType);
+                        SendNewLogMessage($"{_timeCandle} Изменился нижний фрактал: " + _lastDownFractal, _logType);
                     }
 
                     break;

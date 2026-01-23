@@ -5,9 +5,7 @@ using OsEngine.OsTrader.Panels.Attributes;
 using OsEngine.OsTrader.Panels.Tab;
 using System;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
 using System.Threading;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace OsEngine.Robots
 {
@@ -33,7 +31,6 @@ namespace OsEngine.Robots
         private Aindicator _emaFast;
         private Aindicator _emaSlow;
 
-        //private int _decimalsPriceSecurity;
         private decimal _valueSL;
 
         public CrossTwoEMA(string name, StartProgram startProgram) : base(name, startProgram)
@@ -73,8 +70,6 @@ namespace OsEngine.Robots
 
             _tab.ManualPositionSupport.DisableManualSupport();
             _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;
-            //_tab.PositionOpeningSuccesEvent += _tab_PositionOpeningSuccesEvent;
-            //_tab.PositionClosingSuccesEvent += _tab_PositionClosingSuccesEvent;
 
             ParametrsChangeByUser += CrossTwoEMA_ParametrsChangeByUser;
 
@@ -93,27 +88,6 @@ namespace OsEngine.Robots
             _emaSlow.Reload();
         }
 
-        /*private void _tab_PositionClosingSuccesEvent(Position obj)
-        {
-            SendNewLogMessage($"Позиция {obj.Direction} закрылась, по цене {obj.ClosePrice}", _logTelegram);
-        }
-
-        private void _tab_PositionOpeningSuccesEvent(Position obj)
-        {
-            SendNewLogMessage($"Позиция {obj.Direction} открылась, по цене {obj.EntryPrice}, объем {obj.OpenVolume}", _logTelegram);
-
-            if (obj.Direction == Side.Buy)
-            {
-                _isOpenOrderLong = true;
-                _isCloseOrderLong = false;
-            }
-            else
-            {
-                _isOpenOrderShort = true;
-                _isCloseOrderShort = false;
-            }
-        }*/
-
         private bool _isOpenOrderLong = false;
         private bool _isCloseOrderLong = true;
         private bool _isOpenOrderShort = false;
@@ -125,7 +99,14 @@ namespace OsEngine.Robots
             {
                 try
                 {
-                    Thread.Sleep(1000);
+                    if (_startProgram == StartProgram.IsOsTrader)
+                    {
+                        Thread.Sleep(1000);
+                    }
+                    else
+                    {
+                        Thread.Sleep(100);
+                    }
 
                     if (_tab == null)
                     {
@@ -338,15 +319,6 @@ namespace OsEngine.Robots
                 if (_regime == "Off") return;
                 if (_emaFast.DataSeries[0].Values[^1] == 0 || _emaSlow.DataSeries[0].Values[^1] == 0) return;
 
-                /*if (_startProgram == StartProgram.IsOsTrader)
-                {
-                    _decimalsPriceSecurity = _tab.Security.Decimals;
-                }
-                else
-                {
-                    _decimalsPriceSecurity = 2;
-                }*/
-
                 if (_sideOrder == Side.Buy.ToString())
                 {
                     TrySendOrderBuy(candles);
@@ -552,7 +524,7 @@ namespace OsEngine.Robots
             }
             decimal moneyOnPosition = portfolioPrimeAsset * (_riskDeal.ValueDecimal / 100);
 
-            decimal qty = moneyOnPosition / _tab.PriceBestAsk / _tab.Security.Lot;
+            decimal qty = moneyOnPosition / Math.Abs(_tab.PriceBestAsk - _valueSL) / _tab.Security.Lot;
                         
             if (_tab.Security.UsePriceStepCostToCalculateVolume == true
                 && _tab.Security.PriceStep != _tab.Security.PriceStepCost
@@ -560,11 +532,12 @@ namespace OsEngine.Robots
                 && _tab.Security.PriceStep != 0
                 && _tab.Security.PriceStepCost != 0)
             {// расчёт количества контрактов для фьючерсов и опционов на Мосбирже
-                qty = moneyOnPosition / (_tab.PriceBestAsk / _tab.Security.PriceStep * _tab.Security.PriceStepCost);
+                qty = moneyOnPosition / (Math.Abs(_tab.PriceBestAsk - _valueSL) / _tab.Security.PriceStep * _tab.Security.PriceStepCost);
             }
 
             qty = Math.Round(qty, _tab.Security.DecimalsVolume);
-           
+
+            SendNewLogMessage($"Volume: {qty}, риск на сделку: {moneyOnPosition}, расстояние до SL: {Math.Abs(_tab.PriceBestAsk - _valueSL)}" + _tradeAssetInPortfolio, _logType);
 
             return qty;
         }
