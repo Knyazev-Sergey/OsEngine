@@ -985,7 +985,7 @@ function qsfunctions.get_candles_from_data_source(msg)
         if os.time() - wait_start >= max_wait_seconds then
             ds:Close()
             msg.cmd = "lua_error"
-            msg.lua_error = "There are no candles for this period. DataSource is empty after waiting " .. max_wait_seconds .. " seconds for " .. class .. ":" .. sec
+            msg.lua_error = "DataSource is empty after waiting " .. max_wait_seconds .. " seconds for " .. class .. ":" .. sec
             return msg
         end
         
@@ -1044,10 +1044,6 @@ function qsfunctions.get_candles_from_data_source(msg)
         
         if delay then
             delay(5)  -- 5ms пауза
-        end
-        
-        if os.time() - wait_start >= max_wait_seconds + 9 then  -- Дополнительные 9 секунд на обработку
-            break
         end
     end
     

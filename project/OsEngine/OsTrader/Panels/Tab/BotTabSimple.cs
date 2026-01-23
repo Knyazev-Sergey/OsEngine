@@ -5604,6 +5604,11 @@ namespace OsEngine.OsTrader.Panels.Tab
                     return false;
                 }
 
+                if(position.OpenVolume == 0)
+                {
+                    return false;
+                }
+
                 if (position.StopOrderIsActive)
                 {
 
@@ -6842,33 +6847,15 @@ namespace OsEngine.OsTrader.Panels.Tab
             { // назначаем трейду номер свечи в тестере и оптимизаторе
                 List<Candle> candles = CandlesAll;
 
-                if (candles != null && candles.Count > 0)
+                if (candles != null && candles.Count > 1)
                 {
-                    if (Connector.MyServer.ServerType == ServerType.Tester)
+                    if (trade.Time == candles[^1].TimeStart)
                     {
-                        TesterServer server = (TesterServer)Connector.MyServer;
-
-                        if (server.TypeTesterData == TesterDataType.Candle)
-                        {
-                            trade.NumberCandleInTester = candles.Count;
-                        }
-                        else
-                        {
-                            trade.NumberCandleInTester = candles.Count - 1;
-                        }
+                        trade.NumberCandleInTester = candles.Count - 1;
                     }
-                    if (Connector.MyServer.ServerType == ServerType.Optimizer)
+                    else
                     {
-                        OptimizerServer server = (OptimizerServer)Connector.MyServer;
-
-                        if (server.TypeTesterData == TesterDataType.Candle)
-                        {
-                            trade.NumberCandleInTester = candles.Count;
-                        }
-                        else
-                        {
-                            trade.NumberCandleInTester = candles.Count - 1;
-                        }
+                        trade.NumberCandleInTester = candles.Count;
                     }
                 }
             }

@@ -86,6 +86,7 @@ namespace OsEngine.Robots.FuturesStart
         private StrategyParameterDecimal _bollingerDeviation;
 
         private StrategyParameterString _contangoFilterRegime;
+        private StrategyParameterInt _contangoFilterCountSecurities;
         private StrategyParameterInt _contangoStageToTradeLong;
         private StrategyParameterInt _contangoStageToTradeShort;
         private StrategyParameterDecimal _contangoCoefficient1;
@@ -202,8 +203,8 @@ namespace OsEngine.Robots.FuturesStart
             _tradePeriodsShowDialogButton = CreateParameterButton("Non trade periods", "Base");
             _tradePeriodsShowDialogButton.UserClickOnButtonEvent += _tradePeriodsShowDialogButton_UserClickOnButtonEvent;
 
-            _bollingerLength = CreateParameter("Bollinger Length", 150, 20, 300, 10, "Base");
-            _bollingerDeviation = CreateParameter("Bollinger deviation", 1.7m, 1, 4, 0.1m, "Base");
+            _bollingerLength = CreateParameter("Bollinger Length", 150, 40, 300, 10, "Base");
+            _bollingerDeviation = CreateParameter("Bollinger deviation", 1.7m, 0.5m, 4, 0.1m, "Base");
 
             // GetVolume settings
             _volumeType = CreateParameter("Volume type", "Deposit percent", new[] { "Contracts", "Contract currency", "Deposit percent" }, "Base");
@@ -211,6 +212,7 @@ namespace OsEngine.Robots.FuturesStart
             _tradeAssetInPortfolio = CreateParameter("Asset in portfolio", "Prime", "Base");
 
             _contangoFilterRegime = CreateParameter("Contango filter regime", "On_MOEXStocksAuto", new[] { "Off", "On_MOEXStocksAuto", "On_Manual" }, "Contango");
+            _contangoFilterCountSecurities = CreateParameter("Contango filter count securities", 3, 1, 2, 1, "Contango");
             _contangoStageToTradeLong = CreateParameter("Contango stage to trade Long", 1, 1, 2, 1, "Contango");
             _contangoStageToTradeShort = CreateParameter("Contango stage to trade Short", 2, 1, 2, 1, "Contango");
 
@@ -874,12 +876,64 @@ namespace OsEngine.Robots.FuturesStart
 
             decimal coeff = 1;
 
-            if(_contangoFilterRegime.ValueString == "On_MOEXStocksAuto"
-                && baseSource.Security.Name.Contains("MGNT") == false)
+            if(_contangoFilterRegime.ValueString == "On_MOEXStocksAuto")
             {
-                for (int i = 0; i < baseSource.Security.Decimals; i++)
+                if (baseSource.Security.Name.Contains("MGNT") == false
+                    && baseSource.Security.Name.Contains("VTB") == false
+                     && baseSource.Security.Name.Contains("GMKN") == false)
                 {
-                    coeff = coeff * 10;
+                    for (int i = 0; i < baseSource.Security.Decimals; i++)
+                    {
+                        coeff = coeff * 10;
+                    }
+                }
+                else if (baseSource.Security.Name.Contains("VTB") == true)
+                {
+                    DateTime time = baseSource.TimeServerCurrent;
+
+                    if (time.Year < 2024)
+                    {
+                        coeff = 20;
+                    }
+                    else if (time.Year == 2024
+                        && time.Month < 7)
+                    {
+                        coeff = 20;
+                    }
+                    else if (time.Year == 2024
+                            && time.Month == 7
+                            && time.Day < 15)
+                    {
+                        coeff = 20;
+                    }
+                    else
+                    {
+                        coeff = 100;
+                    }
+                }
+                else if (baseSource.Security.Name.Contains("GMKN") == true)
+                {
+                    DateTime time = baseSource.TimeServerCurrent;
+
+                    if (time.Year < 2024)
+                    {
+                        coeff = 100;
+                    }
+                    else if (time.Year == 2024
+                        && time.Month < 4)
+                    {
+                        coeff = 100;
+                    }
+                    else if (time.Year == 2024
+                            && time.Month == 4
+                            && time.Day < 4)
+                    {
+                        coeff = 100;
+                    }
+                    else
+                    {
+                        coeff = 10;
+                    }
                 }
             }
             else if (_contangoFilterRegime.ValueString == "On_Manual") 
@@ -951,11 +1005,11 @@ namespace OsEngine.Robots.FuturesStart
             {
                 if (_contangoValues[i].SecurityName == secName)
                 {
-                    if(i <= _contangoValues.Count /3)
+                    if(i <= _contangoFilterCountSecurities.ValueInt)
                     {
                         return 1;
                     }
-                    else if (i >= _contangoValues.Count / 3)
+                    else if (i >= _contangoValues.Count - _contangoFilterCountSecurities.ValueInt)
                     {
                         return 2;
                     }
