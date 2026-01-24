@@ -97,10 +97,8 @@ namespace OsEngine.Robots
             ParametrsChangeByUser += FractalBreakthrough_ParametrsChangeByUser;
 
             _tab.ManualPositionSupport.DisableManualSupport();
-            _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;           
-
-            Thread mainThread = new Thread(MainThread);
-            mainThread.Start();
+            _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;
+            _tab.PositionOpeningSuccesEvent += _tab_PositionOpeningSuccesEvent;
 
             if (StartProgram == StartProgram.IsTester
                 && ServerMaster.GetServers() != null)
@@ -290,50 +288,26 @@ namespace OsEngine.Robots
             return true;
         }
 
-        private bool _isOpenOrderLong = false;
-        private bool _isCloseOrderLong = true;
-        private bool _isOpenOrderShort = false;
-        private bool _isCloseOrderShort = true;
-
-        private void MainThread()
+        private void _tab_PositionOpeningSuccesEvent(Position obj)
         {
-            while (true)
+            try
             {
-                try
+                if (obj.Direction == Side.Buy)
                 {
-                    if (_startProgram == StartProgram.IsOsTrader)
-                    {
-                        Thread.Sleep(1000);
-                    }
-                    else
-                    {
-                        Thread.Sleep(1);
-                    }
-
-                    if (_tab == null)
-                    {
-                        continue;
-                    }
-
-                    if (_tab.Security == null)
-                    {
-                        continue;
-                    }
-
-                    if (_regime == "Off")
-                    {
-                        WithdrawOrders();
-                        continue;
-                    }
-
-                    LogicLongPosition();
-                    LogicShortPosition();
+                    SetLongSL();
+                    SetLongTP();
                 }
-                catch (Exception ex)
+
+                if (obj.Direction == Side.Sell)
                 {
-                    SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
-                    Thread.Sleep(5000);
+                    SetShortSL();
+                    SetShortTP();
                 }
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+                Thread.Sleep(5000);
             }
         }
 
@@ -368,38 +342,9 @@ namespace OsEngine.Robots
             }
         }
 
-        private void LogicLongPosition()
-        {
-            if (_tab.PositionOpenLong.Count > 0)
-            {
-                _tab.SellAtStopCancel();
-
-                SetLongSL();
-                SetLongTP();
-
-                if (!_isOpenOrderLong && _tab.PositionOpenLong[0].State == PositionStateType.Open)
-                {
-                    _isOpenOrderLong = true;
-                    _isCloseOrderLong = false;
-                }
-            }
-            else
-            {
-                if (_tab.PositionsCloseAll.Count > 0)
-                {
-                    if (!_isCloseOrderLong && _tab.PositionsCloseAll[^1].State == PositionStateType.Done)
-                    {
-                        SendNewLogMessage($"{_timeCandle} Позиция Long закрылась, по цене {_tab.PositionsCloseAll[^1].ClosePrice}", _logType);
-                        _isOpenOrderLong = false;
-                        _isCloseOrderLong = true;
-                    }
-                }
-            }
-        }
-
         private void SetLongSL()
         {
-            if (!_tab.PositionOpenLong[0].StopOrderIsActive)
+            if (_tab.PositionOpenLong[0].StopOrderPrice == 0)
             {
                 Position pos = _tab.PositionOpenLong[0];
                 decimal price = _lastDownFractal - _tab.Security.PriceStep * 2;
@@ -412,7 +357,7 @@ namespace OsEngine.Robots
 
         private void SetLongTP()
         {
-            if (!_tab.PositionOpenLong[0].ProfitOrderIsActive)
+            if (_tab.PositionOpenLong[0].ProfitOrderPrice == 0)
             {                
                 Position pos = _tab.PositionOpenLong[0];
                 decimal price = (_tab.PriceBestAsk - _lastDownFractal) * _coefTP + _tab.PriceBestAsk;
@@ -422,39 +367,9 @@ namespace OsEngine.Robots
             }
         }
 
-        private void LogicShortPosition()
-        {
-            if (_tab.PositionOpenShort.Count > 0)
-            {
-                _tab.BuyAtStopCancel();
-
-                SetShortSL();
-                SetShortTP();
-
-                if (!_isOpenOrderShort && _tab.PositionOpenShort[0].State == PositionStateType.Open)
-                {
-                    SendNewLogMessage($"{_timeCandle} Позиция Short открылась, по цене {_tab.PositionOpenShort[0].EntryPrice}, объем {_tab.PositionOpenShort[0].OpenVolume}", _logType);
-                    _isOpenOrderShort = true;
-                    _isCloseOrderShort = false;
-                }
-            }
-            else
-            {
-                if (_tab.PositionsCloseAll.Count > 0)
-                {
-                    if (!_isCloseOrderShort && _tab.PositionsCloseAll[^1].State == PositionStateType.Done)
-                    {
-                        SendNewLogMessage($"{_timeCandle} Позиция Short закрылась, по цене {_tab.PositionsCloseAll[^1].ClosePrice}", _logType);
-                        _isOpenOrderShort = false;
-                        _isCloseOrderShort = true;
-                    }
-                }
-            }
-        }
-
         private void SetShortSL()
         {
-            if (!_tab.PositionOpenShort[0].StopOrderIsActive)
+            if (_tab.PositionOpenShort[0].StopOrderPrice == 0)
             {
                 Position pos = _tab.PositionOpenShort[0];
                 decimal price = _lastDownFractal - _tab.Security.PriceStep * 2;
@@ -466,7 +381,7 @@ namespace OsEngine.Robots
 
         private void SetShortTP()
         {
-            if (!_tab.PositionOpenShort[0].ProfitOrderIsActive)
+            if (_tab.PositionOpenShort[0].ProfitOrderPrice == 0)
             {
                 Position pos = _tab.PositionOpenShort[0];
                 decimal price = _tab.PriceBestBid - (_lastUpFractal - _tab.PriceBestBid) * _coefTP;
