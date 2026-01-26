@@ -27,6 +27,7 @@ namespace OsEngine.Robots
         private StrategyParameterString _typeTP;
         private StrategyParameterDecimal _coefTP;
         private StrategyParameterDecimal _lostDealOfSL;
+        private StrategyParameterBool _boolLogCrossEMA;
 
         private Aindicator _emaFast;
         private Aindicator _emaSlow;
@@ -57,6 +58,7 @@ namespace OsEngine.Robots
             _typeTP = CreateParameter("Тип TP", TypeTP.Coeficient.ToString(), new string[] { TypeTP.Coeficient.ToString(), TypeTP.CrossEMA.ToString() }, tabNameParameters);
             _coefTP = CreateParameter("Коэффициент TP", 1m, 0m, 0m, 0m, tabNameParameters);
             _lostDealOfSL = CreateParameter("Пропускаем сделку, если SL > (в %)", 1m, 0m, 0m, 0m, tabNameParameters);
+            _boolLogCrossEMA = CreateParameter("Присылать в телеграмм сообщение о пересечении EMA", false, tabNameParameters);
 
             _emaFast = IndicatorsFactory.CreateIndicatorByName("Ema", name + "EmaFast", false);
             _emaFast = (Aindicator)_tab.CreateCandleIndicator(_emaFast, "Prime");
@@ -317,7 +319,30 @@ namespace OsEngine.Robots
             try
             {
                 if (_regime == "Off") return;
+
                 if (_emaFast.DataSeries[0].Values[^1] == 0 || _emaSlow.DataSeries[0].Values[^1] == 0) return;
+
+                decimal fastEmaLast = _emaFast.DataSeries[0].Values[^1];
+                decimal fastEmaPrev = _emaFast.DataSeries[0].Values[^2];
+                decimal slowEmaLast = _emaSlow.DataSeries[0].Values[^1];
+                decimal slowEmaPrev = _emaSlow.DataSeries[0].Values[^2];
+
+                if (_boolLogCrossEMA)
+                {
+                    if (fastEmaLast > fastEmaPrev &&
+                        fastEmaLast > slowEmaLast &&
+                        fastEmaPrev < slowEmaPrev)
+                    {
+                        SendNewLogMessage($"Быстрая EMA пересекла медленную EMA снизу вверх", _logTelegram);
+                    }
+
+                    if (fastEmaLast < fastEmaPrev &&
+                        fastEmaLast < slowEmaLast &&
+                        fastEmaPrev > slowEmaPrev)
+                    {
+                        SendNewLogMessage($"Быстрая EMA пересекла медленную EMA сверху вниз", _logTelegram);
+                    }
+                }
 
                 if (_sideOrder == Side.Buy.ToString())
                 {
@@ -340,12 +365,13 @@ namespace OsEngine.Robots
             decimal fastEmaLast = _emaFast.DataSeries[0].Values[^1];
             decimal fastEmaPrev = _emaFast.DataSeries[0].Values[^2];
             decimal slowEmaLast = _emaSlow.DataSeries[0].Values[^1];
+            decimal slowEmaPrev = _emaSlow.DataSeries[0].Values[^2];
 
             if (_tab.PositionOpenLong.Count == 0)
             {
                 if (fastEmaLast > fastEmaPrev &&
                     fastEmaLast > slowEmaLast &&
-                    fastEmaPrev < slowEmaLast)
+                    fastEmaPrev < slowEmaPrev)
                 {
                     _valueSL = GetValueLongSL(candles);
 
@@ -414,12 +440,13 @@ namespace OsEngine.Robots
             decimal fastEmaLast = _emaFast.DataSeries[0].Values[^1];
             decimal fastEmaPrev = _emaFast.DataSeries[0].Values[^2];
             decimal slowEmaLast = _emaSlow.DataSeries[0].Values[^1];
+            decimal slowEmaPrev = _emaSlow.DataSeries[0].Values[^2];
 
             if (_tab.PositionOpenShort.Count == 0)
             {
                 if (fastEmaLast < fastEmaPrev &&
                     fastEmaLast < slowEmaLast &&
-                    fastEmaPrev > slowEmaLast)
+                    fastEmaPrev > slowEmaPrev)
                 {
                     _valueSL = GetValueShortSL(candles);
 
