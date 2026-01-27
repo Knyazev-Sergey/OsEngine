@@ -318,10 +318,6 @@ namespace OsEngine.Robots
         {
             try
             {
-                if (_regime == "Off") return;
-
-                if (_emaFast.DataSeries[0].Values[^1] == 0 || _emaSlow.DataSeries[0].Values[^1] == 0) return;
-
                 decimal fastEmaLast = _emaFast.DataSeries[0].Values[^1];
                 decimal fastEmaPrev = _emaFast.DataSeries[0].Values[^2];
                 decimal slowEmaLast = _emaSlow.DataSeries[0].Values[^1];
@@ -343,6 +339,10 @@ namespace OsEngine.Robots
                         SendNewLogMessage($"Быстрая EMA пересекла медленную EMA сверху вниз", _logTelegram);
                     }
                 }
+
+                if (_regime == "Off") return;
+
+                if (_emaFast.DataSeries[0].Values[^1] == 0 || _emaSlow.DataSeries[0].Values[^1] == 0) return;
 
                 if (_sideOrder == Side.Buy.ToString())
                 {

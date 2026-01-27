@@ -23,7 +23,8 @@ namespace OsEngine.Robots
         private BotTabSimple _tab;
         private StrategyParameterString _regime;
         private StrategyParameterDecimal _volume;
-        private StrategyParameterDecimal _coefTP;
+        private StrategyParameterDecimal _coefTPLong;
+        private StrategyParameterDecimal _coefTPShort;
         private StrategyParameterDecimal _comission;
         private StrategyParameterDecimal _coefficientComission;
         private StrategyParameterInt _lengthATR;
@@ -62,18 +63,19 @@ namespace OsEngine.Robots
 
             string tabNameParameters = " Параметры ";
 
-            _regime = CreateParameter("Режим", "Off", new string[] { "Off", "On" }, tabNameParameters);
+            _regime = CreateParameter("Режим", "Off", new string[] { "Off", "On", "OnlyLong", "OnlyShort"}, tabNameParameters);
             _volume = CreateParameter("Объем позиции", 1m, 0m, 0m, 0m, tabNameParameters);
-            _coefTP = CreateParameter("Коэффициент для тейк-профита к стоп-лоссу", 1.5m, 0m, 0m, 0m, tabNameParameters);
-            _comission = CreateParameter("Комиссия, %", 0m, 0m, 0m, 0m, tabNameParameters);
-            _coefficientComission = CreateParameter("Коэффициент комиссии", 0m, 0m, 0m, 0m, tabNameParameters);
-            _lengthATR = CreateParameter("ATR Length", 14, 0, 0, 0, tabNameParameters);
-            _kATR = CreateParameter("ATR K1", 0m, 0m, 0m, 0m, tabNameParameters);
-            _k2ATR = CreateParameter("ATR K2", 0m, 0m, 0m, 0m, tabNameParameters);
-            _kalman1Par1 = CreateParameter("Kalman1 Par1", 0m, 0m, 0m, 0m, tabNameParameters);
-            _kalman1Par2 = CreateParameter("Kalman1 Par2", 0m, 0m, 0m, 0m, tabNameParameters);
-            _kalman2Par1 = CreateParameter("Kalman2 Par1", 0m, 0m, 0m, 0m, tabNameParameters);
-            _kalman2Par2 = CreateParameter("Kalman2 Par2", 0m, 0m, 0m, 0m, tabNameParameters);
+            _coefTPLong = CreateParameter("Коэффициент для тейк-профита Buy к стоп-лоссу", 1.5m, 0m, 0m, 0m, tabNameParameters);
+            _coefTPShort = CreateParameter("Коэффициент для тейк-профита Sell к стоп-лоссу", 1.5m, 0m, 0m, 0m, tabNameParameters);
+            _comission = CreateParameter("Комиссия, %", 0.03m, 0m, 0m, 0m, tabNameParameters);
+            _coefficientComission = CreateParameter("Коэффициент комиссии", 3m, 0m, 0m, 0m, tabNameParameters);
+            _lengthATR = CreateParameter("ATR Length", 5, 0, 0, 0, tabNameParameters);
+            _kATR = CreateParameter("ATR K1", 1m, 0m, 0m, 0m, tabNameParameters);
+            _k2ATR = CreateParameter("ATR K2", 1m, 0m, 0m, 0m, tabNameParameters);
+            _kalman1Par1 = CreateParameter("Kalman1 Par1", 10m, 0m, 0m, 0m, tabNameParameters);
+            _kalman1Par2 = CreateParameter("Kalman1 Par2", 0.01m, 0m, 0m, 0m, tabNameParameters);
+            _kalman2Par1 = CreateParameter("Kalman2 Par1", 1m, 0m, 0m, 0m, tabNameParameters);
+            _kalman2Par2 = CreateParameter("Kalman2 Par2", 3m, 0m, 0m, 0m, tabNameParameters);
 
             _fractal = new Fractal(name + "Fractal", false);
 
@@ -144,6 +146,9 @@ namespace OsEngine.Robots
                 _timeCandle = candels[^1].TimeStart.ToString("dd.MM.yyyy HH:mm:ss");
 
                 AddFractalsToChart(candels);
+                
+                if(candels.Count < 500) return;
+                
                 TradeLogic();
             }
             catch (Exception ex)
@@ -167,16 +172,16 @@ namespace OsEngine.Robots
 
                     if (_tab.PositionOpenLong.Count == 0 && _tab.PositionOpenShort.Count == 0)
                     {                        
-                        if (FilterBuyOrder()) //проверка фильтров
+                        if (_regime != "OnlyShort" && FilterBuyOrder()) //проверка фильтров
                         {
                             _tab.BuyAtStopCancel();
-                            _tab.BuyAtStopMarket(_volume, _lastUpFractal, _lastUpFractal, StopActivateType.HigherOrEqual, 0, null, PositionOpenerToStopLifeTimeType.NoLifeTime);
+                            _tab.BuyAtStopMarket(_volume, _lastUpFractal, _lastUpFractal + _tab.Securiti.PriceStep, StopActivateType.HigherOrEqual, 0, null, PositionOpenerToStopLifeTimeType.NoLifeTime);
                         }
 
-                        if (FilterSellOrder()) //проверка фильтров
+                        if (_regime != "OnlyLong" && FilterSellOrder()) //проверка фильтров
                         {                            
                             _tab.SellAtStopCancel();
-                            _tab.SellAtStopMarket(_volume, _lastDownFractal, _lastDownFractal, StopActivateType.LowerOrEqual, 0, null, PositionOpenerToStopLifeTimeType.NoLifeTime);
+                            _tab.SellAtStopMarket(_volume, _lastDownFractal, _lastDownFractal - _tab.Securiti.PriceStep, StopActivateType.LowerOrEqual, 0, null, PositionOpenerToStopLifeTimeType.NoLifeTime);
                         }
                     }
                 }
@@ -196,7 +201,7 @@ namespace OsEngine.Robots
         private bool FilterBuyOrder()
         {
             // filter kalman
-            if (_kalman1.DataSeries[0].Values[^1] <= _kalman1.DataSeries[0].Values[^2] &&
+            if (_kalman1.DataSeries[0].Values[^1] <= _kalman1.DataSeries[0].Values[^2] ||
                 _kalman2.DataSeries[0].Values[^1] <= _kalman2.DataSeries[0].Values[^2])
             {
                 SendNewLogMessage($"{_timeCandle} Фильтр по Kalman Long: не проходим по фильтру", _logType);
@@ -205,11 +210,14 @@ namespace OsEngine.Robots
 
             SendNewLogMessage($"{_timeCandle} Фильтр по Kalman Long: проходим по фильтру", _logType);
 
-            // filter TP
-            _priceTPBuy = (_tab.PriceBestAsk - _lastDownFractal) * _coefTP + _tab.PriceBestAsk;
+            var openPrice = _lastUpFractal + _tab.Security.PriceStep;
+            _priceSLBuy = _lastDownFractal - _tab.Security.PriceStep;
+            _priceTPBuy = (openPrice - _priceSLBuy) * _coefTPLong + openPrice;
 
-            decimal costTP = (_priceTPBuy - _tab.PriceBestAsk) * _volume;
-            decimal needTP = _tab.PriceBestAsk * _comission / 100 * _coefficientComission;
+            // filter TP
+
+            decimal costTP = _priceTPBuy - openPrice;
+            decimal needTP = openPrice * _comission * 2 / 100 * _coefficientComission;
 
             if (costTP < needTP)
             {
@@ -220,16 +228,16 @@ namespace OsEngine.Robots
             SendNewLogMessage($"{_timeCandle} Фильтр по ТП Long: минимальная прибыль ТП = {needTP}, прибыль ТП = {costTP}, проходим по фильтру", _logType);
 
             //filter SL
-            _priceSLBuy = _lastDownFractal - _tab.Security.PriceStep * 2;
             decimal lastATR = _atr.DataSeries[0].Last;
+            var costSL = openPrice - _priceSLBuy;
 
-            if (_priceSLBuy < lastATR * _kATR)
+            if (costSL < lastATR * _kATR)
             {
                 SendNewLogMessage($"{_timeCandle} Фильтр по kATR Long: цена SL = {_priceSLBuy}, значение фильтра = {lastATR * _kATR}, не проходим по фильтру", _logType);
                 return false;
             }
 
-            if (_priceSLBuy > lastATR * _k2ATR)
+            if (costSL > lastATR * _k2ATR)
             {
                 SendNewLogMessage($"{_timeCandle} Фильтр по kATR Long: цена SL = {_priceSLBuy}, значение фильтра = {lastATR * _k2ATR}, не проходим по фильтру", _logType);
                 return false;
@@ -243,7 +251,7 @@ namespace OsEngine.Robots
         private bool FilterSellOrder()
         {
             // filter kalman
-            if (_kalman1.DataSeries[0].Values[^1] >= _kalman1.DataSeries[0].Values[^2] &&
+            if (_kalman1.DataSeries[0].Values[^1] >= _kalman1.DataSeries[0].Values[^2] ||
                 _kalman2.DataSeries[0].Values[^1] >= _kalman2.DataSeries[0].Values[^2])
             {
                 SendNewLogMessage($"{_timeCandle} Фильтр по Kalman Short: не проходим по фильтру", _logType);
@@ -252,11 +260,14 @@ namespace OsEngine.Robots
 
             SendNewLogMessage($"{_timeCandle} Фильтр по Kalman Short: проходим по фильтру", _logType);
 
-            // filter TP
-            _priceTPSell = _tab.PriceBestBid - (_lastUpFractal - _tab.PriceBestBid) * _coefTP;
+            var openPrice = _lastDownFractal - _tab.Security.PriceStep;
+            _priceSLSell = _lastUpFractal + _tab.Security.PriceStep;
+            _priceTPSell = openPrice - (_priceSLSell - openPrice) * _coefTPShort;
 
-            decimal costTP = (_tab.PriceBestBid - _priceTPSell) * _volume;
-            decimal needTP = _tab.PriceBestBid * _comission / 100 * _coefficientComission;
+            // filter TP
+
+            decimal costTP = openPrice - _priceTPSell;
+            decimal needTP = openPrice * _comission * 2 / 100 * _coefficientComission;
 
             if (costTP < needTP)
             {
@@ -267,17 +278,17 @@ namespace OsEngine.Robots
             SendNewLogMessage($"{_timeCandle} Фильтр по ТП Short: минимальная прибыль ТП = {needTP}, прибыль ТП = {costTP}, проходим по фильтру", _logType);
 
             //filter SL
-            _priceSLSell = _lastUpFractal + _tab.Security.PriceStep * 2;
 
-            decimal lastATR = _atr.DataSeries[0].Last;
+            var lastATR = _atr.DataSeries[0].Last;
+            var costSL = _priceSLSell - openPrice;
 
-            if (_priceSLSell < lastATR * _kATR)
+            if (costSL < lastATR * _kATR)
             {
                 SendNewLogMessage($"{_timeCandle} Фильтр по kATR Short: цена SL = {_priceSLSell}, значение фильтра = {lastATR * _kATR}, не проходим по фильтру", _logType);
                 return false;
             }
 
-            if (_priceSLSell > lastATR * _k2ATR)
+            if (costSL > lastATR * _k2ATR)
             {
                 SendNewLogMessage($"{_timeCandle} Фильтр по kATR Short: цена SL = {_priceSLSell}, значение фильтра = {lastATR * _k2ATR}, не проходим по фильтру", _logType);
                 return false;
@@ -360,7 +371,7 @@ namespace OsEngine.Robots
             if (_tab.PositionOpenLong[0].ProfitOrderPrice == 0)
             {                
                 Position pos = _tab.PositionOpenLong[0];
-                decimal price = (_tab.PriceBestAsk - _lastDownFractal) * _coefTP + _tab.PriceBestAsk;
+                decimal price = (_tab.PriceBestAsk - _lastDownFractal) * _coefTPShort + _tab.PriceBestAsk;
                 _tab.CloseAtProfitMarket(pos, _priceTPBuy);
 
                 SendNewLogMessage($"{_timeCandle} Выставлен TakeProfit по Long, цена: {_priceTPBuy}", _logType);
@@ -384,7 +395,7 @@ namespace OsEngine.Robots
             if (_tab.PositionOpenShort[0].ProfitOrderPrice == 0)
             {
                 Position pos = _tab.PositionOpenShort[0];
-                decimal price = _tab.PriceBestBid - (_lastUpFractal - _tab.PriceBestBid) * _coefTP;
+                decimal price = _tab.PriceBestBid - (_lastUpFractal - _tab.PriceBestBid) * _coefTPShort;
                 _tab.CloseAtProfitMarket(pos, _priceTPSell);
 
                 SendNewLogMessage($"{_timeCandle} Выставлен TakeProfit по Long, цена: {_priceTPSell}", _logType);

@@ -28,7 +28,7 @@ namespace OsEngine.Robots
             {
                 try
                 {
-                    if (_tab == null || _tab.Connector.MyServer == null)
+                    if (_tab == null || _tab.Connector == null || _tab.Connector.MyServer == null)
                     {
                         Thread.Sleep(1000);
                         continue;
