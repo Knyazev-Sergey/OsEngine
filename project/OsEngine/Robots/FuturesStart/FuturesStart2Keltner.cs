@@ -3,6 +3,7 @@
  * Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
 */
 
+using OsEngine.Candles.Series;
 using OsEngine.Entity;
 using OsEngine.Indicators;
 using OsEngine.Language;
@@ -208,9 +209,9 @@ namespace OsEngine.Robots.FuturesStart
             _tradePeriodsShowDialogButton = CreateParameterButton("Non trade periods", "Base");
             _tradePeriodsShowDialogButton.UserClickOnButtonEvent += _tradePeriodsShowDialogButton_UserClickOnButtonEvent;
 
-            _keltnerEmaLength = CreateParameter("Keltner ema Length", 115, 20, 300, 10, "Base");
-            _keltnerAtrLength = CreateParameter("Keltner atr Length", 20, 20, 300, 10, "Base");
-            _keltnerDeviation = CreateParameter("Keltner deviation", 3m, 1, 4, 0.1m, "Base");
+            _keltnerEmaLength = CreateParameter("Keltner ema Length", 150, 20, 300, 10, "Base");
+            _keltnerAtrLength = CreateParameter("Keltner atr Length", 24, 20, 300, 10, "Base");
+            _keltnerDeviation = CreateParameter("Keltner deviation", 3.9m, 1, 4, 0.1m, "Base");
                 
              // GetVolume settings
             _volumeType = CreateParameter("Volume type", "Deposit percent", new[] { "Contracts", "Contract currency", "Deposit percent" }, "Base");
@@ -1244,6 +1245,10 @@ namespace OsEngine.Robots.FuturesStart
             tabFutures.ServerType = server.ServerType;
             tabFutures.ServerName = server.ServerNameAndPrefix;
 
+            tabFutures.CandleCreateMethodType = CandleCreateMethodType.Simple.ToString();
+            ((Simple)tabFutures.CandleSeriesRealization).TimeFrame = TimeFrame.Min15;
+            ((Simple)tabFutures.CandleSeriesRealization).TimeFrameParameter.ValueString = TimeFrame.Min15.ToString();
+
             List<ActivatedSecurity> securitiesToScreener = new List<ActivatedSecurity>();
 
             for (int i = 0; i < futuresSecurity.Count; i++)
@@ -1263,6 +1268,7 @@ namespace OsEngine.Robots.FuturesStart
                 }
             }
 
+            tabFutures.SaveSettings();
             tabFutures.NeedToReloadTabs = true;
         }
 

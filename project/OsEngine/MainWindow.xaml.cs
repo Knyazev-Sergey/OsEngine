@@ -6,6 +6,7 @@
 using Microsoft.Win32;
 using OsEngine.Alerts;
 using OsEngine.Entity;
+using OsEngine.Instructions;
 using OsEngine.Language;
 using OsEngine.Layout;
 using OsEngine.Market;
@@ -144,16 +145,80 @@ namespace OsEngine
                 UnblockInterface();
             }
 
+            if (InteractiveInstructions.MainMenu.AllInstructionsInClass == null
+              || InteractiveInstructions.MainMenu.AllInstructionsInClass.Count == 0)
+            {
+                ButtonPostsMenu.Visibility = Visibility.Hidden;
+            }
+            else
+            {
+                ButtonPostsMenu.Click += ButtonPostsMenu_Click;
+            }
+
             ChangeText();
 
             ReloadFlagButton();
 
             this.ContentRendered += MainWindow_ContentRendered;
+
+            StartButtonBlinkAnimation();
         }
+
+        private void StartButtonBlinkAnimation()
+        {
+            try
+            {
+                DispatcherTimer timer = new DispatcherTimer();
+                int blinkCount = 0;
+                bool isGreenVisible = true;
+
+                timer.Interval = TimeSpan.FromMilliseconds(300);
+                timer.Tick += (s, e) =>
+                {
+                    try
+                    {
+                        if (blinkCount >= 20)
+                        {
+                            timer.Stop();
+                            GreenCollectionMenu.Opacity = 1;
+                            WhiteCollectionMenu.Opacity = 0;
+                            return;
+                        }
+
+                        if (isGreenVisible)
+                        {
+                            GreenCollectionMenu.Opacity = 0;
+                            WhiteCollectionMenu.Opacity = 1;
+                        }
+                        else
+                        {
+                            GreenCollectionMenu.Opacity = 1;
+                            WhiteCollectionMenu.Opacity = 0;
+                        }
+
+                        isGreenVisible = !isGreenVisible;
+                        blinkCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+                        timer.Stop();
+                    }
+                };
+
+                timer.Start();
+            }
+            catch (Exception ex)
+            {
+                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+            }
+        }
+
         private void GifT_MediaEnded(object sender, RoutedEventArgs e)
         {
             GifT.Pause(); // останавливаем на последнем кадре
         }
+
         #region Block and Unblock interface
 
         private void BlockInterface()
@@ -183,13 +248,20 @@ namespace OsEngine
 
         private void ImagePadlock_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            RobotsUiLightUnblock ui = new RobotsUiLightUnblock();
-
-            ui.ShowDialog();
-
-            if (ui.IsUnBlocked == true)
+            try
             {
-                UnblockInterface();
+                RobotsUiLightUnblock ui = new RobotsUiLightUnblock();
+
+                ui.ShowDialog();
+
+                if (ui.IsUnBlocked == true)
+                {
+                    UnblockInterface();
+                }
+            }
+            catch (Exception ex)
+            {
+                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
             }
         }
 
@@ -241,27 +313,34 @@ namespace OsEngine
 
         private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            GlobalGUILayout.IsClosed = true;
-
-            if (ProccesIsWorked == true)
+            try
             {
-                ProccesIsWorked = false;
+                GlobalGUILayout.IsClosed = true;
 
-                if (this.IsVisible == false)
+                if (ProccesIsWorked == true)
                 {
-                    _awaitUiBotsInfoLoading = new AwaitObject(OsLocalization.Trader.Label391, 100, 0, true);
-                    AwaitUi ui = new AwaitUi(_awaitUiBotsInfoLoading);
+                    ProccesIsWorked = false;
 
-                    Thread worker = new Thread(Await7Seconds);
-                    worker.Start();
+                    if (this.IsVisible == false)
+                    {
+                        _awaitUiBotsInfoLoading = new AwaitObject(OsLocalization.Trader.Label391, 100, 0, true);
+                        AwaitUi ui = new AwaitUi(_awaitUiBotsInfoLoading);
 
-                    ui.ShowDialog();
+                        Thread worker = new Thread(Await7Seconds);
+                        worker.Start();
+
+                        ui.ShowDialog();
+                    }
                 }
+
+                Thread.Sleep(500);
+
+                Process.GetCurrentProcess().Kill();
             }
-
-            Thread.Sleep(500);
-
-            Process.GetCurrentProcess().Kill();
+            catch (Exception ex)
+            {
+                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+            }
         }
 
         AwaitObject _awaitUiBotsInfoLoading;
@@ -388,7 +467,6 @@ namespace OsEngine
         {
             try
             {
-
                 if (!Directory.Exists("Engine"))
                 {
                     Directory.CreateDirectory("Engine");
@@ -511,7 +589,7 @@ namespace OsEngine
         private void TaskScheduler_UnobservedTaskException(object sender, UnobservedTaskExceptionEventArgs e)
         {
             if (e.Exception != null
-                && e.Exception.ToString().Contains("(995):")== true)
+                && e.Exception.ToString().Contains("(995):") == true)
             { // игнорируем прерывания потока за делом по кансел токену
                 return;
             }
@@ -695,26 +773,32 @@ namespace OsEngine
 
         private async void ThreadAreaGreeting()
         {
-            await Task.Delay(1000);
-            double angle = 5;
-
-            for (int i = 0; i < 7; i++)
+            try
             {
-                RotatePic(angle);
-                await Task.Delay(50);
-                angle += 10;
-            }
+                await Task.Delay(1000);
+                double angle = 5;
 
-            for (int i = 0; i < 7; i++)
-            {
-                RotatePic(angle);
+                for (int i = 0; i < 7; i++)
+                {
+                    RotatePic(angle);
+                    await Task.Delay(50);
+                    angle += 10;
+                }
+
+                for (int i = 0; i < 7; i++)
+                {
+                    RotatePic(angle);
+                    await Task.Delay(100);
+                    angle += 10;
+                }
+
                 await Task.Delay(100);
-                angle += 10;
+                RotatePic(angle);
             }
-
-            await Task.Delay(100);
-            RotatePic(angle);
-
+            catch (Exception ex)
+            {
+                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+            }
         }
 
         private void RotatePic(double angle)
@@ -726,20 +810,26 @@ namespace OsEngine
             }
 
             ImageGear.RenderTransform = new RotateTransform(angle, 12, 12);
-
         }
 
         private void ButtonSettings_Click(object sender, RoutedEventArgs e)
         {
-            if (_settingsUi == null)
+            try
             {
-                _settingsUi = new PrimeSettingsMasterUi();
-                _settingsUi.Show();
-                _settingsUi.Closing += delegate { _settingsUi = null; };
+                if (_settingsUi == null)
+                {
+                    _settingsUi = new PrimeSettingsMasterUi();
+                    _settingsUi.Show();
+                    _settingsUi.Closing += delegate { _settingsUi = null; };
+                }
+                else
+                {
+                    _settingsUi.Activate();
+                }
             }
-            else
+            catch (Exception ex)
             {
-                _settingsUi.Activate();
+                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
             }
         }
 
@@ -765,40 +855,47 @@ namespace OsEngine
 
         private void CommandLineInterfaceProcess()
         {
-            string[] args = Environment.GetCommandLineArgs();
-            if (Array.Exists(args, a => a.Equals("-robots")))
+            try
             {
-                ButtonRobotCandleOne_Click(this, default);
-            }
-            else if (Array.Exists(args, a => a.Equals("-tester")))
-            {
-                ButtonTesterCandleOne_Click(this, default);
-            }
-            else if (Array.Exists(args, a => a.Equals("-robotslight")))
-            {
-                ButtonRobotLight_Click(this, default);
-            }
-            else if (Array.Exists(args, a => a.Equals("-error")) && PrimeSettingsMaster.RebootTradeUiLight)
-            {
+                string[] args = Environment.GetCommandLineArgs();
 
-                CriticalErrorHandler.ErrorInStartUp = true;
-
-                Array.ForEach(args, (a) => { CriticalErrorHandler.ErrorMessage += a; });
-
-                new Task(() =>
+                if (Array.Exists(args, a => a.Equals("-robots")))
                 {
-                    string messageError = String.Empty;
+                    ButtonRobotCandleOne_Click(this, default);
+                }
+                else if (Array.Exists(args, a => a.Equals("-tester")))
+                {
+                    ButtonTesterCandleOne_Click(this, default);
+                }
+                else if (Array.Exists(args, a => a.Equals("-robotslight")))
+                {
+                    ButtonRobotLight_Click(this, default);
+                }
+                else if (Array.Exists(args, a => a.Equals("-error")) && PrimeSettingsMaster.RebootTradeUiLight)
+                {
+                    CriticalErrorHandler.ErrorInStartUp = true;
 
-                    for (int i = 0; i < args.Length; i++)
+                    Array.ForEach(args, (a) => { CriticalErrorHandler.ErrorMessage += a; });
+
+                    new Task(() =>
                     {
-                        messageError += args[i];
-                    }
+                        string messageError = String.Empty;
 
-                    MessageBox.Show(messageError);
+                        for (int i = 0; i < args.Length; i++)
+                        {
+                            messageError += args[i];
+                        }
 
-                }).Start();
+                        MessageBox.Show(messageError);
 
-                ButtonRobotLight_Click(this, default);
+                    }).Start();
+
+                    ButtonRobotLight_Click(this, default);
+                }
+            }
+            catch (Exception ex)
+            {
+                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
             }
         }
 
@@ -905,6 +1002,51 @@ namespace OsEngine
                 ButtonLocal_Eng.Background = (SolidColorBrush)new BrushConverter().ConvertFrom("#ff5500");
             }
         }
+
+        #region Posts collection
+
+        private InstructionsUi _instructionsUi;
+
+        private void ButtonPostsMenu_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_instructionsUi == null)
+                {
+                    _instructionsUi = new InstructionsUi(
+                        InteractiveInstructions.MainMenu.AllInstructionsInClass, InteractiveInstructions.MainMenu.AllInstructionsInClassDescription);
+                    _instructionsUi.Show();
+                    _instructionsUi.Closed += _instructionsUi_Closed;
+                }
+                else
+                {
+                    if (_instructionsUi.WindowState == WindowState.Minimized)
+                    {
+                        _instructionsUi.WindowState = WindowState.Normal;
+                    }
+                    _instructionsUi.Activate();
+                }
+            }
+            catch (Exception ex)
+            {
+                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+            }
+        }
+
+        private void _instructionsUi_Closed(object sender, EventArgs e)
+        {
+            try
+            {
+                _instructionsUi.Closed -= _instructionsUi_Closed;
+                _instructionsUi = null;
+            }
+            catch (Exception ex)
+            {
+                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+            }
+        }
+
+        #endregion
     }
 
 

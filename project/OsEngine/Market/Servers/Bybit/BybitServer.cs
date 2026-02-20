@@ -621,6 +621,11 @@ namespace OsEngine.Market.Servers.Bybit
                     LoadOptionInstruments("SOL");
                 }
 
+                if (_securities.Count > 0)
+                {
+                    _securities = _securities.OrderBy(s => s.Name).ToList();
+                }
+                
                 SecurityEvent?.Invoke(_securities);
             }
             catch (Exception ex)
@@ -2566,7 +2571,7 @@ namespace OsEngine.Market.Servers.Bybit
                         {
                             if (category == Category.linear)
                             {
-                                _concurrentQueueTickersLinear.Enqueue(_message);
+                                _concurrentQueueTickersLinear.Enqueue(message);
                             }
                             else if (category == Category.inverse)
                             {
@@ -3248,14 +3253,9 @@ namespace OsEngine.Market.Servers.Bybit
             {
                 try
                 {
-                    if (_concurrentQueueTradesSpot.IsEmpty)
+                    if (ServerStatus != ServerConnectStatus.Connect)
                     {
-                        if (IsCompletelyDeleted == true)
-                        {
-                            return;
-                        }
-
-                        Thread.Sleep(1);
+                        Thread.Sleep(3000);
                     }
 
                     if (_concurrentQueueTradesSpot != null
@@ -3295,14 +3295,9 @@ namespace OsEngine.Market.Servers.Bybit
             {
                 try
                 {
-                    if (_concurrentQueueTradesLinear.IsEmpty)
+                    if (ServerStatus != ServerConnectStatus.Connect)
                     {
-                        if (IsCompletelyDeleted == true)
-                        {
-                            return;
-                        }
-
-                        Thread.Sleep(1);
+                        Thread.Sleep(3000);
                     }
 
                     if (_concurrentQueueTradesLinear != null
@@ -3342,14 +3337,9 @@ namespace OsEngine.Market.Servers.Bybit
             {
                 try
                 {
-                    if (_concurrentQueueTradesInverse.IsEmpty)
+                    if (ServerStatus != ServerConnectStatus.Connect)
                     {
-                        if (IsCompletelyDeleted == true)
-                        {
-                            return;
-                        }
-
-                        Thread.Sleep(1);
+                        Thread.Sleep(3000);
                     }
 
                     if (_concurrentQueueTradesInverse != null
@@ -3389,14 +3379,9 @@ namespace OsEngine.Market.Servers.Bybit
             {
                 try
                 {
-                    if (_concurrentQueueTradesOption.IsEmpty)
+                    if (ServerStatus != ServerConnectStatus.Connect)
                     {
-                        if (IsCompletelyDeleted == true)
-                        {
-                            return;
-                        }
-
-                        Thread.Sleep(1);
+                        Thread.Sleep(3000);
                     }
 
                     if (_concurrentQueueTradesOption != null

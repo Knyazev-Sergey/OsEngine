@@ -3,6 +3,7 @@
  * Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
 */
 
+using OsEngine.Candles.Series;
 using OsEngine.Entity;
 using OsEngine.Indicators;
 using OsEngine.Language;
@@ -208,8 +209,8 @@ namespace OsEngine.Robots.FuturesStart
             _tradePeriodsShowDialogButton = CreateParameterButton("Non trade periods", "Base");
             _tradePeriodsShowDialogButton.UserClickOnButtonEvent += _tradePeriodsShowDialogButton_UserClickOnButtonEvent;
 
-            _bollingerLength = CreateParameter("Bollinger Length", 150, 40, 300, 10, "Base");
-            _bollingerDeviation = CreateParameter("Bollinger deviation", 2.3m, 0.5m, 4, 0.1m, "Base");
+            _bollingerLength = CreateParameter("Bollinger Length", 230, 40, 300, 10, "Base");
+            _bollingerDeviation = CreateParameter("Bollinger deviation", 2.1m, 0.5m, 4, 0.1m, "Base");
 
             // GetVolume settings
             _volumeType = CreateParameter("Volume type", "Deposit percent", new[] { "Contracts", "Contract currency", "Deposit percent" }, "Base");
@@ -217,7 +218,7 @@ namespace OsEngine.Robots.FuturesStart
             _tradeAssetInPortfolio = CreateParameter("Asset in portfolio", "Prime", "Base");
 
             _contangoFilterRegime = CreateParameter("Contango filter regime", "On_MOEXStocksAuto", new[] { "Off", "On_MOEXStocksAuto", "On_Manual" }, "Contango");
-            _contangoFilterCountSecurities = CreateParameter("Contango filter count securities", 3, 1, 2, 1, "Contango");
+            _contangoFilterCountSecurities = CreateParameter("Contango filter count securities", 5, 1, 2, 1, "Contango");
             _contangoStageToTradeLong = CreateParameter("Contango stage to trade Long", 1, 1, 2, 1, "Contango");
             _contangoStageToTradeShort = CreateParameter("Contango stage to trade Short", 2, 1, 2, 1, "Contango");
 
@@ -1242,6 +1243,10 @@ namespace OsEngine.Robots.FuturesStart
             tabFutures.ServerType = server.ServerType;
             tabFutures.ServerName = server.ServerNameAndPrefix;
 
+            tabFutures.CandleCreateMethodType = CandleCreateMethodType.Simple.ToString();
+            ((Simple)tabFutures.CandleSeriesRealization).TimeFrame = TimeFrame.Min15;
+            ((Simple)tabFutures.CandleSeriesRealization).TimeFrameParameter.ValueString = TimeFrame.Min15.ToString();
+
             List<ActivatedSecurity> securitiesToScreener = new List<ActivatedSecurity>();
 
             for (int i = 0;i < futuresSecurity.Count;i++)
@@ -1261,6 +1266,7 @@ namespace OsEngine.Robots.FuturesStart
                 }
             }
 
+            tabFutures.SaveSettings();
             tabFutures.NeedToReloadTabs = true;
         }
 

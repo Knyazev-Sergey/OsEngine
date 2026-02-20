@@ -1141,6 +1141,7 @@ namespace OsEngine.OsTrader.Panels.Tab
 
             if (haveNewSettings)
             {
+                tab.Connector.Save();
                 tab.Connector.ReconnectHard();
             }
         }
@@ -2164,6 +2165,12 @@ namespace OsEngine.OsTrader.Panels.Tab
                 }
 
                 newIndicator = (Aindicator)Tabs[i].CreateCandleIndicator(newIndicator, ind.NameArea);
+
+                if(newIndicator == null)
+                {
+                    continue;
+                }
+
                 newIndicator.CanDelete = ind.CanDelete;
                 newIndicator.Save();
             }

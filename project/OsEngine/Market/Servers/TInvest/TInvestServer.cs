@@ -271,8 +271,12 @@ namespace OsEngine.Market.Servers.TInvest
                     }
                     else
                     {
-                        GetPortfolios();
-                        Thread.Sleep(20000);
+                        if (_lastTimeGetPortfolio.AddSeconds(10) < DateTime.Now)
+                        {
+                            GetPortfolios();
+                        }
+
+                        Thread.Sleep(5000);
                     }
                 }
                 catch (Exception ex)
@@ -984,9 +988,17 @@ namespace OsEngine.Market.Servers.TInvest
 
         public void GetPortfolios()
         {
+            GetPortfolioRecursion(0);
+        }
+
+        private void GetPortfolioRecursion(int tryCount)
+        {
             try
             {
-                if (_lastTimeGetPortfolio.AddSeconds(10) > DateTime.Now)
+                tryCount++;
+
+                if (tryCount == 1 
+                    && _lastTimeGetPortfolio.AddSeconds(5) > DateTime.Now)
                 {
                     return;
                 }
@@ -1021,6 +1033,12 @@ namespace OsEngine.Market.Servers.TInvest
                             continue;
                         }
 
+                        if(account.Type != AccountType.Tinkoff
+                            && account.Type != AccountType.TinkoffIis)
+                        {
+                            continue;
+                        }
+
                         PortfolioRequest portfolioRequest = new PortfolioRequest();
                         portfolioRequest.AccountId = account.Id;
 
@@ -1038,7 +1056,7 @@ namespace OsEngine.Market.Servers.TInvest
                         if (portfolioResponse != null)
                         {
                             GetPortfolios(portfolioResponse);
-                            UpdatePositionsInPortfolio(portfolioResponse);
+                            UpdatePositionsInPortfolio(portfolioResponse,0);
                         }
                     }
                     catch (Exception)
@@ -1067,12 +1085,19 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (Exception ex)
             {
-                if (ServerStatus != ServerConnectStatus.Disconnect)
+                if(tryCount == 1)
+                {// отправляем ещё на один круг. Возможно был кратковременный сбой
+                    GetPortfolioRecursion(tryCount);
+                }
+                else
                 {
-                    SendLogMessage(OsLocalization.Market.Label290 + " \n" + ex.ToString(), LogMessageType.Error);
+                    if (ServerStatus != ServerConnectStatus.Disconnect)
+                    {
+                        SendLogMessage(OsLocalization.Market.Label290 + " \n" + ex.ToString(), LogMessageType.Error);
 
-                    ServerStatus = ServerConnectStatus.Disconnect;
-                    DisconnectEvent();
+                        ServerStatus = ServerConnectStatus.Disconnect;
+                        DisconnectEvent();
+                    }
                 }
             }
         }
@@ -1096,24 +1121,18 @@ namespace OsEngine.Market.Servers.TInvest
             }
             else
             {
-                myPortfolio.Number = portfolioResponse.AccountId;
-
-                decimal value = portfolioResponse.TotalAmountPortfolio != null ? GetValue(portfolioResponse.TotalAmountPortfolio) : 1;
-
-                if (value != 1)
-                {
-                    myPortfolio.ValueCurrent = value;
-                }
-
+                // ignore
             }
         }
 
-        private void UpdatePositionsInPortfolio(PortfolioResponse portfolio)
+        private void UpdatePositionsInPortfolio(PortfolioResponse portfolio, int tryCount)
         {
             if (portfolio == null)
             {
                 return;
             }
+
+            tryCount++;
 
             Portfolio portf = _myPortfolios.Find(p => p.Number == portfolio.AccountId);
 
@@ -1135,12 +1154,30 @@ namespace OsEngine.Market.Servers.TInvest
             }
             catch (RpcException ex)
             {
-                string message = GetGRPCErrorMessage(ex);
-                SendLogMessage($"Error getting positions in portfolio. Info: {message}", LogMessageType.System);
+                if(tryCount < 3)
+                {// дополнительно две попытки запросить данные. На случай сбоев связи
+                    UpdatePositionsInPortfolio(portfolio, tryCount);
+                    return;
+                }
+                else
+                {
+                    string message = GetGRPCErrorMessage(ex);
+                    SendLogMessage($"Error getting positions in portfolio. Portfolio id: " + portfolio.AccountId + " Info: " + message, LogMessageType.System);
+                    return;
+                }
             }
             catch
             {
-                SendLogMessage("Error getting positions in portfolio", LogMessageType.System);
+                if (tryCount < 3)
+                {// дополнительно две попытки запросить данные. На случай сбоев связи
+                    UpdatePositionsInPortfolio(portfolio, tryCount);
+                    return;
+                }
+                else
+                {
+                    SendLogMessage("Error getting positions in portfolio. Portfolio id: " + portfolio.AccountId, LogMessageType.System);
+                    return;
+                }
             }
 
             // переменные для учёта позиций
@@ -1304,15 +1341,17 @@ namespace OsEngine.Market.Servers.TInvest
 
             // Блокированные средства по портфелю целиком
 
-            portf.ValueBlocked = 0;
+            decimal valueBlock = 0;
 
             for (int i = 0; i < portfolio.Positions.Count; i++)
             {
                 if (portfolio.Positions[i].InstrumentType == "currency")
                 {
-                    portf.ValueBlocked += GetValue(portfolio.Positions[i].BlockedLots) * GetValue(portfolio.Positions[i].AveragePositionPrice);
+                    valueBlock += GetValue(portfolio.Positions[i].BlockedLots) * GetValue(portfolio.Positions[i].AveragePositionPrice);
                 }
             }
+
+            portf.ValueBlocked = valueBlock;
 
             // Денежная позиция в портфеле
 
@@ -1328,7 +1367,9 @@ namespace OsEngine.Market.Servers.TInvest
                 {
                     decimal valuePortfolio = GetValue(posMoney);
 
-                    newPos.ValueCurrent = valuePortfolio - futuresAndOptionsGO - spotShortValue;
+                    decimal blockRub = portf.ValueBlocked;
+
+                    newPos.ValueCurrent = valuePortfolio - blockRub; // - futuresAndOptionsGO; // -spotShortValue;
 
                     /*if(portf.ValueBlocked != 0)
                     {
@@ -1993,7 +2034,7 @@ namespace OsEngine.Market.Servers.TInvest
                     }
                 }
 
-                if(_myPortfolios.Count == 0)
+                if (_myPortfolios.Count == 0)
                 {
                     return false;
                 }
@@ -2008,7 +2049,7 @@ namespace OsEngine.Market.Servers.TInvest
                     _operationsStreamClient.PositionsStream(new PositionsStreamRequest { Accounts = { accountsList } },
                         headers: _gRpcMetadata, cancellationToken: _cancellationTokenSource.Token);
 
-               
+
 
                 _lastPositionsDataTime = DateTime.UtcNow;
             }
@@ -2483,6 +2524,9 @@ namespace OsEngine.Market.Servers.TInvest
                     {
                         MarketDepthEvent?.Invoke(depth);
                     }
+
+                    security.PriceLimitHigh = GetValue(marketData.Orderbook.LimitUp);
+                    security.PriceLimitLow = GetValue(marketData.Orderbook.LimitDown);
                 }
                 else if (marketData.Candle != null)
                 {
@@ -2808,36 +2852,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     if (portfolioResponse.Portfolio != null)
                     {
-                        Portfolio portf = _myPortfolios.Find((p) => p.Number == portfolioResponse.Portfolio.AccountId);
-
-                        if (portf == null)
-                        {
-                            continue;
-                        }
-
-                        if (portfolioResponse.Portfolio.TotalAmountPortfolio != null)
-                        {
-                            portf.ValueCurrent = GetValue(portfolioResponse.Portfolio.TotalAmountPortfolio);
-                        }
-                        else
-                        {
-                            decimal resultValue = 0;
-
-                            resultValue += GetValue(portfolioResponse.Portfolio.TotalAmountBonds);
-                            resultValue += GetValue(portfolioResponse.Portfolio.TotalAmountCurrencies);
-                            resultValue += GetValue(portfolioResponse.Portfolio.TotalAmountEtf);
-                            resultValue += GetValue(portfolioResponse.Portfolio.TotalAmountFutures);
-                            resultValue += GetValue(portfolioResponse.Portfolio.TotalAmountOptions);
-                            resultValue += GetValue(portfolioResponse.Portfolio.TotalAmountShares);
-                            resultValue += GetValue(portfolioResponse.Portfolio.TotalAmountSp);
-
-                            portf.ValueCurrent = resultValue;
-                        }
-
-                        portf.UnrealizedPnl = GetValue(portfolioResponse.Portfolio.DailyYield);
-                        UpdatePositionsInPortfolio(portfolioResponse.Portfolio);
-
-                        PortfolioEvent!(_myPortfolios);
+                        GetPortfolios();
                     }
                 }
                 catch (Exception exception)
@@ -3045,26 +3060,6 @@ namespace OsEngine.Market.Servers.TInvest
                             newPos.SecurityNameCode = instrument.Instrument.Ticker;
 
                             portf.SetNewPosition(newPos);
-                        }
-
-                        for (int i = 0; i < posData.Money.Count; i++)
-                        {
-                            PositionsMoney pos = posData.Money[i];
-
-                            if (pos.AvailableValue.Currency == "rub")
-                            {
-                                portf.ValueBlocked = GetValue(pos.BlockedValue);
-
-                                List<PositionOnBoard> posesInPortfolio = portf.PositionOnBoard;
-
-                                for (int j = 0; posesInPortfolio != null && j < posesInPortfolio.Count; j++)
-                                {
-                                    if (posesInPortfolio[j].SecurityNameCode == "rub")
-                                    {
-                                        posesInPortfolio[j].ValueBlocked = portf.ValueBlocked;
-                                    }
-                                }
-                            }
                         }
 
                         if (PortfolioEvent != null)
@@ -3470,7 +3465,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                 try
                 {
-                    response = _ordersClient.PostOrder(request, _gRpcMetadata);
+                    response = PostOrderPrivateLoop(request, 0, order);
                 }
                 catch (RpcException ex)
                 {
@@ -3478,6 +3473,7 @@ namespace OsEngine.Market.Servers.TInvest
 
                     if (message.Contains("Not enough assets"))
                     {
+                        CheckCrazyNotEnoughAssetsOrderSpam();
                         message = OsLocalization.Market.Label301;
                     }
                     else if (message.Contains("The price is too high"))
@@ -3487,6 +3483,10 @@ namespace OsEngine.Market.Servers.TInvest
                     else if (message.Contains("The price is outside the limits for"))
                     {
                         message = OsLocalization.Market.Label304;
+                    }
+                    else if (message.Contains("Pol`zovatel` ne najden"))
+                    {
+                        message = OsLocalization.Market.Label319;
                     }
 
                     SendLogMessage(OsLocalization.Market.Label291 +
@@ -3519,6 +3519,13 @@ namespace OsEngine.Market.Servers.TInvest
                 {
                     order.State = OrderStateType.Active;
                     order.NumberMarket = response.OrderId;
+
+                    if (_lastMyOrderStateDataTime.AddSeconds(5) < DateTime.UtcNow)
+                    {   // Сбрасываем счётчики жизни потока принимающего статусы ордеров
+                        // если он отсох, надо чтобы через 3 секунды уже переподключался.
+                        _lastMyOrderStateDataTime = DateTime.UtcNow.AddSeconds(-177);
+                        _lastTryReconnectOrdersStream = DateTime.Now.AddMinutes(-1);
+                    }
                 }
 
                 MyOrderEvent!(order);
@@ -3527,6 +3534,81 @@ namespace OsEngine.Market.Servers.TInvest
             {
                 SendLogMessage(OsLocalization.Market.Label291 + "\n" + exception, LogMessageType.Error);
             }
+        }
+
+        private void CheckCrazyNotEnoughAssetsOrderSpam()
+        {
+            // некоторые пользователи выставляют внутри дня тысячи заявок без обеспечения
+            // отключая при этом все реакции в роботах, нагружая сервера Т-Банк
+            // решение: вырубаем у них коннектор, когда за час больше 100 ошибок "Not enough assets"
+
+            if (_hourNotEnoughAssetsOrders != DateTime.Now.Hour)
+            {
+                _hourNotEnoughAssetsOrders = DateTime.Now.Hour;
+                _badOrdersCount = 0;
+            }
+
+            _badOrdersCount++;
+
+            if (_badOrdersCount > 100)
+            {
+                if (ServerStatus == ServerConnectStatus.Connect)
+                {
+                    SendLogMessage(
+                        " Сервер был отключен. Т.к. кол-во необеспеченных ордеров внутри часа больше 100\n "
+                        + "Прекратите спамить биржу, это мешает людям торговать\n "
+                        + "Пожалуйста посчитайте обеспечение и баланс. И в соответствии с этим настройте роботов. ", LogMessageType.Error);
+
+                    ServerStatus = ServerConnectStatus.Disconnect;
+                    DisconnectEvent();
+                }
+            }
+        }
+
+        private int _hourNotEnoughAssetsOrders;
+        private int _badOrdersCount;
+
+        private PostOrderResponse PostOrderPrivateLoop(PostOrderRequest request, int attemptNumber, Order order)
+        {
+            // Метод для обработки ошибок в ядре брокера, не позволяющих принять заявку с первого раза
+            // В таком случае приходит ошибка: "Internal network error"
+            // Рекомендация поддержки: Выслать тут же ещё раз, с тем же номером ордера. Сделали
+
+            attemptNumber++;
+
+            if (attemptNumber > 2)
+            {
+                throw new Exception("Internal network error. Ошибки на стороне Т-Апи. Две попытки выставить ордер не привели к успеху.");
+            }
+
+            PostOrderResponse response = null;
+
+            try
+            {
+                response = _ordersClient.PostOrder(request, _gRpcMetadata);
+            }
+            catch (RpcException ex)
+            {
+                string message = GetGRPCErrorMessage(ex);
+
+                if (message.Contains("Internal network error"))
+                {
+                    OrderStateType orderStateType = GetOrderStatus(order);
+
+                    if (orderStateType == OrderStateType.None)
+                    {
+                        return PostOrderPrivateLoop(request, attemptNumber, order);
+                    }
+                    else
+                    { // ордер всё таки выставлен, но отчёт о нём не пришёл!
+                        throw new Exception("Internal network error. Ошибки на стороне Т-Апи. Ордер выставлен, но его номер в торговом ядре не известен. Нужно синхронизировать позиции");
+                    }
+                }
+
+                throw;
+            }
+
+            return response;
         }
 
         public void ChangeOrderPrice(Order order, decimal newPrice)
@@ -3709,6 +3791,13 @@ namespace OsEngine.Market.Servers.TInvest
 
                 if (response != null)
                 {
+                    if (_lastMyOrderStateDataTime.AddSeconds(5) < DateTime.UtcNow)
+                    {   // Сбрасываем счётчики жизни потока принимающего статусы ордеров
+                        // если он отсох, надо чтобы через 3 секунды уже переподключался.
+                        _lastMyOrderStateDataTime = DateTime.UtcNow.AddSeconds(-177);
+                        _lastTryReconnectOrdersStream = DateTime.Now.AddMinutes(-1);
+                    }
+
                     return true;
                 }
                 else
