@@ -2156,7 +2156,7 @@ namespace OsEngine.Market.Servers.HTX.Spot
                 }
 
                 jsonContent.Add("source", source_portfolio);
-                jsonContent.Add("client-order-id", "AAe2ccbd47" + order.NumberUser.ToString());
+                jsonContent.Add("client-order-id", "AA7f7d2895" + order.NumberUser.ToString());
 
                 string jsonRequest = JsonConvert.SerializeObject(jsonContent);
 

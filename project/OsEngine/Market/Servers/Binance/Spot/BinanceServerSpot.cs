@@ -1997,12 +1997,12 @@ namespace OsEngine.Market.Servers.Binance.Spot
 
                 ExecutionReport order = orders.@event;
 
-                string orderNumUserInString = order.C.Replace("x-RKXTQ2AK", "");
+                string orderNumUserInString = order.C.Replace("x-E3SRQEJB", "");
 
                 if (string.IsNullOrEmpty(orderNumUserInString) ||
                     orderNumUserInString == "null")
                 {
-                    orderNumUserInString = order.c.Replace("x-RKXTQ2AK", "");
+                    orderNumUserInString = order.c.Replace("x-E3SRQEJB", "");
                 }
 
                 int orderNumUser = 0;
@@ -2447,7 +2447,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
                     {
                         param.Add("&timeInForce=", "GTC");
                     }
-                    param.Add("&newClientOrderId=", "x-RKXTQ2AK" + order.NumberUser.ToString());
+                    param.Add("&newClientOrderId=", "x-E3SRQEJB" + order.NumberUser.ToString());
 
                     if (order.PositionConditionType == OrderPositionConditionType.Open)
                     {
@@ -2508,7 +2508,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
                     {
                         param.Add("&timeInForce=", "GTC");
                     }
-                    param.Add("&newClientOrderId=", "x-RKXTQ2AK" + order.NumberUser.ToString());
+                    param.Add("&newClientOrderId=", "x-E3SRQEJB" + order.NumberUser.ToString());
                     param.Add("&quantity=",
                         order.Volume.ToString(CultureInfo.InvariantCulture)
                             .Replace(CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator, "."));
@@ -2665,7 +2665,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
                 }
 
                 HistoryOrderReport orderOnBoard =
-                    allOrders.Find(ord => ord.clientOrderId.Replace("x-RKXTQ2AK", "") == oldOrder.NumberUser.ToString());
+                    allOrders.Find(ord => ord.clientOrderId.Replace("x-E3SRQEJB", "") == oldOrder.NumberUser.ToString());
 
                 if (orderOnBoard == null)
                 {
@@ -2964,7 +2964,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
 
                 if (myOrder.clientOrderId != null)
                 {
-                    string id = myOrder.clientOrderId.Replace("x-RKXTQ2AK", "");
+                    string id = myOrder.clientOrderId.Replace("x-E3SRQEJB", "");
                     try
                     {
                         newOrder.NumberUser = Convert.ToInt32(id);

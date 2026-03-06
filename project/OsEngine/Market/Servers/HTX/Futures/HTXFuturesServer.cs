@@ -1911,7 +1911,7 @@ namespace OsEngine.Market.Servers.HTX.Futures
 
                 jsonContent.Add("lever_rate", "10");
                 jsonContent.Add("order_price_type", "limit");
-                jsonContent.Add("channel_code", "AAe2ccbd47");
+                jsonContent.Add("channel_code", "AA7f7d2895");
 
                 string jsonRequest = JsonConvert.SerializeObject(jsonContent);
 

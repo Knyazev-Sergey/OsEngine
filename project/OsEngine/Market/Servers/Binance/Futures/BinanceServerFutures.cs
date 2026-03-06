@@ -2226,7 +2226,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
             try
             {
-                orderNumUser = Convert.ToInt32(order.c.ToString().Replace("x-gnrPHWyE", ""));
+                orderNumUser = Convert.ToInt32(order.c.ToString().Replace("x-PPY5PYpN", ""));
             }
             catch (Exception)
             {
@@ -2605,7 +2605,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 }
                 param.Add("&type=", order.TypeOrder == OrderPriceType.Limit ? "LIMIT" : "MARKET");
                 //param.Add("&timeInForce=", "GTC");
-                param.Add("&newClientOrderId=", "x-gnrPHWyE" + order.NumberUser.ToString());
+                param.Add("&newClientOrderId=", "x-PPY5PYpN" + order.NumberUser.ToString());
                 param.Add("&quantity=",
                     order.Volume.ToString(CultureInfo.InvariantCulture)
                         .Replace(CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator, "."));
@@ -2948,7 +2948,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                         try
                         {
                             newOrder.NumberUser =
-                                Convert.ToInt32(orderOnBoardResp.clientOrderId.Replace("x-gnrPHWyE", ""));
+                                Convert.ToInt32(orderOnBoardResp.clientOrderId.Replace("x-PPY5PYpN", ""));
                         }
                         catch
                         {
@@ -3056,7 +3056,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     {
                         try
                         {
-                            if (allOrders[i].clientOrderId.Replace("x-gnrPHWyE", "") == oldOrder.NumberUser.ToString())
+                            if (allOrders[i].clientOrderId.Replace("x-PPY5PYpN", "") == oldOrder.NumberUser.ToString())
                             {
                                 orderOnBoard = allOrders[i];
                                 break;
