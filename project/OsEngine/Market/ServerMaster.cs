@@ -90,6 +90,8 @@ using OsEngine.Market.Servers.GateIoData;
 using OsEngine.Market.Servers.BitGetData;
 using OsEngine.Market.Servers.MetaTrader5;
 using OsEngine.Market.Servers.QscalpMarketDepth;
+using OsEngine.Market.Servers.Binance.TL;
+
 
 namespace OsEngine.Market
 {
@@ -352,6 +354,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.TelegramNews);
                 serverTypes.Add(ServerType.BinanceData);
                 serverTypes.Add(ServerType.AscendexSpot);
+                serverTypes.Add(ServerType.BinanceFuturesTL);
 
                 // а теперь сортируем в зависимости от предпочтений пользователя
 
@@ -482,6 +485,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.BitGetData);
                 serverTypes.Add(ServerType.MetaTrader5);
                 serverTypes.Add(ServerType.QscalpMarketDepth);
+                serverTypes.Add(ServerType.BinanceFuturesTL);
 
                 return serverTypes;
             }
@@ -865,6 +869,10 @@ namespace OsEngine.Market
                     else if (type == ServerType.AscendexSpot)
                     {
                         newServer = new AscendexSpotServer(uniqueNum);
+                    }
+                    else if (type == ServerType.BinanceFuturesTL)
+                    {
+                        newServer = new BinanceServerFuturesTL(uniqueNum);
                     }
 
                     if (newServer == null)
@@ -1669,6 +1677,10 @@ namespace OsEngine.Market
                 else if (type == ServerType.QscalpMarketDepth)
                 {
                     serverPermission = new QscalpMarketDepthServerPermission();
+                }
+                else if (type == ServerType.BinanceFuturesTL)
+                {
+                    serverPermission = new BinanceFuturesServerTLPermission();
                 }
 
                 if (serverPermission != null)
@@ -2478,6 +2490,8 @@ namespace OsEngine.Market
         /// downloading historical depths
         /// скачивание историческихстаканов в формате qsh
         /// </summary>
-        QscalpMarketDepth
+        QscalpMarketDepth,
+
+        BinanceFuturesTL
     }
 }
