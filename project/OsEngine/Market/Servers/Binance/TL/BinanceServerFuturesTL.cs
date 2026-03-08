@@ -499,7 +499,7 @@ namespace OsEngine.Market.Servers.Binance.TL
             {
                 try
                 {
-                    Thread.Sleep(30000);
+                    Thread.Sleep(10000);
 
                     if (IsCompletelyDeleted == true)
                     {
@@ -663,6 +663,21 @@ namespace OsEngine.Market.Servers.Binance.TL
                         myPortfolio.ValueCurrent = 1;
                         myPortfolio.ValueBegin = 1;
                     }
+                }
+
+                if (IsUpdateValueBegin)
+                {
+                    myPortfolio.ValueBegin = Math.Round(portfs.totalMarginBalance.ToDecimal(), 4);
+                }
+
+                myPortfolio.ValueCurrent = Math.Round(portfs.totalMarginBalance.ToDecimal(), 4);
+                myPortfolio.UnrealizedPnl = Math.Round(portfs.totalUnrealizedProfit.ToDecimal(), 4);
+                myPortfolio.ValueBlocked = Math.Round(portfs.totalInitialMargin.ToDecimal(), 4);
+
+                if (myPortfolio.ValueCurrent == 0)
+                {
+                    myPortfolio.ValueCurrent = 1;
+                    myPortfolio.ValueBegin = 1;
                 }
 
                 if (PortfolioEvent != null)
