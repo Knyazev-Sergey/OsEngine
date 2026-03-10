@@ -3158,7 +3158,7 @@ namespace OsEngine.Market.Servers.OKX
                     orderRequest.Add("sz", order.Volume.ToString().Replace(",", "."));
                 }
 
-                orderRequest.Add("tag", "5faf8b0e85c1BCDE");
+                orderRequest.Add("tag", "79ef4b03380eBCDE");
 
                 string json = JsonConvert.SerializeObject(orderRequest);
 
@@ -3222,7 +3222,7 @@ namespace OsEngine.Market.Servers.OKX
                 decimal volume = order.Volume / GetVolume(order.SecurityNameCode);
                 orderRequest.Add("sz", volume.ToString().Replace(",", "."));
                 orderRequest.Add("posSide", posSide);
-                orderRequest.Add("tag", "5faf8b0e85c1BCDE");
+                orderRequest.Add("tag", "79ef4b03380eBCDE");
 
                 string json = JsonConvert.SerializeObject(orderRequest);
 
