@@ -286,7 +286,7 @@ namespace OsEngine.Market.Servers
 
             bool orderIsDelete = false;
 
-            for (int i = 0; i < _ordersActive.Count; i++)
+            /*for (int i = 0; i < _ordersActive.Count; i++)
             {
                 Order order = _ordersActive[i].Order;
 
@@ -317,7 +317,7 @@ namespace OsEngine.Market.Servers
                     i--;
                     orderIsDelete = true;
                 }
-            }
+            }*/
 
             // 2 удаляем окончательно потерянные ордера о которых на верх уже выслали сообщение
 
