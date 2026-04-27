@@ -91,6 +91,7 @@ using OsEngine.Market.Servers.BitGetData;
 using OsEngine.Market.Servers.MetaTrader5;
 using OsEngine.Market.Servers.QscalpMarketDepth;
 using OsEngine.Market.Servers.TData;
+using OsEngine.Market.Servers.Esunny;
 
 namespace OsEngine.Market
 {
@@ -345,6 +346,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.TraderNet);
                 serverTypes.Add(ServerType.InteractiveBrokers);
                 serverTypes.Add(ServerType.NinjaTrader);
+                serverTypes.Add(ServerType.Esunny);
                 serverTypes.Add(ServerType.GateIoSpot);
                 serverTypes.Add(ServerType.GateIoFutures);
                 serverTypes.Add(ServerType.Deribit);
@@ -514,6 +516,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.MetaTrader5);
                 serverTypes.Add(ServerType.QscalpMarketDepth);
                 serverTypes.Add(ServerType.TDataHistory);
+                serverTypes.Add(ServerType.Esunny);
 
                 return serverTypes;
             }
@@ -805,6 +808,10 @@ namespace OsEngine.Market
                     else if (type == ServerType.NinjaTrader)
                     {
                         newServer = new NinjaTraderServer();
+                    }
+                    else if (type == ServerType.Esunny)
+                    {
+                        newServer = new EsunnyServer();
                     }
                     else if (type == ServerType.QuikLua)
                     {
@@ -1710,6 +1717,10 @@ namespace OsEngine.Market
                 {
                     serverPermission = new TDataServerPermission();
                 }
+                else if (type == ServerType.Esunny)
+                {
+                    serverPermission = new EsunnyServerPermission();
+                }
 
                 if (serverPermission != null)
                 {
@@ -2309,6 +2320,11 @@ namespace OsEngine.Market
         /// Bybit exchange
         /// </summary>
         Bybit,
+
+        /// <summary>
+        /// Esunny (Dstar V10) exchange connector via local C++ router
+        /// </summary>
+        Esunny,
 
         /// <summary>
         /// OKX exchange
