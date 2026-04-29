@@ -664,7 +664,8 @@ namespace OsEngine.Market.Servers.Esunny
 
         private MarketDepth ParseDepth(JObject data)
         {
-            if (data == null)
+            return null;
+            /*if (data == null)
             {
                 return null;
             }
@@ -725,7 +726,7 @@ namespace OsEngine.Market.Servers.Esunny
             depth.Bids = depth.Bids.OrderByDescending(l => l.Price).ToList();
             depth.Asks = depth.Asks.OrderBy(l => l.Price).ToList();
 
-            return depth;
+            return depth;*/
         }
 
         private void SendCommand(object command)
