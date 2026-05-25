@@ -25,8 +25,8 @@ namespace OsEngine.Market.Servers.Esunny
             EsunnyServerRealization realization = new EsunnyServerRealization();
             ServerRealization = realization;
 
-            CreateParameterString("Account ID", "");
-            CreateParameterPassword("Password", "");
+            CreateParameterString("Account ID", "Q123567");
+            CreateParameterPassword("Password", "Apri2026$^");
             CreateParameterString("AuthCode", "");
             CreateParameterString("APPID", "");
             CreateParameterString("Data server url", "61.163.243.173:6668");
@@ -41,7 +41,7 @@ namespace OsEngine.Market.Servers.Esunny
         public EsunnyServerRealization()
         {
             ServerStatus = ServerConnectStatus.Disconnect;
-            /*Thread worker = new Thread(SecurityLoader);
+            Thread worker = new Thread(SecurityLoader);
             worker.Start();
 
             Thread worker2 = new Thread(WorkerPlaceMarketData);
@@ -53,7 +53,7 @@ namespace OsEngine.Market.Servers.Esunny
             worker3.Start();
 
             Thread worker4 = new Thread(CheckSocketThreadsStatus);
-            worker4.Start();*/
+            worker4.Start();
         }
 
         public DateTime ServerTime { get; set; }
@@ -81,7 +81,7 @@ namespace OsEngine.Market.Servers.Esunny
                 return;
             }
 
-            if (string.IsNullOrEmpty(AuthCode))
+            /*if (string.IsNullOrEmpty(AuthCode))
             {
                 SendLogMessage("No AuthCode!!! No connection!!!", LogMessageType.Error);
                 return;
@@ -91,7 +91,7 @@ namespace OsEngine.Market.Servers.Esunny
             {
                 SendLogMessage("No AppId!!! No connection!!!", LogMessageType.Error);
                 return;
-            }
+            }*/
                        
             if (DataRouterIsActivate == true &&
                 string.IsNullOrEmpty(DataServerUrl))
@@ -125,7 +125,7 @@ namespace OsEngine.Market.Servers.Esunny
             _messagesToSendMarketData = new ConcurrentQueue<string>();
             _messagesToSendTrade = new ConcurrentQueue<string>();
 
-            string connectionStr = "C@";
+            /*string connectionStr = "C@";
             connectionStr += AccountId + "@";
             connectionStr += UserId + "@";
             connectionStr += UserPassword + "@";
@@ -133,10 +133,12 @@ namespace OsEngine.Market.Servers.Esunny
             connectionStr += AuthCode + "@";
             connectionStr += DataServerUrl + "@";
             connectionStr += TradeServerUrl + "@";
-            connectionStr += IsReal + "@";
+            connectionStr += IsReal + "@";*/
+
+            string connectionStr = "C@";
 
             _messagesToSendMarketData.Enqueue(connectionStr);
-            _messagesToSendTrade.Enqueue(connectionStr);
+            //_messagesToSendTrade.Enqueue(connectionStr);
 
             if (DataRouterIsActivate == true)
             {// Сокет для данных
@@ -175,7 +177,7 @@ namespace OsEngine.Market.Servers.Esunny
                     }
                     catch (Exception ex)
                     {
-                        SendLogMessage("Atp market server is not responding" + ex.ToString(),
+                        SendLogMessage("Esunny market server is not responding" + ex.ToString(),
 
                             LogMessageType.Error);
                         return;
@@ -214,7 +216,7 @@ namespace OsEngine.Market.Servers.Esunny
                     }
                     catch (Exception ex)
                     {
-                        SendLogMessage("Atp trade server is not responding" + ex.ToString(),
+                        SendLogMessage("Esunny trade server is not responding" + ex.ToString(),
 
                             LogMessageType.Error);
                         return;
@@ -269,7 +271,7 @@ namespace OsEngine.Market.Servers.Esunny
             }
             try
             {
-                if (File.Exists("Atp_Router\\Files\\ConnectTrade.txt"))
+                /*if (File.Exists("Atp_Router\\Files\\ConnectTrade.txt"))
                 {
                     File.Delete("Atp_Router\\Files\\ConnectTrade.txt");
                 }
@@ -277,7 +279,7 @@ namespace OsEngine.Market.Servers.Esunny
                 if (File.Exists("Atp_Router\\Files\\ConnectData.txt"))
                 {
                     File.Delete("Atp_Router\\Files\\ConnectData.txt");
-                }
+                }*/
             }
             catch (Exception exeption)
             {
@@ -318,7 +320,7 @@ namespace OsEngine.Market.Servers.Esunny
 
         public ServerType ServerType
         {
-            get { return ServerType.Atp; }
+            get { return ServerType.Esunny; }
         }
 
         public ServerConnectStatus ServerStatus { get; set; }
@@ -333,12 +335,12 @@ namespace OsEngine.Market.Servers.Esunny
         {
             get
             {
-                ServerParameterEnum parameter = ((ServerParameterEnum)ServerParameters[7]);
+                /*ServerParameterEnum parameter = ((ServerParameterEnum)ServerParameters[7]);
 
                 if (parameter.Value.Contains("trade"))
                 {
                     return true;
-                }
+                }*/
 
                 return false;
             }
@@ -348,14 +350,14 @@ namespace OsEngine.Market.Servers.Esunny
         {
             get
             {
-                ServerParameterEnum parameter = ((ServerParameterEnum)ServerParameters[7]);
+                /*ServerParameterEnum parameter = ((ServerParameterEnum)ServerParameters[7]);
 
                 if (parameter.Value.Contains("data"))
                 {
                     return true;
-                }
+                }*/
 
-                return false;
+                return true;
             }
         }
 
@@ -394,7 +396,7 @@ namespace OsEngine.Market.Servers.Esunny
                         continue;
                     }
 
-                    if (p.Modules[j].FileName.EndsWith("marketdata.exe"))
+                    if (p.Modules[j].FileName.EndsWith("EsunnyMarketData.exe"))
                     {
                         p.Kill();
                         p.Dispose();
@@ -406,7 +408,7 @@ namespace OsEngine.Market.Servers.Esunny
                         p.Dispose();
                         break;
                     }
-                    else if (p.Modules[j].FileName.EndsWith("trader.exe"))
+                    else if (p.Modules[j].FileName.EndsWith("EsunnyTrader.exe"))
                     {
                         p.Kill();
                         p.Dispose();
@@ -424,8 +426,8 @@ namespace OsEngine.Market.Servers.Esunny
 
             string curDir = Environment.CurrentDirectory;
 
-            string dirMarketData = curDir + "\\Esunny_Router\\api-samplecode\\marketdata\\x64\\Debug\\marketdata.exe";
-            string dirTrader = curDir + "\\Esunny_Router\\api-samplecode\\trader\\x64\\Debug\\trader.exe";
+            string dirMarketData = curDir + "\\Esunny_Router\\MarketData\\x64\\Debug\\EsunnyMarketData.exe";
+            string dirTrader = curDir + "\\Esunny_Router\\MarketData\\x64\\Debug\\EsunnyTrader.exe";
 
             try
             {
@@ -543,7 +545,7 @@ namespace OsEngine.Market.Servers.Esunny
         private void SecurityLoader()
         {
             Thread.Sleep(2000);
-            TryLoadSecuritiesFromFile();
+            //TryLoadSecuritiesFromFile();
         }
 
         public void TryLoadSecuritiesFromFile()
@@ -720,16 +722,16 @@ namespace OsEngine.Market.Servers.Esunny
                         continue;
                     }
 
-                    if (ServerStatus == ServerConnectStatus.Disconnect &&
+                    /*if (ServerStatus == ServerConnectStatus.Disconnect &&
                         _marketSocketConnect == false)
                     {
-                        if (File.Exists("Atp_Router\\Files\\ConnectData.txt"))
+                        if (File.Exists("Esunny_Router\\Files\\ConnectData.txt"))
                         {
                             SendLogMessage("data router is connected", LogMessageType.System);
                             _marketSocketConnect = true;
                             CheckConnectStatus();
                         }
-                    }
+                    }*/
 
                     if (_messagesToSendMarketData.IsEmpty)
                     { // request any incoming data for us that are saving in server / запрос каких-либо входящих данных для нас, которые копятся в сервере
@@ -947,11 +949,11 @@ namespace OsEngine.Market.Servers.Esunny
 
         private void CheckConnectStatus()
         {
-            if (TradeRouterIsActivate == true &&
+            /*if (TradeRouterIsActivate == true &&
                 _tradeSocketConnect == false)
             {
                 return;
-            }
+            }*/
             if (DataRouterIsActivate == true
                 && _marketSocketConnect == false)
             {

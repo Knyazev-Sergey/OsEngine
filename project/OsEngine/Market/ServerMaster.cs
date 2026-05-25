@@ -2322,11 +2322,6 @@ namespace OsEngine.Market
         Bybit,
 
         /// <summary>
-        /// Esunny (Dstar V10) exchange connector via local C++ router
-        /// </summary>
-        Esunny,
-
-        /// <summary>
         /// OKX exchange
         /// </summary>
         OKX,
@@ -2550,6 +2545,11 @@ namespace OsEngine.Market
         /// downloading historical data from T-Invest archives
         /// скачивание исторических данных из архивов T-Invest
         /// </summary>
-        TDataHistory
+        TDataHistory,
+
+        /// <summary>
+        /// Esunny
+        /// </summary>
+        Esunny
     }
 }
