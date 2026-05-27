@@ -40,17 +40,17 @@ namespace OsEngine.Market.Servers.Esunny
 
         public EsunnyServerRealization()
         {
-            ServerStatus = ServerConnectStatus.Disconnect;
+            /*ServerStatus = ServerConnectStatus.Disconnect;
             Thread worker = new Thread(SecurityLoader);
-            worker.Start();
+            worker.Start();*/
 
             Thread worker2 = new Thread(WorkerPlaceMarketData);
             worker2.IsBackground = true;
             worker2.Start();
 
-            Thread worker3 = new Thread(WorkerPlaceTradeRouter);
+            /*Thread worker3 = new Thread(WorkerPlaceTradeRouter);
             worker3.IsBackground = true;
-            worker3.Start();
+            worker3.Start();*/
 
             Thread worker4 = new Thread(CheckSocketThreadsStatus);
             worker4.Start();
@@ -431,10 +431,88 @@ namespace OsEngine.Market.Servers.Esunny
 
             try
             {
-                if (TradeRouterIsActivate)
+                /*Process[] ps1 = System.Diagnostics.Process.GetProcesses();
+
+                List<Process> process = new List<Process>();
+
+                for (int i = 0; i < ps1.Length; i++)
+                {
+                    Process p = ps1[i];
+
+                    try
+                    {
+                        if (p.MainModule.FileName != ""
+                            && p.Modules != null)
+                        {
+                            process.Add(p);
+                        }
+                    }
+                    catch
+                    {
+
+                    }
+                }*/
+
+                /*if (TradeRouterIsActivate)
+                {     
+                    bool isStart = false;
+
+                    for (int i = 0; i < process.Count; i++)
+                    {
+                        Process p = process[i];
+
+                        for (int j = 0; p.Modules != null && j < p.Modules.Count; j++)
+                        {
+                            if (p.Modules[j].FileName == null)
+                            {
+                                continue;
+                            }
+
+                            if (p.Modules[j].FileName.EndsWith("EsunnyTrader.exe"))
+                            {
+                                isStart = true;
+                            }                        
+                        }
+                    }
+
+                    if (isStart)
+                    {
+                        Process.Start(dirTrader);
+                    }
+                }*/
+
+                /*if (DataRouterIsActivate)
+                {
+                    bool isStart = false;
+
+                    for (int i = 0; i < process.Count; i++)
+                    {
+                        Process p = process[i];
+
+                        for (int j = 0; p.Modules != null && j < p.Modules.Count; j++)
+                        {
+                            if (p.Modules[j].FileName == null)
+                            {
+                                continue;
+                            }
+
+                            if (p.Modules[j].FileName.EndsWith("EsunnyMarketData.exe"))
+                            {
+                                isStart = true;
+                            }
+                        }
+                    }
+
+                    if (!isStart)
+                    {
+                        Process.Start(dirMarketData);
+                    }
+                }*/
+
+                /*if (TradeRouterIsActivate)
                 {
                     Process.Start(dirTrader);
-                }
+                }*/
 
                 if (DataRouterIsActivate)
                 {
@@ -537,6 +615,20 @@ namespace OsEngine.Market.Servers.Esunny
 
         public void GetSecurities()
         {
+            string str = "I@";
+
+            _messagesToSendMarketData.Enqueue(str);
+
+            while (true)
+            {                
+                if (_securities != null && _securities.Count > 0)
+                {
+                    break;
+                }
+
+                Thread.Sleep(1000);
+            }
+
             SecurityEvent(_securities);
         }
 
@@ -545,6 +637,7 @@ namespace OsEngine.Market.Servers.Esunny
         private void SecurityLoader()
         {
             Thread.Sleep(2000);
+            
             //TryLoadSecuritiesFromFile();
         }
 
@@ -754,7 +847,7 @@ namespace OsEngine.Market.Servers.Esunny
                     }
 
                     _lastTimeSendMessageInSocketData = DateTime.Now;
-
+                                        
                     IncomeMessageFromDataRouter(SendMessage(message, _socketMarketData, "MarketServer"));
                 }
                 catch (Exception error)
@@ -876,7 +969,7 @@ namespace OsEngine.Market.Servers.Esunny
         string lastMessageToTradeServer = "";
 
         private string SendMessage(string message, Socket socket, string socketName)
-        {
+        {           
             if (socketName == "MarketServer")
             {
                 if (message.StartsWith("Process"))
@@ -1414,12 +1507,40 @@ namespace OsEngine.Market.Servers.Esunny
             {
                 LoadMd(message);
             }
+            else if (message.StartsWith("Sec"))
+            {
+                GetSecurityList(message);
+            }
             else
             {
                 SendLogMessage(message, LogMessageType.System);
             }
 
             return false;
+        }
+
+        private List<Security> _loadSecurities = new();
+
+        private void GetSecurityList(string message)
+        {
+            string[] strList = message.Split('@');
+
+            string name = strList[3].Split('\0')[0];
+
+            Security sec = new();
+
+            sec.Name = name;
+            sec.NameId = name;
+            sec.NameFull = name;
+            sec.Exchange = name.Split('|')[0];
+
+            _loadSecurities.Add(sec);
+
+            if (strList[1] == strList[2])
+            {
+                _securities = _loadSecurities;
+                return;
+            }
         }
 
         private void LoadMyOrder(string strMyOrder)
