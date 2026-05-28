@@ -749,7 +749,7 @@ namespace OsEngine.Market.Servers.Esunny
             if (_portfolios.Count == 0)
             {
                 Portfolio portfolio = new Portfolio();
-                portfolio.Number = "Atp portfolio";
+                portfolio.Number = "Esunny portfolio";
                 portfolio.ValueCurrent = 1;
                 _portfolios.Add(portfolio);
             }
@@ -968,6 +968,197 @@ namespace OsEngine.Market.Servers.Esunny
 
         string lastMessageToTradeServer = "";
 
+        private string ConvertLegacyToJsonCommandForMarketServer(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                return "{\"cmd\":\"poll\"}";
+            }
+
+            if (message.StartsWith("Process"))
+            {
+                return "{\"cmd\":\"poll\"}";
+            }
+
+            if (message.StartsWith("Disconnect"))
+            {
+                return "{\"cmd\":\"disconnect\"}";
+            }
+
+            if (message.StartsWith("C"))
+            {
+                return "{\"cmd\":\"connect\"}";
+            }
+
+            if (message.StartsWith("I"))
+            {
+                return "{\"cmd\":\"instruments\"}";
+            }
+
+            if (message.StartsWith("S@"))
+            {
+                string[] parts = message.Split('@');
+                string symbol = parts.Length > 1 ? parts[1] : string.Empty;
+                symbol = symbol.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                return "{\"cmd\":\"subscribe\",\"symbol\":\"" + symbol + "\"}";
+            }
+
+            return "{\"cmd\":\"poll\"}";
+        }
+
+        private string ConvertJsonResponseToLegacyForMarketServer(string response)
+        {
+            if (string.IsNullOrEmpty(response))
+            {
+                return "Process";
+            }
+
+            string msg = response.Trim();
+
+            if (msg.StartsWith("{") == false)
+            {
+                return msg;
+            }
+
+            if (msg.Contains("\"type\":\"connect\"") && msg.Contains("\"ok\":true"))
+            {
+                return "Connect";
+            }
+
+            if (msg.Contains("\"type\":\"disconnect\"") || msg.Contains("\"cmd\":\"disconnect\""))
+            {
+                return "Disconnect";
+            }
+
+            if (msg.Contains("\"type\":\"poll\""))
+            {
+                return "Process";
+            }
+
+            if (msg.Contains("\"type\":\"security\""))
+            {
+                string index = ExtractJsonValue(msg, "index");
+                string total = ExtractJsonValue(msg, "total");
+                string symbol = ExtractJsonValue(msg, "symbol");
+                return "Sec@" + index + "@" + total + "@" + symbol;
+            }
+
+            if (msg.Contains("\"type\":\"commodity\""))
+            {
+                return "Process";
+            }
+
+            return msg;
+        }
+
+        private string ExtractJsonValue(string json, string key)
+        {
+            string token = "\"" + key + "\"";
+            int keyPos = json.IndexOf(token, StringComparison.Ordinal);
+            if (keyPos < 0)
+            {
+                return string.Empty;
+            }
+
+            int colonPos = json.IndexOf(':', keyPos + token.Length);
+            if (colonPos < 0)
+            {
+                return string.Empty;
+            }
+
+            int valueStart = colonPos + 1;
+            while (valueStart < json.Length && char.IsWhiteSpace(json[valueStart]))
+            {
+                valueStart++;
+            }
+
+            if (valueStart >= json.Length)
+            {
+                return string.Empty;
+            }
+
+            if (json[valueStart] == '"')
+            {
+                int q = valueStart + 1;
+                while (q < json.Length)
+                {
+                    if (json[q] == '"' && json[q - 1] != '\\')
+                    {
+                        break;
+                    }
+                    q++;
+                }
+
+                if (q >= json.Length)
+                {
+                    return string.Empty;
+                }
+
+                string s = json.Substring(valueStart + 1, q - valueStart - 1);
+                return s.Replace("\\\"", "\"").Replace("\\\\", "\\");
+            }
+            else
+            {
+                int end = valueStart;
+                while (end < json.Length && json[end] != ',' && json[end] != '}')
+                {
+                    end++;
+                }
+                return json.Substring(valueStart, end - valueStart).Trim();
+            }
+        }
+
+        private void SendFrame(Socket socket, string payload)
+        {
+            byte[] body = Encoding.UTF8.GetBytes(payload);
+            int len = body.Length;
+            byte[] header = new byte[4];
+            header[0] = (byte)((len >> 24) & 0xFF);
+            header[1] = (byte)((len >> 16) & 0xFF);
+            header[2] = (byte)((len >> 8) & 0xFF);
+            header[3] = (byte)(len & 0xFF);
+
+            socket.Send(header);
+
+            int sent = 0;
+            while (sent < body.Length)
+            {
+                sent += socket.Send(body, sent, body.Length - sent, SocketFlags.None);
+            }
+        }
+
+        private string ReceiveFrame(Socket socket)
+        {
+            byte[] header = ReceiveExact(socket, 4);
+            int len = (header[0] << 24) | (header[1] << 16) | (header[2] << 8) | header[3];
+
+            if (len < 0 || len > 10 * 1024 * 1024)
+            {
+                throw new Exception("Invalid frame length from market server: " + len);
+            }
+
+            byte[] body = ReceiveExact(socket, len);
+            return Encoding.UTF8.GetString(body);
+        }
+
+        private byte[] ReceiveExact(Socket socket, int length)
+        {
+            byte[] buffer = new byte[length];
+            int offset = 0;
+
+            while (offset < length)
+            {
+                int read = socket.Receive(buffer, offset, length - offset, SocketFlags.None);
+                if (read <= 0)
+                {
+                    throw new Exception("Socket closed while receiving data");
+                }
+                offset += read;
+            }
+
+            return buffer;
+        }
+
         private string SendMessage(string message, Socket socket, string socketName)
         {           
             if (socketName == "MarketServer")
@@ -995,8 +1186,16 @@ namespace OsEngine.Market.Servers.Esunny
 
             // send data through socket
 
-            byte[] msg = Encoding.UTF8.GetBytes(message);
-            socket.Send(msg);
+            if (socketName == "MarketServer")
+            {
+                string jsonCommand = ConvertLegacyToJsonCommandForMarketServer(message);
+                SendFrame(socket, jsonCommand);
+            }
+            else
+            {
+                byte[] msg = Encoding.UTF8.GetBytes(message);
+                socket.Send(msg);
+            }
 
             if (message.StartsWith("Process") == false)
             {
@@ -1014,9 +1213,18 @@ namespace OsEngine.Market.Servers.Esunny
 
             // get response from the server
 
-            byte[] bytes = new byte[1024];
-            int bytesRec = socket.Receive(bytes);
-            string request = Encoding.UTF8.GetString(bytes, 0, bytesRec);
+            string request;
+            if (socketName == "MarketServer")
+            {
+                string jsonResponse = ReceiveFrame(socket);
+                request = ConvertJsonResponseToLegacyForMarketServer(jsonResponse);
+            }
+            else
+            {
+                byte[] bytes = new byte[1024];
+                int bytesRec = socket.Receive(bytes);
+                request = Encoding.UTF8.GetString(bytes, 0, bytesRec);
+            }
 
             //clear socket / Освобождаем сокет
             //sender.Shutdown(SocketShutdown.Send);
