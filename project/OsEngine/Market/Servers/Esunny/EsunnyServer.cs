@@ -6,6 +6,7 @@
 using OsEngine.Entity;
 using OsEngine.Logging;
 using OsEngine.Market.Servers.Entity;
+using OsEngine.Market.Servers.Esunny.Entity;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -15,6 +16,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using Newtonsoft.Json;
 
 namespace OsEngine.Market.Servers.Esunny
 {
@@ -48,9 +50,9 @@ namespace OsEngine.Market.Servers.Esunny
             worker2.IsBackground = true;
             worker2.Start();
 
-            /*Thread worker3 = new Thread(WorkerPlaceTradeRouter);
+            Thread worker3 = new Thread(WorkerPlaceTradeRouter);
             worker3.IsBackground = true;
-            worker3.Start();*/
+            worker3.Start();
 
             Thread worker4 = new Thread(CheckSocketThreadsStatus);
             worker4.Start();
@@ -125,20 +127,18 @@ namespace OsEngine.Market.Servers.Esunny
             _messagesToSendMarketData = new ConcurrentQueue<string>();
             _messagesToSendTrade = new ConcurrentQueue<string>();
 
-            /*string connectionStr = "C@";
-            connectionStr += AccountId + "@";
-            connectionStr += UserId + "@";
-            connectionStr += UserPassword + "@";
-            connectionStr += AppId + "@";
-            connectionStr += AuthCode + "@";
-            connectionStr += DataServerUrl + "@";
-            connectionStr += TradeServerUrl + "@";
-            connectionStr += IsReal + "@";*/
+            string connectionStr = "setConnect";
 
-            string connectionStr = "C@";
+            string connectionTrade = "{\"cmd\":\"connect\"";
+            connectionTrade += ",\"accountId\":\"" + AccountId + "\"";
+            connectionTrade += ",\"password\":\"" + UserPassword + "\"";
+            connectionTrade += ",\"appId\":\"" + AppId + "\"";
+            connectionTrade += ",\"authCode\":\"" + AuthCode + "\"";
+            connectionTrade += ",\"tradeServerUrl\":\"" + TradeServerUrl.Split(':')[0] + "\"";
+            connectionTrade += ",\"tradeServerPort\":\"" + TradeServerUrl.Split(':')[1] + "\"";
 
             _messagesToSendMarketData.Enqueue(connectionStr);
-            //_messagesToSendTrade.Enqueue(connectionStr);
+            _messagesToSendTrade.Enqueue(connectionTrade);
 
             if (DataRouterIsActivate == true)
             {// Сокет для данных
@@ -183,7 +183,7 @@ namespace OsEngine.Market.Servers.Esunny
                         return;
                     }
                 }
-            }
+            }                      
 
             if (TradeRouterIsActivate == true)
             {// Сокет для торговли
@@ -342,7 +342,7 @@ namespace OsEngine.Market.Servers.Esunny
                     return true;
                 }*/
 
-                return false;
+                return true;
             }
         }
 
@@ -408,7 +408,7 @@ namespace OsEngine.Market.Servers.Esunny
                         p.Dispose();
                         break;
                     }
-                    else if (p.Modules[j].FileName.EndsWith("EsunnyTrader.exe"))
+                    else if (p.Modules[j].FileName.EndsWith("apidemo.exe"))
                     {
                         p.Kill();
                         p.Dispose();
@@ -421,98 +421,17 @@ namespace OsEngine.Market.Servers.Esunny
 
         public void LoadRouters()
         {
-            //\Atp_Router\api-samplecode\marketdata\x64\Debug\marketdata.exe
-            //\Atp_Router\api-samplecode\trader\x64\Debug\trader.exe
-
             string curDir = Environment.CurrentDirectory;
 
             string dirMarketData = curDir + "\\Esunny_Router\\MarketData\\x64\\Debug\\EsunnyMarketData.exe";
-            string dirTrader = curDir + "\\Esunny_Router\\MarketData\\x64\\Debug\\EsunnyTrader.exe";
+            string dirTrader = curDir + "\\Esunny_Router\\TradeData\\x64\\Debug\\apidemo.exe";
 
             try
             {
-                /*Process[] ps1 = System.Diagnostics.Process.GetProcesses();
-
-                List<Process> process = new List<Process>();
-
-                for (int i = 0; i < ps1.Length; i++)
-                {
-                    Process p = ps1[i];
-
-                    try
-                    {
-                        if (p.MainModule.FileName != ""
-                            && p.Modules != null)
-                        {
-                            process.Add(p);
-                        }
-                    }
-                    catch
-                    {
-
-                    }
-                }*/
-
-                /*if (TradeRouterIsActivate)
-                {     
-                    bool isStart = false;
-
-                    for (int i = 0; i < process.Count; i++)
-                    {
-                        Process p = process[i];
-
-                        for (int j = 0; p.Modules != null && j < p.Modules.Count; j++)
-                        {
-                            if (p.Modules[j].FileName == null)
-                            {
-                                continue;
-                            }
-
-                            if (p.Modules[j].FileName.EndsWith("EsunnyTrader.exe"))
-                            {
-                                isStart = true;
-                            }                        
-                        }
-                    }
-
-                    if (isStart)
-                    {
-                        Process.Start(dirTrader);
-                    }
-                }*/
-
-                /*if (DataRouterIsActivate)
-                {
-                    bool isStart = false;
-
-                    for (int i = 0; i < process.Count; i++)
-                    {
-                        Process p = process[i];
-
-                        for (int j = 0; p.Modules != null && j < p.Modules.Count; j++)
-                        {
-                            if (p.Modules[j].FileName == null)
-                            {
-                                continue;
-                            }
-
-                            if (p.Modules[j].FileName.EndsWith("EsunnyMarketData.exe"))
-                            {
-                                isStart = true;
-                            }
-                        }
-                    }
-
-                    if (!isStart)
-                    {
-                        Process.Start(dirMarketData);
-                    }
-                }*/
-
-                /*if (TradeRouterIsActivate)
+                if (TradeRouterIsActivate)
                 {
                     Process.Start(dirTrader);
-                }*/
+                }
 
                 if (DataRouterIsActivate)
                 {
@@ -607,20 +526,18 @@ namespace OsEngine.Market.Servers.Esunny
 
         private string TradeServerUrl;
 
-        private bool IsReal;
-
         #endregion
 
         #region 3 Securities
 
         public void GetSecurities()
         {
-            string str = "I@";
+            string str = "getSecurities";
 
             _messagesToSendMarketData.Enqueue(str);
 
             while (true)
-            {                
+            {
                 if (_securities != null && _securities.Count > 0)
                 {
                     break;
@@ -632,109 +549,77 @@ namespace OsEngine.Market.Servers.Esunny
             SecurityEvent(_securities);
         }
 
+        private void GetSecurityList(string message)
+        {
+            try
+            {
+                ResponceMessageSecurity responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageSecurity());
+
+                List<Security> loadSecurities = new();
+
+                for (int i = 0; i < responce.symbols.Count; i++)
+                {
+                    Security sec = new();
+
+                    sec.Name = responce.symbols[i].symbol;
+                    sec.NameId = responce.symbols[i].symbol;
+                    sec.NameFull = responce.symbols[i].symbol;
+                    sec.Exchange = responce.symbols[i].exchange;
+                    sec.NameClass = GetNameClass(responce.symbols[i].contractType);
+                    sec.Lot = 1;
+                    sec.VolumeStep = responce.symbols[i].contractSize.ToDecimal();
+                    sec.MinTradeAmount = responce.symbols[i].contractSize.ToDecimal();
+                    sec.MinTradeAmountType = MinTradeAmountType.Contract;
+                    sec.DecimalsVolume = GetDecimals(responce.symbols[i].contractSize);
+                    sec.PriceStep = responce.symbols[i].contractTickSize.ToDecimal();
+                    sec.PriceStepCost = responce.symbols[i].contractTickSize.ToDecimal();
+                    sec.Decimals = GetDecimals(responce.symbols[i].contractTickSize);
+
+                    loadSecurities.Add(sec);
+                }
+
+                _securities = loadSecurities;
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private string GetNameClass(string type)
+        {
+            switch (type)
+            {
+                case "F":
+                    return "Futures";
+                case "O":
+                    return "Options";
+                /*case "M":
+                    return "Spread";
+                case "S":
+                    return "Spot";
+                case "Y":
+                    return "Strategy";*/
+                default:
+                    return "Other";
+            }
+        }
+
+        private int GetDecimals(string str)
+        {
+            string[] s = str.Split('.');
+
+            if (s.Length > 1)
+            {
+                return s[1].Length;
+            }
+            else
+            {
+                return 0;
+            }
+        }
+
         public List<Security> _securities = new List<Security>();
-
-        private void SecurityLoader()
-        {
-            Thread.Sleep(2000);
-            
-            //TryLoadSecuritiesFromFile();
-        }
-
-        public void TryLoadSecuritiesFromFile()
-        {
-            if (!File.Exists(@"Engine\" + @"AtpSecurities.txt"))
-            {
-                return;
-            }
-            try
-            {
-                using (StreamReader reader = new StreamReader(@"Engine\" + @"AtpSecurities.txt"))
-                {
-                    while (reader.EndOfStream == false)
-                    {
-                        string str = reader.ReadLine();
-
-                        string[] array = str.Split('!');
-
-                        Security newSec = new Security();
-
-                        newSec.Name = array[0];
-                        newSec.NameClass = array[1];
-                        newSec.NameFull = array[2];
-                        newSec.NameId = array[3];
-
-                        if (string.IsNullOrEmpty(newSec.NameId))
-                        {
-                            newSec.NameId = newSec.NameFull;
-                        }
-
-                        newSec.NameFull = array[4];
-                        Enum.TryParse(array[5], out newSec.State);
-                        newSec.PriceStep = array[6].ToDecimal();
-                        newSec.Lot = array[7].ToDecimal();
-                        newSec.PriceStepCost = array[8].ToDecimal();
-                        newSec.MarginBuy = array[9].ToDecimal();
-                        Enum.TryParse(array[10], out newSec.SecurityType);
-                        newSec.Decimals = Convert.ToInt32(array[11]);
-                        newSec.PriceLimitLow = array[12].ToDecimal();
-                        newSec.PriceLimitHigh = array[13].ToDecimal();
-                        Enum.TryParse(array[14], out newSec.OptionType);
-                        newSec.Strike = array[15].ToDecimal();
-                        newSec.Expiration = Convert.ToDateTime(array[16]);
-
-                        _securities.Add(newSec);
-                    }
-
-                    reader.Close();
-                }
-                SecurityEvent(_securities);
-            }
-            catch (Exception)
-            {
-                // ignore
-            }
-        }
-
-        public void TrySaveSecuritiesInFile()
-        {
-            try
-            {
-                using (StreamWriter writer = new StreamWriter(@"Engine\" + @"AtpSecurities.txt", false))
-                {
-                    for (int i = 0; i < _securities.Count; i++)
-                    {
-                        _securities[i].NameClass = "atpSecurity";
-
-                        string result = _securities[i].Name + "!";
-                        result += _securities[i].NameClass + "!";
-                        result += _securities[i].NameFull + "!";
-                        result += _securities[i].NameId + "!";
-                        result += _securities[i].NameFull + "!";
-                        result += _securities[i].State + "!";
-                        result += _securities[i].PriceStep + "!";
-                        result += _securities[i].Lot + "!";
-                        result += _securities[i].PriceStepCost + "!";
-                        result += _securities[i].MarginBuy + "!";
-                        result += _securities[i].SecurityType + "!";
-                        result += _securities[i].Decimals + "!";
-                        result += _securities[i].PriceLimitLow + "!";
-                        result += _securities[i].PriceLimitHigh + "!";
-                        result += _securities[i].OptionType + "!";
-                        result += _securities[i].Strike + "!";
-                        result += _securities[i].Expiration + "!";
-
-                        writer.WriteLine(result);
-                    }
-
-                    writer.Close();
-                }
-            }
-            catch (Exception)
-            {
-                // ignore
-            }
-        }
 
         public event Action<List<Security>> SecurityEvent;
 
@@ -742,19 +627,56 @@ namespace OsEngine.Market.Servers.Esunny
 
         #region 4 Portfolios
 
-        List<Portfolio> _portfolios = new List<Portfolio>();
+        private List<Portfolio> _portfolios = new List<Portfolio>();
+
+        private bool _portfoliosLoaded = false;
 
         public void GetPortfolios()
         {
-            if (_portfolios.Count == 0)
+            string str = "getPortfolio";
+
+            _messagesToSendTrade.Enqueue(str);
+
+            /*while (true)
             {
-                Portfolio portfolio = new Portfolio();
-                portfolio.Number = "Esunny portfolio";
-                portfolio.ValueCurrent = 1;
-                _portfolios.Add(portfolio);
+                if (_portfolios != null && _portfolios.Count > 0)
+                {
+                    break;
+                }
+
+                Thread.Sleep(1000);
             }
 
-            PortfolioEvent(_portfolios);
+            PortfolioEvent(_portfolios);*/
+        }
+
+        private void ParsePortfolio(string message)
+        {
+            try
+            {
+                ResponceMessageAccount responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageAccount());
+
+                Portfolio portfolio = new Portfolio();
+
+                portfolio.Number = responce.accountNo;
+
+                if (!_portfoliosLoaded)
+                {
+                    portfolio.ValueBegin = responce.equity.ToDecimal();
+                    _portfoliosLoaded = true;
+                }
+                
+                portfolio.ValueCurrent = responce.equity.ToDecimal();
+                portfolio.ValueBlocked = responce.frozen.ToDecimal();
+
+                _portfolios.Add(portfolio);
+
+                PortfolioEvent(_portfolios);
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
         }
 
         public event Action<List<Portfolio>> PortfolioEvent;
@@ -899,7 +821,7 @@ namespace OsEngine.Market.Servers.Esunny
                         continue;
                     }
 
-                    if (ServerStatus == ServerConnectStatus.Disconnect &&
+                    /*if (ServerStatus == ServerConnectStatus.Disconnect &&
                        _tradeSocketConnect == false)
                     {
                         if (File.Exists("Atp_Router\\Files\\ConnectTrade.txt"))
@@ -909,16 +831,16 @@ namespace OsEngine.Market.Servers.Esunny
                             CheckConnectStatus();
 
                         }
-                    }
+                    }*/
 
-                    TryGetTradeDataFromFileSys();
+                    //TryGetTradeDataFromFileSys();
 
                     if (_messagesToSendTrade.IsEmpty)
                     {
                         // request any incoming data for us that are saving in server
                         // запрос каких-либо входящих данных для нас, которые копятся в сервере
 
-                        if (_lastTimeSendPing.AddSeconds(15) < DateTime.Now)
+                        if (_lastTimeSendPing.AddSeconds(1) < DateTime.Now)
                         {
                             _lastTimeSendPing = DateTime.Now;
                             _lastTimeSendMessageInSocketTrade = DateTime.Now;
@@ -960,13 +882,13 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
-        string placeLostDataSocket = "";
+        private string _placeLostDataSocket = "";
 
-        string placeLostTradeSocket = "";
+        private string _placeLostTradeSocket = "";
 
-        string lastMessageToDataServer = "";
+        private string _lastMessageToDataServer = "";
 
-        string lastMessageToTradeServer = "";
+        private string _lastMessageToTradeServer = "";
 
         private string ConvertLegacyToJsonCommandForMarketServer(string message)
         {
@@ -1169,8 +1091,8 @@ namespace OsEngine.Market.Servers.Esunny
                     //iteratorPDataServer++;
                 }
 
-                placeLostDataSocket = "Sending";
-                lastMessageToDataServer = message;
+                _placeLostDataSocket = "Sending";
+                _lastMessageToDataServer = message;
             }
             else
             {
@@ -1180,21 +1102,22 @@ namespace OsEngine.Market.Servers.Esunny
                     // iteratorPTradeServer++;
                 }
 
-                placeLostTradeSocket = "Sending";
-                lastMessageToTradeServer = message;
+                _placeLostTradeSocket = "Sending";
+                _lastMessageToTradeServer = message;
             }
 
             // send data through socket
 
             if (socketName == "MarketServer")
             {
-                string jsonCommand = ConvertLegacyToJsonCommandForMarketServer(message);
-                SendFrame(socket, jsonCommand);
+                //string jsonCommand = ConvertLegacyToJsonCommandForMarketServer(message);
+                SendFrame(socket, message);
             }
             else
             {
-                byte[] msg = Encoding.UTF8.GetBytes(message);
-                socket.Send(msg);
+                SendFrame(socket, message);
+                /*byte[] msg = Encoding.UTF8.GetBytes(message);
+                socket.Send(msg);*/
             }
 
             if (message.StartsWith("Process") == false)
@@ -1204,11 +1127,11 @@ namespace OsEngine.Market.Servers.Esunny
 
             if (socketName == "MarketServer")
             {
-                placeLostDataSocket = "Receive";
+                _placeLostDataSocket = "Receive";
             }
             else
             {
-                placeLostTradeSocket = "Receive";
+                _placeLostTradeSocket = "Receive";
             }
 
             // get response from the server
@@ -1216,14 +1139,15 @@ namespace OsEngine.Market.Servers.Esunny
             string request;
             if (socketName == "MarketServer")
             {
-                string jsonResponse = ReceiveFrame(socket);
-                request = ConvertJsonResponseToLegacyForMarketServer(jsonResponse);
+                request = ReceiveFrame(socket);
+                //request = ConvertJsonResponseToLegacyForMarketServer(jsonResponse);
             }
             else
             {
-                byte[] bytes = new byte[1024];
+                request = ReceiveFrame(socket);
+                /*byte[] bytes = new byte[1024];
                 int bytesRec = socket.Receive(bytes);
-                request = Encoding.UTF8.GetString(bytes, 0, bytesRec);
+                request = Encoding.UTF8.GetString(bytes, 0, bytesRec);*/
             }
 
             //clear socket / Освобождаем сокет
@@ -1250,11 +1174,11 @@ namespace OsEngine.Market.Servers.Esunny
 
         private void CheckConnectStatus()
         {
-            /*if (TradeRouterIsActivate == true &&
+            if (TradeRouterIsActivate == true &&
                 _tradeSocketConnect == false)
             {
                 return;
-            }*/
+            }
             if (DataRouterIsActivate == true
                 && _marketSocketConnect == false)
             {
@@ -1285,8 +1209,8 @@ namespace OsEngine.Market.Servers.Esunny
                     && _lastTimeSendMessageInSocketTrade.AddSeconds(30) > DateTime.Now)
                 {
                     SendLogMessage("Sockets thread is lost. Trade router. Reconnect", LogMessageType.Error);
-                    SendLogMessage("Place lost trade socket thread: " + placeLostTradeSocket, LogMessageType.Error);
-                    SendLogMessage("Last message to trade server: " + lastMessageToTradeServer, LogMessageType.Error);
+                    SendLogMessage("Place lost trade socket thread: " + _placeLostTradeSocket, LogMessageType.Error);
+                    SendLogMessage("Last message to trade server: " + _lastMessageToTradeServer, LogMessageType.Error);
                     CloseRouters();
                     ServerStatus = ServerConnectStatus.Disconnect;
                     DisconnectEvent();
@@ -1297,8 +1221,8 @@ namespace OsEngine.Market.Servers.Esunny
                      && _lastTimeSendMessageInSocketData.AddSeconds(30) > DateTime.Now)
                 {
                     SendLogMessage("Sockets thread is lost. Data router. Reconnect", LogMessageType.Error);
-                    SendLogMessage("Place lost data socket thread: " + placeLostDataSocket, LogMessageType.Error);
-                    SendLogMessage("Last message to data server: " + lastMessageToDataServer, LogMessageType.Error);
+                    SendLogMessage("Place lost data socket thread: " + _placeLostDataSocket, LogMessageType.Error);
+                    SendLogMessage("Last message to data server: " + _lastMessageToDataServer, LogMessageType.Error);
 
                     CloseRouters();
                     ServerStatus = ServerConnectStatus.Disconnect;
@@ -1638,10 +1562,10 @@ namespace OsEngine.Market.Servers.Esunny
                 return;
             }
 
-            if (message.StartsWith("\0\0"))
+            /*if (message.StartsWith("\0\0"))
             {
                 return;
-            }
+            }*/
 
             SendLogMessage("Trade router message: " + message, LogMessageType.System);
 
@@ -1661,22 +1585,10 @@ namespace OsEngine.Market.Servers.Esunny
                     DisconnectEvent();
                 }
             }
-            else if (message.StartsWith("MyTrade1"))
+            else if (message.Contains("\"type\":\"account\""))
             {
-                LoadMyTrade(message);
-            }
-            else if (message.StartsWith("OrderAction2"))
-            {
-                LoadMyOrder(message);
-            }
-            else if (message.StartsWith("OrderFail3"))
-            {
-                LoadMyFailOrder(message);
-            }
-            else if (message.StartsWith("OrderFail1"))
-            {
-                LoadMyFailOrder(message);
-            }
+                ParsePortfolio(message);
+            }          
         }
 
         private bool IncomeMessageFromDataRouter(string message)
@@ -1686,14 +1598,14 @@ namespace OsEngine.Market.Servers.Esunny
                 return true;
             }
 
-            if (message.StartsWith("Process"))
+            if (message.Contains("Process"))
             {
                 return true;
             }
 
             //SendLogMessage("DateRouter: " + message, LogMessageType.System);
 
-            if (message.StartsWith("Connect") &&
+            if (message.Contains("Connect") &&
                 ServerStatus != ServerConnectStatus.Connect)
             {
                 SendLogMessage("data router is connected", LogMessageType.System);
@@ -1701,7 +1613,7 @@ namespace OsEngine.Market.Servers.Esunny
                 CheckConnectStatus();
                 SendLogMessage(message, LogMessageType.System);
             }
-            else if (message.StartsWith("Disconnect"))
+            else if (message.Contains("Disconnect"))
             {
                 ServerStatus = ServerConnectStatus.Disconnect;
 
@@ -1711,11 +1623,11 @@ namespace OsEngine.Market.Servers.Esunny
                 }
                 SendLogMessage(message, LogMessageType.System);
             }
-            else if (message.StartsWith("Md"))
+            /*else if (message.StartsWith("Md"))
             {
                 LoadMd(message);
-            }
-            else if (message.StartsWith("Sec"))
+            }*/
+            else if (message.Contains("\"type\":\"security\""))
             {
                 GetSecurityList(message);
             }
@@ -1725,30 +1637,6 @@ namespace OsEngine.Market.Servers.Esunny
             }
 
             return false;
-        }
-
-        private List<Security> _loadSecurities = new();
-
-        private void GetSecurityList(string message)
-        {
-            string[] strList = message.Split('@');
-
-            string name = strList[3].Split('\0')[0];
-
-            Security sec = new();
-
-            sec.Name = name;
-            sec.NameId = name;
-            sec.NameFull = name;
-            sec.Exchange = name.Split('|')[0];
-
-            _loadSecurities.Add(sec);
-
-            if (strList[1] == strList[2])
-            {
-                _securities = _loadSecurities;
-                return;
-            }
         }
 
         private void LoadMyOrder(string strMyOrder)
