@@ -3,6 +3,7 @@
  *Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
 */
 
+using Newtonsoft.Json;
 using OsEngine.Entity;
 using OsEngine.Logging;
 using OsEngine.Market.Servers.Entity;
@@ -16,7 +17,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using Newtonsoft.Json;
+using static Google.Rpc.Context.AttributeContext.Types;
 
 namespace OsEngine.Market.Servers.Esunny
 {
@@ -42,9 +43,10 @@ namespace OsEngine.Market.Servers.Esunny
 
         public EsunnyServerRealization()
         {
-            /*ServerStatus = ServerConnectStatus.Disconnect;
-            Thread worker = new Thread(SecurityLoader);
-            worker.Start();*/
+            ServerStatus = ServerConnectStatus.Disconnect;
+
+            Thread worker = new Thread(ThreadPortfolio);
+            worker.Start();
 
             Thread worker2 = new Thread(WorkerPlaceMarketData);
             worker2.IsBackground = true;
@@ -514,8 +516,6 @@ namespace OsEngine.Market.Servers.Esunny
 
         private string AccountId;
 
-        private string UserId;
-
         private string UserPassword;
 
         private string AppId;
@@ -534,7 +534,7 @@ namespace OsEngine.Market.Servers.Esunny
         {
             string str = "getSecurities";
 
-            _messagesToSendMarketData.Enqueue(str);
+            _messagesToSendTrade.Enqueue(str);
 
             while (true)
             {
@@ -557,23 +557,23 @@ namespace OsEngine.Market.Servers.Esunny
 
                 List<Security> loadSecurities = new();
 
-                for (int i = 0; i < responce.symbols.Count; i++)
+                for (int i = 0; i < responce.list.Count; i++)
                 {
                     Security sec = new();
 
-                    sec.Name = responce.symbols[i].symbol;
-                    sec.NameId = responce.symbols[i].symbol;
-                    sec.NameFull = responce.symbols[i].symbol;
-                    sec.Exchange = responce.symbols[i].exchange;
-                    sec.NameClass = GetNameClass(responce.symbols[i].contractType);
+                    sec.Name = responce.list[i].contractNo;
+                    sec.NameId = responce.list[i].contractIndex;
+                    sec.NameFull = responce.list[i].contractNo;
+                    sec.Exchange = GetNameExchange(responce.list[i].exchangeId);
+                    sec.NameClass = GetNameClass(responce.list[i].commodityType);
                     sec.Lot = 1;
-                    sec.VolumeStep = responce.symbols[i].contractSize.ToDecimal();
-                    sec.MinTradeAmount = responce.symbols[i].contractSize.ToDecimal();
+                    sec.VolumeStep = responce.list[i].contractSize.ToDecimal();
+                    sec.MinTradeAmount = responce.list[i].contractSize.ToDecimal();
                     sec.MinTradeAmountType = MinTradeAmountType.Contract;
-                    sec.DecimalsVolume = GetDecimals(responce.symbols[i].contractSize);
-                    sec.PriceStep = responce.symbols[i].contractTickSize.ToDecimal();
-                    sec.PriceStepCost = responce.symbols[i].contractTickSize.ToDecimal();
-                    sec.Decimals = GetDecimals(responce.symbols[i].contractTickSize);
+                    sec.DecimalsVolume = GetDecimals(responce.list[i].contractSize);
+                    sec.PriceStep = responce.list[i].contractTickSize.ToDecimal();
+                    sec.PriceStepCost = responce.list[i].contractTickSize.ToDecimal();
+                    sec.Decimals = GetDecimals(responce.list[i].contractTickSize);
 
                     loadSecurities.Add(sec);
                 }
@@ -586,6 +586,29 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
+        private string GetNameExchange(string exchangeId)
+        {
+            switch (exchangeId)
+            {
+                case "Z":
+                    return "ZCE";
+                case "S":
+                    return "SHFE";
+                case "I":
+                    return "INE";
+                case "C":
+                    return "CFFEX";
+                case "D":
+                    return "DCE";
+                case "F":
+                    return "GFEX";
+                case "G":
+                    return "SGE";
+                default:
+                    return "";
+            }          
+        }
+
         private string GetNameClass(string type)
         {
             switch (type)
@@ -594,14 +617,18 @@ namespace OsEngine.Market.Servers.Esunny
                     return "Futures";
                 case "O":
                     return "Options";
-                /*case "M":
-                    return "Spread";
+                case "M":
+                    return "Inter-commodity spread";
                 case "S":
-                    return "Spot";
-                case "Y":
-                    return "Strategy";*/
+                    return "Calendar spread";
+                case "D":
+                    return "Straddle";
+                case "G":
+                    return "Strip spread";
+                case "R":
+                    return "Covered option";
                 default:
-                    return "Other";
+                    return "None";
             }
         }
 
@@ -627,27 +654,37 @@ namespace OsEngine.Market.Servers.Esunny
 
         #region 4 Portfolios
 
-        private List<Portfolio> _portfolios = new List<Portfolio>();
+        private Portfolio _portfolio = new Portfolio();
 
         private bool _portfoliosLoaded = false;
+        private bool _positionsLoaded = false;
 
         public void GetPortfolios()
         {
-            string str = "getPortfolio";
+        }
 
-            _messagesToSendTrade.Enqueue(str);
-
-            /*while (true)
+        private void ThreadPortfolio()
+        {
+            while (true)
             {
-                if (_portfolios != null && _portfolios.Count > 0)
+                try
                 {
-                    break;
+                    if (ServerStatus == ServerConnectStatus.Disconnect)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
+                    _messagesToSendTrade.Enqueue("getPortfolio");
+                    _messagesToSendTrade.Enqueue("getPositions");
+
+                    Thread.Sleep(10000);
                 }
-
-                Thread.Sleep(1000);
+                catch (Exception ex)
+                {
+                    SendLogMessage(ex.ToString(), LogMessageType.Error);
+                }
             }
-
-            PortfolioEvent(_portfolios);*/
         }
 
         private void ParsePortfolio(string message)
@@ -665,13 +702,84 @@ namespace OsEngine.Market.Servers.Esunny
                     portfolio.ValueBegin = responce.equity.ToDecimal();
                     _portfoliosLoaded = true;
                 }
+                else
+                {
+                    if(_portfolio != null && _portfolio.ValueBegin != 0)
+                    {
+                        portfolio.ValueBegin = _portfolio.ValueBegin;
+                    }
+                }
                 
                 portfolio.ValueCurrent = responce.equity.ToDecimal();
-                portfolio.ValueBlocked = responce.frozen.ToDecimal();
+                portfolio.ValueBlocked = responce.margin.ToDecimal();
+                portfolio.UnrealizedPnl = responce.positionProfit.ToDecimal();
 
-                _portfolios.Add(portfolio);
+                _portfolio = portfolio;
 
-                PortfolioEvent(_portfolios);
+                PortfolioEvent(new List<Portfolio> { portfolio });
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void ParsePositions(string message)
+        {
+            try
+            {
+                ResponceMessagePositions responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessagePositions());
+
+                Portfolio portfolio = new Portfolio();
+
+                portfolio.Number = _portfolio.Number;
+                portfolio.ValueBegin = _portfolio.ValueBegin;
+                portfolio.ValueCurrent = _portfolio.ValueCurrent;
+                portfolio.ValueBlocked = _portfolio.ValueBlocked;
+                portfolio.UnrealizedPnl = _portfolio.UnrealizedPnl;
+
+                for (int i = 0; i < responce.list.Count; i++)
+                {
+                    ListPositions item = responce.list[i];
+
+                    if (item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal() > 0)
+                    {
+                        PositionOnBoard pos = new PositionOnBoard();
+
+                        pos.PortfolioName = item.accountNo;
+                        pos.SecurityNameCode = item.contractNo + "_LONG";
+                        pos.ValueBlocked = 0;
+                        pos.ValueCurrent = item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal();
+
+                        if (!_positionsLoaded)
+                        {
+                            pos.ValueBegin = item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal();
+                        }
+
+                        portfolio.SetNewPosition(pos);
+                    }
+
+                    if (item.preSellQty.ToDecimal() + item.todaySellQty.ToDecimal() > 0)
+                    {
+                        PositionOnBoard pos = new PositionOnBoard();
+
+                        pos.PortfolioName = item.accountNo;
+                        pos.SecurityNameCode = item.contractNo + "_SHORT";
+                        pos.ValueBlocked = 0;
+                        pos.ValueCurrent = item.preSellQty.ToDecimal() + item.todaySellQty.ToDecimal();
+
+                        if (!_positionsLoaded)
+                        {
+                            pos.ValueBegin = item.preSellQty.ToDecimal() + item.todaySellQty.ToDecimal();
+                        }
+
+                        portfolio.SetNewPosition(pos);
+                    }
+                }
+
+                _positionsLoaded = true;
+
+                PortfolioEvent(new List<Portfolio> { portfolio });
             }
             catch (Exception ex)
             {
@@ -1585,10 +1693,18 @@ namespace OsEngine.Market.Servers.Esunny
                     DisconnectEvent();
                 }
             }
-            else if (message.Contains("\"type\":\"account\""))
+            else if (message.Contains("{\"type\":\"account\""))
             {
                 ParsePortfolio(message);
-            }          
+            }
+            else if (message.Contains("{\"type\":\"positions\""))
+            {
+                ParsePositions(message);
+            }
+            else if (message.Contains("\"type\":\"security\""))
+            {
+                GetSecurityList(message);
+            }
         }
 
         private bool IncomeMessageFromDataRouter(string message)
@@ -1627,10 +1743,10 @@ namespace OsEngine.Market.Servers.Esunny
             {
                 LoadMd(message);
             }*/
-            else if (message.Contains("\"type\":\"security\""))
+            /*else if (message.Contains("\"type\":\"security\""))
             {
                 GetSecurityList(message);
-            }
+            }*/
             else
             {
                 SendLogMessage(message, LogMessageType.System);
