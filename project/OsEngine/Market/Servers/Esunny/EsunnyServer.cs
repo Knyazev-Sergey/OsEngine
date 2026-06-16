@@ -751,39 +751,33 @@ namespace OsEngine.Market.Servers.Esunny
                 {
                     ListPositions item = responce.list[i];
 
-                    if (item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal() > 0)
+                    PositionOnBoard posLong = new PositionOnBoard();
+
+                    posLong.PortfolioName = item.accountNo;
+                    posLong.SecurityNameCode = item.contractNo + "_LONG";
+                    posLong.ValueBlocked = 0;
+                    posLong.ValueCurrent = item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal();
+
+                    if (!_positionsLoaded)
                     {
-                        PositionOnBoard pos = new PositionOnBoard();
-
-                        pos.PortfolioName = item.accountNo;
-                        pos.SecurityNameCode = item.contractNo + "_LONG";
-                        pos.ValueBlocked = 0;
-                        pos.ValueCurrent = item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal();
-
-                        if (!_positionsLoaded)
-                        {
-                            pos.ValueBegin = item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal();
-                        }
-
-                        portfolio.SetNewPosition(pos);
+                        posLong.ValueBegin = item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal();
                     }
 
-                    if (item.preSellQty.ToDecimal() + item.todaySellQty.ToDecimal() > 0)
+                    portfolio.SetNewPosition(posLong);
+
+                    PositionOnBoard posShort = new PositionOnBoard();
+
+                    posShort.PortfolioName = item.accountNo;
+                    posShort.SecurityNameCode = item.contractNo + "_SHORT";
+                    posShort.ValueBlocked = 0;
+                    posShort.ValueCurrent = item.preSellQty.ToDecimal() + item.todaySellQty.ToDecimal();
+
+                    if (!_positionsLoaded)
                     {
-                        PositionOnBoard pos = new PositionOnBoard();
-
-                        pos.PortfolioName = item.accountNo;
-                        pos.SecurityNameCode = item.contractNo + "_SHORT";
-                        pos.ValueBlocked = 0;
-                        pos.ValueCurrent = item.preSellQty.ToDecimal() + item.todaySellQty.ToDecimal();
-
-                        if (!_positionsLoaded)
-                        {
-                            pos.ValueBegin = item.preSellQty.ToDecimal() + item.todaySellQty.ToDecimal();
-                        }
-
-                        portfolio.SetNewPosition(pos);
+                        posShort.ValueBegin = item.preSellQty.ToDecimal() + item.todaySellQty.ToDecimal();
                     }
+
+                    portfolio.SetNewPosition(posShort);
                 }
 
                 _positionsLoaded = true;
@@ -957,7 +951,7 @@ namespace OsEngine.Market.Servers.Esunny
                         // request any incoming data for us that are saving in server
                         // запрос каких-либо входящих данных для нас, которые копятся в сервере
 
-                        if (_lastTimeSendPing.AddSeconds(1) < DateTime.Now)
+                        if (_lastTimeSendPing.AddMilliseconds(200) < DateTime.Now)
                         {
                             _lastTimeSendPing = DateTime.Now;
                             _lastTimeSendMessageInSocketTrade = DateTime.Now;
@@ -1625,9 +1619,9 @@ namespace OsEngine.Market.Servers.Esunny
 
                 Order order = new();
 
-                order.SecurityNameCode = responce.contractNo1;
-                order.NumberMarket = responce.orderId;
+                order.SecurityNameCode = responce.contractNo1;                
                 order.NumberUser = _listNumber[responce.orderId];
+                order.NumberMarket = responce.orderId;
                 order.TypeOrder = GetOrderPriceType(responce.orderType);
                 order.State = GetOrderState(responce.orderState);
                 order.Price = responce.orderPrice.ToDecimal();
@@ -1640,11 +1634,7 @@ namespace OsEngine.Market.Servers.Esunny
                 order.SecurityClassCode = GetClassSecurity(responce.contractNo1);
                 order.TimeCreate = DateTime.UtcNow;
                 order.TimeCallBack = DateTime.UtcNow;
-
-                //MyOrderEvent?.Invoke(order);
-
-                SendLogMessage($"NumberUser: {order.NumberUser}, NumberMarket: {order.NumberMarket}", LogMessageType.Error);
-
+                
                 if (MyOrderEvent != null)
                 {
                     MyOrderEvent(order);
@@ -2286,8 +2276,6 @@ namespace OsEngine.Market.Servers.Esunny
         {
             rateGateSendOrder.WaitToProceed();
 
-            order.NumberMarket = order.NumberUser.ToString();
-
             string msg = "";
             msg += ",\"symbol\":\"" + order.SecurityNameCode + "\"";
             msg += ",\"symbolIndex\":\"" + GetSymbolIndex(order.SecurityNameCode) + "\"";
@@ -2319,11 +2307,6 @@ namespace OsEngine.Market.Servers.Esunny
 
         public bool CancelOrder(Order order)
         {
-            /*if (order.NumberUser == 0)
-            {
-                SendLogMessage("NumberUser is 0. Can`t cancel order", LogMessageType.Error);
-            }*/
-
             rateGateCancelOrder.WaitToProceed();
 
             string orderToTcp = "{\"cmd\":\"cancelOrder\",\"orderId\":\"" + order.NumberMarket + "\"}";
