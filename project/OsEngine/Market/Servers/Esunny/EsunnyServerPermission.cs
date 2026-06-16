@@ -115,7 +115,7 @@ namespace OsEngine.Market.Servers.Esunny
 
         public bool MarketOrdersIsSupport
         {
-            get { return false; }
+            get { return true; }
         }
 
         public bool IsTradeServer

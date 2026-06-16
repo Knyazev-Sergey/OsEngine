@@ -13,11 +13,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using static Google.Rpc.Context.AttributeContext.Types;
 
 namespace OsEngine.Market.Servers.Esunny
 {
@@ -26,14 +26,14 @@ namespace OsEngine.Market.Servers.Esunny
         public EsunnyServer()
         {
             EsunnyServerRealization realization = new EsunnyServerRealization();
-            ServerRealization = realization;
+            ServerRealization = realization;                       
 
-            CreateParameterString("Account ID", "Q123567");
-            CreateParameterPassword("Password", "Apri2026$^");
+            CreateParameterString("Account ID", "");
+            CreateParameterPassword("Password", "");
             CreateParameterString("AuthCode", "");
             CreateParameterString("APPID", "");
-            CreateParameterString("Data server url", "61.163.243.173:6668");
-            CreateParameterString("Trade server url", "61.163.243.173:6668");           
+            CreateParameterString("Data server url", "");
+            CreateParameterString("Trade server url", "");           
         }
     }
 
@@ -85,7 +85,7 @@ namespace OsEngine.Market.Servers.Esunny
                 return;
             }
 
-            /*if (string.IsNullOrEmpty(AuthCode))
+            if (string.IsNullOrEmpty(AuthCode))
             {
                 SendLogMessage("No AuthCode!!! No connection!!!", LogMessageType.Error);
                 return;
@@ -95,8 +95,8 @@ namespace OsEngine.Market.Servers.Esunny
             {
                 SendLogMessage("No AppId!!! No connection!!!", LogMessageType.Error);
                 return;
-            }*/
-                       
+            }
+
             if (DataRouterIsActivate == true &&
                 string.IsNullOrEmpty(DataServerUrl))
             {
@@ -129,7 +129,9 @@ namespace OsEngine.Market.Servers.Esunny
             _messagesToSendMarketData = new ConcurrentQueue<string>();
             _messagesToSendTrade = new ConcurrentQueue<string>();
 
-            string connectionStr = "setConnect";
+            string connectionMarketData = "{\"cmd\":\"connect\"";
+            connectionMarketData += ",\"dataServerUrl\":\"" + DataServerUrl.Split(':')[0] + "\"";
+            connectionMarketData += ",\"dataServerPort\":\"" + DataServerUrl.Split(':')[1] + "\"}";
 
             string connectionTrade = "{\"cmd\":\"connect\"";
             connectionTrade += ",\"accountId\":\"" + AccountId + "\"";
@@ -137,9 +139,9 @@ namespace OsEngine.Market.Servers.Esunny
             connectionTrade += ",\"appId\":\"" + AppId + "\"";
             connectionTrade += ",\"authCode\":\"" + AuthCode + "\"";
             connectionTrade += ",\"tradeServerUrl\":\"" + TradeServerUrl.Split(':')[0] + "\"";
-            connectionTrade += ",\"tradeServerPort\":\"" + TradeServerUrl.Split(':')[1] + "\"";
+            connectionTrade += ",\"tradeServerPort\":\"" + TradeServerUrl.Split(':')[1] + "\"}";
 
-            _messagesToSendMarketData.Enqueue(connectionStr);
+            _messagesToSendMarketData.Enqueue(connectionMarketData);
             _messagesToSendTrade.Enqueue(connectionTrade);
 
             if (DataRouterIsActivate == true)
@@ -254,7 +256,7 @@ namespace OsEngine.Market.Servers.Esunny
                 {
                     try
                     {
-                        SendMessage("Disconnect", _socketMarketData, "MarketServer");
+                        SendMessage("{\"cmd\":\"disconnect\"", _socketMarketData, "MarketServer");
                         _socketMarketData.Shutdown(SocketShutdown.Send);
                     }
                     catch
@@ -294,7 +296,7 @@ namespace OsEngine.Market.Servers.Esunny
                 {
                     try
                     {
-                        SendMessage("Disconnect", _socketToTrade, "TradeServer");
+                        SendMessage("{\"cmd\":\"disconnect\"", _socketToTrade, "TradeServer");
                         _socketToTrade.Shutdown(SocketShutdown.Send);
                     }
                     catch
@@ -311,7 +313,6 @@ namespace OsEngine.Market.Servers.Esunny
             {
                 HandlerException(exeption);
             }
-
 
             if (ServerStatus != ServerConnectStatus.Disconnect)
             {
@@ -562,8 +563,7 @@ namespace OsEngine.Market.Servers.Esunny
                     Security sec = new();
 
                     sec.Name = responce.list[i].contractNo;
-                    sec.NameId = responce.list[i].contractIndex;
-                    sec.NameFull = responce.list[i].contractNo;
+                    sec.NameId = responce.list[i].contractIndex;                    
                     sec.Exchange = GetNameExchange(responce.list[i].exchangeId);
                     sec.NameClass = GetNameClass(responce.list[i].commodityType);
                     sec.Lot = 1;
@@ -574,7 +574,8 @@ namespace OsEngine.Market.Servers.Esunny
                     sec.PriceStep = responce.list[i].contractTickSize.ToDecimal();
                     sec.PriceStepCost = responce.list[i].contractTickSize.ToDecimal();
                     sec.Decimals = GetDecimals(responce.list[i].contractTickSize);
-
+                    sec.NameFull = GetFullNameSecurity(responce.list[i], sec);
+                    
                     loadSecurities.Add(sec);
                 }
 
@@ -584,6 +585,14 @@ namespace OsEngine.Market.Servers.Esunny
             {
                 SendLogMessage(ex.ToString(), LogMessageType.Error);
             }
+        }
+
+        private string GetFullNameSecurity(Data data, Security sec)
+        {
+            string prefix = new string(data.contractNo.TakeWhile(char.IsLetter).ToArray());
+            string suffix = new string(data.contractNo.SkipWhile(char.IsLetter).ToArray());
+
+            return sec.Exchange + "|" + data.commodityType + "|" + prefix + "|" + suffix;
         }
 
         private string GetNameExchange(string exchangeId)
@@ -687,7 +696,7 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
-        private void ParsePortfolio(string message)
+        private void GetPortfolioDate(string message)
         {
             try
             {
@@ -724,7 +733,7 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
-        private void ParsePositions(string message)
+        private void GetPositionsDate(string message)
         {
             try
             {
@@ -998,146 +1007,6 @@ namespace OsEngine.Market.Servers.Esunny
 
         private string _lastMessageToTradeServer = "";
 
-        private string ConvertLegacyToJsonCommandForMarketServer(string message)
-        {
-            if (string.IsNullOrEmpty(message))
-            {
-                return "{\"cmd\":\"poll\"}";
-            }
-
-            if (message.StartsWith("Process"))
-            {
-                return "{\"cmd\":\"poll\"}";
-            }
-
-            if (message.StartsWith("Disconnect"))
-            {
-                return "{\"cmd\":\"disconnect\"}";
-            }
-
-            if (message.StartsWith("C"))
-            {
-                return "{\"cmd\":\"connect\"}";
-            }
-
-            if (message.StartsWith("I"))
-            {
-                return "{\"cmd\":\"instruments\"}";
-            }
-
-            if (message.StartsWith("S@"))
-            {
-                string[] parts = message.Split('@');
-                string symbol = parts.Length > 1 ? parts[1] : string.Empty;
-                symbol = symbol.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                return "{\"cmd\":\"subscribe\",\"symbol\":\"" + symbol + "\"}";
-            }
-
-            return "{\"cmd\":\"poll\"}";
-        }
-
-        private string ConvertJsonResponseToLegacyForMarketServer(string response)
-        {
-            if (string.IsNullOrEmpty(response))
-            {
-                return "Process";
-            }
-
-            string msg = response.Trim();
-
-            if (msg.StartsWith("{") == false)
-            {
-                return msg;
-            }
-
-            if (msg.Contains("\"type\":\"connect\"") && msg.Contains("\"ok\":true"))
-            {
-                return "Connect";
-            }
-
-            if (msg.Contains("\"type\":\"disconnect\"") || msg.Contains("\"cmd\":\"disconnect\""))
-            {
-                return "Disconnect";
-            }
-
-            if (msg.Contains("\"type\":\"poll\""))
-            {
-                return "Process";
-            }
-
-            if (msg.Contains("\"type\":\"security\""))
-            {
-                string index = ExtractJsonValue(msg, "index");
-                string total = ExtractJsonValue(msg, "total");
-                string symbol = ExtractJsonValue(msg, "symbol");
-                return "Sec@" + index + "@" + total + "@" + symbol;
-            }
-
-            if (msg.Contains("\"type\":\"commodity\""))
-            {
-                return "Process";
-            }
-
-            return msg;
-        }
-
-        private string ExtractJsonValue(string json, string key)
-        {
-            string token = "\"" + key + "\"";
-            int keyPos = json.IndexOf(token, StringComparison.Ordinal);
-            if (keyPos < 0)
-            {
-                return string.Empty;
-            }
-
-            int colonPos = json.IndexOf(':', keyPos + token.Length);
-            if (colonPos < 0)
-            {
-                return string.Empty;
-            }
-
-            int valueStart = colonPos + 1;
-            while (valueStart < json.Length && char.IsWhiteSpace(json[valueStart]))
-            {
-                valueStart++;
-            }
-
-            if (valueStart >= json.Length)
-            {
-                return string.Empty;
-            }
-
-            if (json[valueStart] == '"')
-            {
-                int q = valueStart + 1;
-                while (q < json.Length)
-                {
-                    if (json[q] == '"' && json[q - 1] != '\\')
-                    {
-                        break;
-                    }
-                    q++;
-                }
-
-                if (q >= json.Length)
-                {
-                    return string.Empty;
-                }
-
-                string s = json.Substring(valueStart + 1, q - valueStart - 1);
-                return s.Replace("\\\"", "\"").Replace("\\\\", "\\");
-            }
-            else
-            {
-                int end = valueStart;
-                while (end < json.Length && json[end] != ',' && json[end] != '}')
-                {
-                    end++;
-                }
-                return json.Substring(valueStart, end - valueStart).Trim();
-            }
-        }
-
         private void SendFrame(Socket socket, string payload)
         {
             byte[] body = Encoding.UTF8.GetBytes(payload);
@@ -1227,6 +1096,8 @@ namespace OsEngine.Market.Servers.Esunny
                 /*byte[] msg = Encoding.UTF8.GetBytes(message);
                 socket.Send(msg);*/
             }
+
+            
 
             if (message.StartsWith("Process") == false)
             {
@@ -1636,9 +1507,8 @@ namespace OsEngine.Market.Servers.Esunny
                     }
                 }
 
-                _messagesToSendMarketData.Enqueue("S@" + security.Name + "@");
-                _messagesToSendTrade.Enqueue("S@" + security.Name + "@");
-
+                _messagesToSendMarketData.Enqueue("{\"cmd\":\"subscribeQuote\",\"symbol\":\"" + security.NameFull + "\"}");
+                
                 _subscribeSecurities.Add(security);
             }
             catch (Exception exeption)
@@ -1670,40 +1540,247 @@ namespace OsEngine.Market.Servers.Esunny
                 return;
             }
 
-            /*if (message.StartsWith("\0\0"))
-            {
-                return;
-            }*/
-
             SendLogMessage("Trade router message: " + message, LogMessageType.System);
 
-            if (message.StartsWith("Connect") &&
+            if (message.StartsWith("{\"type\":\"connect\"") &&
                 ServerStatus == ServerConnectStatus.Disconnect)
             {
-                SendLogMessage("trade router is connected", LogMessageType.System);
+                SendLogMessage("Trade router is connected", LogMessageType.System);
                 _tradeSocketConnect = true;
                 CheckConnectStatus();
             }
-            else if (message.StartsWith("Disconnect"))
+            else if (message.StartsWith("{\"type\":\"disconnect\""))
             {
                 ServerStatus = ServerConnectStatus.Disconnect;
-
-                if (DisconnectEvent != null)
-                {
-                    DisconnectEvent();
-                }
+                DisconnectEvent?.Invoke();
             }
             else if (message.Contains("{\"type\":\"account\""))
             {
-                ParsePortfolio(message);
+                GetPortfolioDate(message);
             }
             else if (message.Contains("{\"type\":\"positions\""))
             {
-                ParsePositions(message);
+                GetPositionsDate(message);
             }
             else if (message.Contains("\"type\":\"security\""))
             {
                 GetSecurityList(message);
+            }
+            else if (message.Contains("\"type\":\"rtnOrder\""))
+            {
+                GetMyOrder(message);
+                //SendLogMessage(message, LogMessageType.Error);
+            }
+            else if (message.Contains("\"type\":\"rtnMatch\""))
+            {
+                GetMyTrade(message);
+                //SendLogMessage(message, LogMessageType.Error);
+            }
+            else if (message.Contains("\"type\":\"rspOrderInsert\""))
+            {
+                SaveOrderNumberUser(message);
+                //SendLogMessage(message, LogMessageType.Error);
+            }
+            
+        }
+
+        private Dictionary<string, int> _listNumber = new();
+
+        private void SaveOrderNumberUser(string message)
+        {
+            try
+            {
+                ResponceMessageOrderNumber responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageOrderNumber());
+
+                int numberMarket = 0;
+
+                if (!int.TryParse(responce.clientReqId, out numberMarket))
+                {
+                    return;
+                }
+
+                if (numberMarket == 0)
+                {
+                    return;
+                }
+
+                _listNumber.Add(responce.orderId, numberMarket);
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+                
+        private void GetMyOrder(string message)
+        {
+            try
+            {
+                ResponceMessageMyOrder responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageMyOrder());
+
+                if (!_listNumber.ContainsKey(responce.orderId))
+                {
+                    return;
+                }
+
+                Order order = new();
+
+                order.SecurityNameCode = responce.contractNo1;
+                order.NumberMarket = responce.orderId;
+                order.NumberUser = _listNumber[responce.orderId];
+                order.TypeOrder = GetOrderPriceType(responce.orderType);
+                order.State = GetOrderState(responce.orderState);
+                order.Price = responce.orderPrice.ToDecimal();
+                order.Volume = responce.orderQty.ToDecimal();
+                order.Side = GetDirectionOrder(responce.direct);
+                order.PositionConditionType = GetPositionConditionType(responce.offset);
+                order.PortfolioNumber = responce.accountNo;
+                order.VolumeExecute = responce.matchQty.ToDecimal();
+                order.ServerType = ServerType.Esunny;
+                order.SecurityClassCode = GetClassSecurity(responce.contractNo1);
+                order.TimeCreate = DateTime.UtcNow;
+                order.TimeCallBack = DateTime.UtcNow;
+
+                //MyOrderEvent?.Invoke(order);
+
+                SendLogMessage($"NumberUser: {order.NumberUser}, NumberMarket: {order.NumberMarket}", LogMessageType.Error);
+
+                if (MyOrderEvent != null)
+                {
+                    MyOrderEvent(order);
+                }
+
+                if (order.State == OrderStateType.Done ||
+                    order.State == OrderStateType.Cancel ||
+                    order.State == OrderStateType.Fail ||
+                    order.State == OrderStateType.None)
+                {
+                    _listNumber.Remove(responce.orderId);
+                }
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private string GetClassSecurity(string name)
+        {            
+            for(int i = 0; i < _securities.Count; i++)
+            {
+                if (name == _securities[i].Name)
+                {
+                    return _securities[i].NameClass;
+                }
+            }
+
+            return "";
+        }
+
+        private OrderPositionConditionType GetPositionConditionType(string offset)
+        {
+            switch (offset)
+            {
+                case "O": return OrderPositionConditionType.Open;
+                case "C": return OrderPositionConditionType.Close;
+                default: return OrderPositionConditionType.None;
+            }
+
+            /*'O' Open
+            'C' Close
+            'T' Close today*/
+        }
+
+        private Side GetDirectionOrder(string direct)
+        {
+            switch (direct)
+            {
+                case "B": return Side.Buy;
+                case "S": return Side.Sell;
+                default: return Side.None;
+            }
+
+            /*const DstarApiDirectType DSTAR_API_DIRECT_BUY = 'B';          // Buy
+            const DstarApiDirectType DSTAR_API_DIRECT_SELL = 'S';          // Sell
+            const DstarApiDirectType DSTAR_API_DIRECT_ALL = 'N';          // All*/
+        }
+
+        private OrderStateType GetOrderState(string orderState)
+        {
+            switch (orderState)
+            {
+                case "1": return OrderStateType.Pending;
+                case "2": return OrderStateType.Active;
+                case "6": return OrderStateType.Partial;
+                case "7": return OrderStateType.Done;
+                case "8": return OrderStateType.Fail;
+                case "B": return OrderStateType.Cancel;
+                case "C": return OrderStateType.Cancel;
+                case "D": return OrderStateType.Cancel;
+                default: return OrderStateType.Fail;
+            }
+
+            /*const DstarApiOrderStateType DSTAR_API_STATUS_ACCEPT = '1';          // Accepted
+            const DstarApiOrderStateType DSTAR_API_STATUS_QUEUE = '2';          // Queued
+            const DstarApiOrderStateType DSTAR_API_STATUS_APPLY = '3';          // Applied (exercise/abandon/spread application succeeded)
+            const DstarApiOrderStateType DSTAR_API_STATUS_SUSPENDED = '4';          // Suspended
+            const DstarApiOrderStateType DSTAR_API_STATUS_TRIGGERED = '5';          // Triggered
+            const DstarApiOrderStateType DSTAR_API_STATUS_PARTFILL = '6';          // Partially filled
+            const DstarApiOrderStateType DSTAR_API_STATUS_FILL = '7';          // Fully filled
+            const DstarApiOrderStateType DSTAR_API_STATUS_FAIL = '8';          // Command failed
+            const DstarApiOrderStateType DSTAR_API_STATUS_DELETE = 'B';          // Canceled
+            const DstarApiOrderStateType DSTAR_API_STATUS_LEFTDELETE = 'C';          // Remaining quantity canceled
+            const DstarApiOrderStateType DSTAR_API_STATUS_SYSDELETE = 'D';          // Deleted
+            const DstarApiOrderStateType DSTAR_API_STATUS_TRIGGERING = 'E';          // Strategy pending trigger*/
+        }
+
+        private OrderPriceType GetOrderPriceType(string orderType)
+        {
+            switch (orderType)
+            {
+                case "1": return OrderPriceType.Market;
+                case "2": return OrderPriceType.Limit;
+
+                default: return OrderPriceType.Market;
+            }
+
+            /*const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_NONE = '0';          // None
+            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_MARKET = '1';          // Market order
+            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_LIMIT = '2';          // Limit order
+            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_EXECUTE = '3';          // Exercise
+            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_ABANDON = '4';          // Abandon
+            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_ENQUIRY = '5';          // Inquiry
+            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_OFFER = '6';          // Quote
+            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_SWAP = '7';          // Swap
+            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_EFP = '8';          // EFP*/
+        }
+
+        private void GetMyTrade(string message)
+        {
+            try
+            {
+                ResponceMessageMyTrade responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageMyTrade());
+
+                MyTrade trade = new();
+
+                trade.SecurityNameCode = responce.contractNo;
+                trade.NumberOrderParent = responce.orderId;
+                trade.Price = responce.matchPrice.ToDecimal();
+                trade.Volume = responce.matchQty.ToDecimal();
+                trade.Side = GetDirectionOrder(responce.direct);
+                trade.Time = DateTime.UtcNow;
+                trade.NumberTrade = responce.matchId;
+                
+                //MyTradeEvent?.Invoke(trade);
+
+                if (MyTradeEvent != null)
+                {
+                    MyTradeEvent(trade);
+                }
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
             }
         }
 
@@ -1721,15 +1798,15 @@ namespace OsEngine.Market.Servers.Esunny
 
             //SendLogMessage("DateRouter: " + message, LogMessageType.System);
 
-            if (message.Contains("Connect") &&
+            if (message.Contains("{\"type\":\"connect\"") &&
                 ServerStatus != ServerConnectStatus.Connect)
             {
-                SendLogMessage("data router is connected", LogMessageType.System);
+                SendLogMessage("Data router is connected", LogMessageType.System);
                 _marketSocketConnect = true;
                 CheckConnectStatus();
                 SendLogMessage(message, LogMessageType.System);
             }
-            else if (message.Contains("Disconnect"))
+            else if (message.Contains("{\"type\":\"disconnect\""))
             {
                 ServerStatus = ServerConnectStatus.Disconnect;
 
@@ -1737,22 +1814,106 @@ namespace OsEngine.Market.Servers.Esunny
                 {
                     DisconnectEvent();
                 }
-                SendLogMessage(message, LogMessageType.System);
+
+                ResponceMessageMarketDataError responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageMarketDataError());
+
+                SendLogMessage("MarketData. Code: " + responce.code + ", Message: " + responce.message, LogMessageType.Error);
             }
-            /*else if (message.StartsWith("Md"))
+            else if (message.Contains("\"type\":\"quote\""))
             {
-                LoadMd(message);
-            }*/
-            /*else if (message.Contains("\"type\":\"security\""))
-            {
-                GetSecurityList(message);
-            }*/
+                ParseQuote(message);
+            }            
             else
             {
                 SendLogMessage(message, LogMessageType.System);
             }
 
             return false;
+        }
+
+        private void ParseQuote(string message)
+        {
+            try
+            {
+                ResponceMessageQuote responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageQuote());
+
+                GetLastPrice(responce);
+                GetMarketDepth(responce);
+            }
+            catch(Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private Trade _trade = new Trade();
+
+        private void GetLastPrice(ResponceMessageQuote responce)
+        {
+            if (_trade.Price == responce.lastPrice.ToDecimal() &&
+                _trade.Volume == responce.lastQty.ToDecimal())
+            {
+                return;
+            }
+
+            _trade.SecurityNameCode = GetSecurityNameForFullName(responce.contractNo);
+            _trade.Price = responce.lastPrice.ToDecimal();
+            _trade.Time = DateTime.UtcNow;
+            _trade.Volume = responce.lastQty.ToDecimal();
+            _trade.Side = Side.Buy;
+
+            NewTradesEvent?.Invoke(_trade);
+        }
+
+        private void GetMarketDepth(ResponceMessageQuote responce)
+        {
+            MarketDepth marketDepth = new MarketDepth();
+
+            List<MarketDepthLevel> ascs = new List<MarketDepthLevel>();
+            List<MarketDepthLevel> bids = new List<MarketDepthLevel>();
+
+            marketDepth.SecurityNameCode = GetSecurityNameForFullName(responce.contractNo);
+
+            bids.Add(new MarketDepthLevel { Price = responce.bidPrice1.ToDouble(), Bid = responce.bidQty1.ToDouble() });
+            bids.Add(new MarketDepthLevel { Price = responce.bidPrice2.ToDouble(), Bid = responce.bidQty2.ToDouble() });
+            bids.Add(new MarketDepthLevel { Price = responce.bidPrice3.ToDouble(), Bid = responce.bidQty3.ToDouble() });
+            bids.Add(new MarketDepthLevel { Price = responce.bidPrice4.ToDouble(), Bid = responce.bidQty4.ToDouble() });
+            bids.Add(new MarketDepthLevel { Price = responce.bidPrice5.ToDouble(), Bid = responce.bidQty5.ToDouble() });
+            bids.Add(new MarketDepthLevel { Price = responce.bidPrice6.ToDouble(), Bid = responce.bidQty6.ToDouble() });
+            bids.Add(new MarketDepthLevel { Price = responce.bidPrice7.ToDouble(), Bid = responce.bidQty7.ToDouble() });
+            bids.Add(new MarketDepthLevel { Price = responce.bidPrice8.ToDouble(), Bid = responce.bidQty8.ToDouble() });
+            bids.Add(new MarketDepthLevel { Price = responce.bidPrice9.ToDouble(), Bid = responce.bidQty9.ToDouble() });
+            bids.Add(new MarketDepthLevel { Price = responce.bidPrice10.ToDouble(), Bid = responce.bidQty10.ToDouble() });
+
+            ascs.Add(new MarketDepthLevel { Price = responce.askPrice1.ToDouble(), Ask = responce.askQty1.ToDouble() });
+            ascs.Add(new MarketDepthLevel { Price = responce.askPrice2.ToDouble(), Ask = responce.askQty2.ToDouble() });
+            ascs.Add(new MarketDepthLevel { Price = responce.askPrice3.ToDouble(), Ask = responce.askQty3.ToDouble() });
+            ascs.Add(new MarketDepthLevel { Price = responce.askPrice4.ToDouble(), Ask = responce.askQty4.ToDouble() });
+            ascs.Add(new MarketDepthLevel { Price = responce.askPrice5.ToDouble(), Ask = responce.askQty5.ToDouble() });
+            ascs.Add(new MarketDepthLevel { Price = responce.askPrice6.ToDouble(), Ask = responce.askQty6.ToDouble() });
+            ascs.Add(new MarketDepthLevel { Price = responce.askPrice7.ToDouble(), Ask = responce.askQty7.ToDouble() });
+            ascs.Add(new MarketDepthLevel { Price = responce.askPrice8.ToDouble(), Ask = responce.askQty8.ToDouble() });
+            ascs.Add(new MarketDepthLevel { Price = responce.askPrice9.ToDouble(), Ask = responce.askQty9.ToDouble() });
+            ascs.Add(new MarketDepthLevel { Price = responce.askPrice10.ToDouble(), Ask = responce.askQty10.ToDouble() });
+
+            marketDepth.Asks = ascs;
+            marketDepth.Bids = bids;
+            marketDepth.Time = DateTime.UtcNow;
+
+            MarketDepthEvent?.Invoke(marketDepth);
+        }
+
+        private string GetSecurityNameForFullName(string contractNo)
+        {
+            for (int i = 0; i < _securities.Count; i++)
+            {
+                if (_securities[i].NameFull == contractNo)
+                {
+                    return _securities[i].Name;
+                }
+            }
+
+            return contractNo;
         }
 
         private void LoadMyOrder(string strMyOrder)
@@ -2127,42 +2288,48 @@ namespace OsEngine.Market.Servers.Esunny
 
             order.NumberMarket = order.NumberUser.ToString();
 
-            string orderToTcp = "O@";
+            string msg = "";
+            msg += ",\"symbol\":\"" + order.SecurityNameCode + "\"";
+            msg += ",\"symbolIndex\":\"" + GetSymbolIndex(order.SecurityNameCode) + "\"";
+            msg += ",\"side\":\"" + order.Side + "\"";
+            msg += ",\"price\":\"" + order.Price + "\"";
+            msg += ",\"volume\":\"" + order.Volume + "\"";
+            msg += ",\"numberUser\":\"" + order.NumberUser + "\"";
+            msg += ",\"offset\":\"" + order.PositionConditionType + "\"";
+            msg += ",\"orderType\":\"" + order.TypeOrder + "\"";
+            msg += ",\"hedge\":\"" + "Speculate" + "\"";
 
-            bool isBuy = true;
+            string orderToTcp = "{\"cmd\":\"placeOrder\"" + msg + "}";
+                        
+            _messagesToSendTrade.Enqueue(orderToTcp);
+        }
 
-            if (order.Side == Side.Sell)
+        private string GetSymbolIndex(string securityNameCode)
+        {
+            for (int i = 0; i < _securities.Count; i++)
             {
-                isBuy = false;
+                if (_securities[i].Name == securityNameCode)
+                {
+                    return _securities[i].NameId;
+                }
             }
 
-            orderToTcp += order.SecurityNameCode + "@";
-            orderToTcp += isBuy + "@";
-            orderToTcp += order.Price.ToString().Replace(",", ".") + "@";
-            orderToTcp += order.Volume.ToString().Replace(",", ".") + "@";
-            orderToTcp += order.NumberUser + "@";
-
-            _messagesToSendTrade.Enqueue(orderToTcp);
+            return "0";
         }
 
         public bool CancelOrder(Order order)
         {
-            if (order.NumberUser == 0)
+            /*if (order.NumberUser == 0)
             {
                 SendLogMessage("NumberUser is 0. Can`t cancel order", LogMessageType.Error);
-            }
+            }*/
 
             rateGateCancelOrder.WaitToProceed();
-            string orderToTcp = "R@";
-            orderToTcp += order.NumberUser + "@";
+
+            string orderToTcp = "{\"cmd\":\"cancelOrder\",\"orderId\":\"" + order.NumberMarket + "\"}";
 
             _messagesToSendTrade.Enqueue(orderToTcp);
             return true;
-        }
-
-        public void GetOrdersState(List<Order> orders)
-        {
-
         }
 
         public void CancelAllOrders()
@@ -2171,12 +2338,6 @@ namespace OsEngine.Market.Servers.Esunny
         }
 
         public void CancelAllOrdersToSecurity(Security security)
-        {
-            rateGateCancelOrder.WaitToProceed();
-
-        }
-
-        public void ResearchTradesToOrders(List<Order> orders)
         {
 
         }
