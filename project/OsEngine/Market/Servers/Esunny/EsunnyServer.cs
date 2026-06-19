@@ -12,6 +12,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -120,7 +121,7 @@ namespace OsEngine.Market.Servers.Esunny
 
             Thread.Sleep(5000);
 
-            _lastConnectTime = DateTime.Now;
+            //_lastConnectTime = DateTime.Now;
 
             LoadRouters();
 
@@ -228,8 +229,6 @@ namespace OsEngine.Market.Servers.Esunny
                 }
             }
 
-            //ClearFileSystem();
-
             Thread.Sleep(5000);
 
             _canSendMessagesMarketData = true;
@@ -256,7 +255,7 @@ namespace OsEngine.Market.Servers.Esunny
                 {
                     try
                     {
-                        SendMessage("{\"cmd\":\"disconnect\"", _socketMarketData, "MarketServer");
+                        SendMessage("{\"cmd\":\"disconnect\"" + "}", _socketMarketData, "MarketServer");
                         _socketMarketData.Shutdown(SocketShutdown.Send);
                     }
                     catch
@@ -273,30 +272,14 @@ namespace OsEngine.Market.Servers.Esunny
             {
                 HandlerException(exeption);
             }
-            try
-            {
-                /*if (File.Exists("Atp_Router\\Files\\ConnectTrade.txt"))
-                {
-                    File.Delete("Atp_Router\\Files\\ConnectTrade.txt");
-                }
-
-                if (File.Exists("Atp_Router\\Files\\ConnectData.txt"))
-                {
-                    File.Delete("Atp_Router\\Files\\ConnectData.txt");
-                }*/
-            }
-            catch (Exception exeption)
-            {
-                HandlerException(exeption);
-            }
-
+            
             try
             {
                 if (_socketToTrade != null)
                 {
                     try
                     {
-                        SendMessage("{\"cmd\":\"disconnect\"", _socketToTrade, "TradeServer");
+                        SendMessage("{\"cmd\":\"disconnect\"" + "}", _socketToTrade, "TradeServer");
                         _socketToTrade.Shutdown(SocketShutdown.Send);
                     }
                     catch
@@ -411,7 +394,7 @@ namespace OsEngine.Market.Servers.Esunny
                         p.Dispose();
                         break;
                     }
-                    else if (p.Modules[j].FileName.EndsWith("apidemo.exe"))
+                    else if (p.Modules[j].FileName.EndsWith("EsunnyTradeData.exe"))
                     {
                         p.Kill();
                         p.Dispose();
@@ -427,7 +410,7 @@ namespace OsEngine.Market.Servers.Esunny
             string curDir = Environment.CurrentDirectory;
 
             string dirMarketData = curDir + "\\Esunny_Router\\MarketData\\x64\\Debug\\EsunnyMarketData.exe";
-            string dirTrader = curDir + "\\Esunny_Router\\TradeData\\x64\\Debug\\apidemo.exe";
+            string dirTrader = curDir + "\\Esunny_Router\\TradeData\\x64\\Debug\\EsunnyTradeData.exe";
 
             try
             {
@@ -448,72 +431,14 @@ namespace OsEngine.Market.Servers.Esunny
                 SendLogMessage(e.ToString(), LogMessageType.Error);
             }
         }
-
-        private void ClearFileSystem()
-        {
-            try
-            {
-                CheckFolders();
-
-                ClearFolder("Atp_Router\\Files\\");
-
-                string[] folders = Directory.GetDirectories("Atp_Router\\Files\\");
-
-                for (int i = 0; i < folders.Length; i++)
-                {
-                    ClearFolder(folders[i]);
-                }
-            }
-            catch (Exception e)
-            {
-                SendLogMessage(e.ToString(), LogMessageType.Error);
-            }
-        }
-
-        private void CheckFolders()
-        {
-            string path = "Atp_Router\\Files\\";
-
-            string[] folders = new string[]
-            {
-                path,
-                path + "MyTrades\\",
-                path + "MyTrades2\\",
-                path + "OrderAction2\\",
-                path + "OrderActiv\\",
-                path + "OrderFail1\\",
-                path + "OrderFail2\\",
-                path + "OrderFail3\\",
-                path + "OrderFail4\\",
-                path + "OrderFail5\\",
-            };
-
-            for (int i = 0; i < folders.Length; i++)
-            {
-                if (!Directory.Exists(folders[i]))
-                {
-                    Directory.CreateDirectory(folders[i]);
-                }
-            }
-        }
-
-        private void ClearFolder(string folderPath)
-        {
-            string[] files = Directory.GetFiles(folderPath);
-
-            for (int i = 0; i < files.Length; i++)
-            {
-                File.Delete(files[i]);
-            }
-        }
-
-        public bool IsCompletelyDeleted { get; set; }
-
+        
         #endregion
 
         #region 2 Properties
 
         public List<IServerParameter> ServerParameters { get; set; }
+
+        public bool IsCompletelyDeleted { get; set; }
 
         private string AccountId;
 
@@ -696,7 +621,7 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
-        private void GetPortfolioDate(string message)
+        private void GetPortfolioData(string message)
         {
             try
             {
@@ -733,7 +658,7 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
-        private void GetPositionsDate(string message)
+        private void GetPositionsData(string message)
         {
             try
             {
@@ -848,17 +773,6 @@ namespace OsEngine.Market.Servers.Esunny
                         continue;
                     }
 
-                    /*if (ServerStatus == ServerConnectStatus.Disconnect &&
-                        _marketSocketConnect == false)
-                    {
-                        if (File.Exists("Esunny_Router\\Files\\ConnectData.txt"))
-                        {
-                            SendLogMessage("data router is connected", LogMessageType.System);
-                            _marketSocketConnect = true;
-                            CheckConnectStatus();
-                        }
-                    }*/
-
                     if (_messagesToSendMarketData.IsEmpty)
                     { // request any incoming data for us that are saving in server / запрос каких-либо входящих данных для нас, которые копятся в сервере
                         if (IncomeMessageFromDataRouter(SendMessage("Process", _socketMarketData, "MarketServer")))
@@ -931,20 +845,6 @@ namespace OsEngine.Market.Servers.Esunny
                         _lastTimeSendMessageInSocketTrade = DateTime.Now;
                         continue;
                     }
-
-                    /*if (ServerStatus == ServerConnectStatus.Disconnect &&
-                       _tradeSocketConnect == false)
-                    {
-                        if (File.Exists("Atp_Router\\Files\\ConnectTrade.txt"))
-                        {
-                            SendLogMessage("trade router is connected", LogMessageType.System);
-                            _tradeSocketConnect = true;
-                            CheckConnectStatus();
-
-                        }
-                    }*/
-
-                    //TryGetTradeDataFromFileSys();
 
                     if (_messagesToSendTrade.IsEmpty)
                     {
@@ -1055,24 +955,12 @@ namespace OsEngine.Market.Servers.Esunny
         private string SendMessage(string message, Socket socket, string socketName)
         {           
             if (socketName == "MarketServer")
-            {
-                if (message.StartsWith("Process"))
-                {
-                    // message += iteratorPDataServer;
-                    //iteratorPDataServer++;
-                }
-
+            {               
                 _placeLostDataSocket = "Sending";
                 _lastMessageToDataServer = message;
             }
             else
             {
-                if (message.StartsWith("Process"))
-                {
-                    // message += iteratorPTradeServer;
-                    // iteratorPTradeServer++;
-                }
-
                 _placeLostTradeSocket = "Sending";
                 _lastMessageToTradeServer = message;
             }
@@ -1081,17 +969,12 @@ namespace OsEngine.Market.Servers.Esunny
 
             if (socketName == "MarketServer")
             {
-                //string jsonCommand = ConvertLegacyToJsonCommandForMarketServer(message);
                 SendFrame(socket, message);
             }
             else
             {
                 SendFrame(socket, message);
-                /*byte[] msg = Encoding.UTF8.GetBytes(message);
-                socket.Send(msg);*/
-            }
-
-            
+            }            
 
             if (message.StartsWith("Process") == false)
             {
@@ -1113,19 +996,11 @@ namespace OsEngine.Market.Servers.Esunny
             if (socketName == "MarketServer")
             {
                 request = ReceiveFrame(socket);
-                //request = ConvertJsonResponseToLegacyForMarketServer(jsonResponse);
             }
             else
             {
                 request = ReceiveFrame(socket);
-                /*byte[] bytes = new byte[1024];
-                int bytesRec = socket.Receive(bytes);
-                request = Encoding.UTF8.GetString(bytes, 0, bytesRec);*/
             }
-
-            //clear socket / Освобождаем сокет
-            //sender.Shutdown(SocketShutdown.Send);
-            //sender.Close();
 
             for (int i = 0; i < request.Length; i++)
             {
@@ -1204,282 +1079,7 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
-        #endregion
-
-        #region 7 Check file system 
-
-        private void TryGetTradeDataFromFileSys()
-        {
-            TryLoadMyTrade();
-            TryLoadMyTrades2();
-            TryLoadOrderAction2();
-            TryLoadOrderFail1();
-            TryLoadOrderFail3();
-        }
-
-        private string[] GetSortedFileNames(string[] files)
-        {
-            List<string> result = new List<string>();
-
-            result.AddRange(files);
-
-            for (int i = 0; i < result.Count; i++)
-            {
-                for (int i2 = 1; i2 < result.Count; i2++)
-                {
-                    string previousNum = (result[i2 - 1].Split('\\')[result[i2 - 1].Split('\\').Length - 1]).Replace(".txt", "");
-                    string curNum = (result[i2].Split('\\')[result[i2].Split('\\').Length - 1]).Replace(".txt", "");
-
-                    if (Convert.ToInt32(previousNum) > Convert.ToInt32(curNum))
-                    {
-                        string prevAdress = result[i2];
-                        result[i2] = result[i2 - 1];
-                        result[i2 - 1] = prevAdress;
-                    }
-                }
-            }
-
-            return result.ToArray();
-        }
-
-        private int _counterMyTrades = 0;
-        private void TryLoadMyTrade()
-        {
-            if (Directory.Exists("Atp_Router\\Files\\MyTrades\\") == false)
-            {
-                return;
-            }
-
-            string[] files = Directory.GetFiles("Atp_Router\\Files\\MyTrades\\");
-
-            if (_counterMyTrades >= files.Length)
-            {
-                return;
-            }
-
-            files = GetSortedFileNames(files);
-
-            for (int i = _counterMyTrades; i < files.Length; i++)
-            {
-                try
-                {
-                    /*  DateTime timeCreate = File.GetCreationTime(files[i]);
-                      if (timeCreate.AddSeconds(1) > DateTime.Now)
-                      {
-                          return;
-                      }*/
-
-                    using (StreamReader reader = new StreamReader(files[i]))
-                    {
-                        string myTrade = reader.ReadLine();
-
-                        if (myTrade.EndsWith("%"))
-                        {
-                            myTrade = myTrade.Substring(0, myTrade.Length - 1);
-                        }
-
-                        LoadMyTrade(myTrade);
-                    }
-                }
-                catch (Exception e)
-                {
-                    SendLogMessage(e.ToString(), LogMessageType.Error);
-                }
-            }
-
-            _counterMyTrades = files.Length;
-        }
-
-        private int _counterMyTrades2 = 0;
-        private void TryLoadMyTrades2()
-        {
-            if (Directory.Exists("Atp_Router\\Files\\MyTrades2\\") == false)
-            {
-                return;
-            }
-
-            string[] files = Directory.GetFiles("Atp_Router\\Files\\MyTrades2\\");
-
-            if (_counterMyTrades2 >= files.Length)
-            {
-                return;
-            }
-
-            files = GetSortedFileNames(files);
-
-            for (int i = _counterMyTrades2; i < files.Length; i++)
-            {
-                try
-                {
-                    /* DateTime timeCreate = File.GetCreationTime(files[i]);
-                     if (timeCreate.AddSeconds(1) > DateTime.Now)
-                     {
-                         return;
-                     }*/
-                    using (StreamReader reader = new StreamReader(files[i]))
-                    {
-                        string myTrade = reader.ReadLine();
-
-                        if (myTrade.EndsWith("%"))
-                        {
-                            myTrade = myTrade.Substring(0, myTrade.Length - 1);
-                        }
-
-                        LoadMyTrade(myTrade);
-                    }
-                }
-                catch (Exception e)
-                {
-                    SendLogMessage(e.ToString(), LogMessageType.Error);
-                }
-            }
-
-            _counterMyTrades2 = files.Length;
-        }
-
-        private int _counterOrderAction2 = 0;
-        private void TryLoadOrderAction2()
-        {
-            if (Directory.Exists("Atp_Router\\Files\\OrderAction2\\") == false)
-            {
-                return;
-            }
-
-            string[] files = Directory.GetFiles("Atp_Router\\Files\\OrderAction2\\");
-
-            if (_counterOrderAction2 >= files.Length)
-            {
-                return;
-            }
-
-            files = GetSortedFileNames(files);
-
-            for (int i = _counterOrderAction2; i < files.Length; i++)
-            {
-                try
-                {
-                    /* DateTime timeCreate =  File.GetCreationTime(files[i]);
-                     if(timeCreate.AddSeconds(1) > DateTime.Now)
-                     {
-                         return;
-                     }*/
-
-                    using (StreamReader reader = new StreamReader(files[i]))
-                    {
-                        string myTrade = reader.ReadLine();
-
-                        if (myTrade.EndsWith("%"))
-                        {
-                            myTrade = myTrade.Substring(0, myTrade.Length - 1);
-                        }
-
-                        LoadMyOrder(myTrade);
-                    }
-                }
-                catch (Exception e)
-                {
-                    SendLogMessage(e.ToString(), LogMessageType.Error);
-                }
-            }
-
-            _counterOrderAction2 = files.Length;
-        }
-
-        private int _counterOrderFail1 = 0;
-        private void TryLoadOrderFail1()
-        {
-            if (Directory.Exists("Atp_Router\\Files\\OrderFail1\\") == false)
-            {
-                return;
-            }
-
-            string[] files = Directory.GetFiles("Atp_Router\\Files\\OrderFail1\\");
-
-            if (_counterOrderFail1 >= files.Length)
-            {
-                return;
-            }
-
-            files = GetSortedFileNames(files);
-
-            for (int i = _counterOrderFail1; i < files.Length; i++)
-            {
-                try
-                {
-                    /* DateTime timeCreate = File.GetCreationTime(files[i]);
-                     if (timeCreate.AddSeconds(1) > DateTime.Now)
-                     {
-                         return;
-                     }*/
-                    using (StreamReader reader = new StreamReader(files[i]))
-                    {
-                        string myTrade = reader.ReadLine();
-
-                        if (myTrade.EndsWith("%"))
-                        {
-                            myTrade = myTrade.Substring(0, myTrade.Length - 1);
-                        }
-
-                        LoadMyFailOrder(myTrade);
-                    }
-                }
-                catch (Exception e)
-                {
-                    SendLogMessage(e.ToString(), LogMessageType.Error);
-                }
-            }
-
-            _counterOrderFail1 = files.Length;
-        }
-
-        private int _counterOrderFail3 = 0;
-        private void TryLoadOrderFail3()
-        {
-            if (Directory.Exists("Atp_Router\\Files\\OrderFail3\\") == false)
-            {
-                return;
-            }
-
-            string[] files = Directory.GetFiles("Atp_Router\\Files\\OrderFail3\\");
-
-            if (_counterOrderFail3 >= files.Length)
-            {
-                return;
-            }
-
-            files = GetSortedFileNames(files);
-
-            for (int i = _counterOrderFail3; i < files.Length; i++)
-            {
-                try
-                {
-                    /*DateTime timeCreate = File.GetCreationTime(files[i]);
-                    if (timeCreate.AddSeconds(1) > DateTime.Now)
-                    {
-                        return;
-                    }*/
-                    using (StreamReader reader = new StreamReader(files[i]))
-                    {
-                        string myTrade = reader.ReadLine();
-
-                        if (myTrade.EndsWith("%"))
-                        {
-                            myTrade = myTrade.Substring(0, myTrade.Length - 1);
-                        }
-
-                        LoadMyFailOrder(myTrade);
-                    }
-                }
-                catch (Exception e)
-                {
-                    SendLogMessage(e.ToString(), LogMessageType.Error);
-                }
-            }
-
-            _counterOrderFail3 = files.Length;
-        }
-
-        #endregion
+        #endregion             
 
         #region 8 WebSocket security subscribe
 
@@ -1550,11 +1150,11 @@ namespace OsEngine.Market.Servers.Esunny
             }
             else if (message.Contains("{\"type\":\"account\""))
             {
-                GetPortfolioDate(message);
+                GetPortfolioData(message);
             }
             else if (message.Contains("{\"type\":\"positions\""))
             {
-                GetPositionsDate(message);
+                GetPositionsData(message);
             }
             else if (message.Contains("\"type\":\"security\""))
             {
@@ -1563,64 +1163,23 @@ namespace OsEngine.Market.Servers.Esunny
             else if (message.Contains("\"type\":\"rtnOrder\""))
             {
                 GetMyOrder(message);
-                //SendLogMessage(message, LogMessageType.Error);
             }
             else if (message.Contains("\"type\":\"rtnMatch\""))
             {
                 GetMyTrade(message);
-                //SendLogMessage(message, LogMessageType.Error);
-            }
-            else if (message.Contains("\"type\":\"rspOrderInsert\""))
-            {
-                SaveOrderNumberUser(message);
-                //SendLogMessage(message, LogMessageType.Error);
-            }
-            
+            }            
         }
 
-        private Dictionary<string, int> _listNumber = new();
-
-        private void SaveOrderNumberUser(string message)
-        {
-            try
-            {
-                ResponceMessageOrderNumber responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageOrderNumber());
-
-                int numberMarket = 0;
-
-                if (!int.TryParse(responce.clientReqId, out numberMarket))
-                {
-                    return;
-                }
-
-                if (numberMarket == 0)
-                {
-                    return;
-                }
-
-                _listNumber.Add(responce.orderId, numberMarket);
-            }
-            catch (Exception ex)
-            {
-                SendLogMessage(ex.ToString(), LogMessageType.Error);
-            }
-        }
-                
         private void GetMyOrder(string message)
         {
             try
             {
                 ResponceMessageMyOrder responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageMyOrder());
 
-                if (!_listNumber.ContainsKey(responce.orderId))
-                {
-                    return;
-                }
-
                 Order order = new();
 
                 order.SecurityNameCode = responce.contractNo1;                
-                order.NumberUser = _listNumber[responce.orderId];
+                order.NumberUser = int.Parse(responce.reference);
                 order.NumberMarket = responce.orderId;
                 order.TypeOrder = GetOrderPriceType(responce.orderType);
                 order.State = GetOrderState(responce.orderState);
@@ -1632,26 +1191,20 @@ namespace OsEngine.Market.Servers.Esunny
                 order.VolumeExecute = responce.matchQty.ToDecimal();
                 order.ServerType = ServerType.Esunny;
                 order.SecurityClassCode = GetClassSecurity(responce.contractNo1);
-                order.TimeCreate = DateTime.UtcNow;
-                order.TimeCallBack = DateTime.UtcNow;
-                
-                if (MyOrderEvent != null)
-                {
-                    MyOrderEvent(order);
-                }
+                order.TimeCreate = ParseDateTimeTrade(responce.updateTime);
+                order.TimeCallBack = order.TimeCreate;
 
-                if (order.State == OrderStateType.Done ||
-                    order.State == OrderStateType.Cancel ||
-                    order.State == OrderStateType.Fail ||
-                    order.State == OrderStateType.None)
-                {
-                    _listNumber.Remove(responce.orderId);
-                }
+                MyOrderEvent?.Invoke(order);
             }
             catch (Exception ex)
             {
                 SendLogMessage(ex.ToString(), LogMessageType.Error);
             }
+        }
+
+        private DateTime ParseDateTimeTrade(string dateTime)
+        {
+            return DateTime.ParseExact(dateTime, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         }
 
         private string GetClassSecurity(string name)
@@ -1669,34 +1222,47 @@ namespace OsEngine.Market.Servers.Esunny
 
         private OrderPositionConditionType GetPositionConditionType(string offset)
         {
+            // 'O' Open
+            // 'C' Close
+            // 'T' Close today
+
             switch (offset)
             {
                 case "O": return OrderPositionConditionType.Open;
                 case "C": return OrderPositionConditionType.Close;
                 default: return OrderPositionConditionType.None;
-            }
-
-            /*'O' Open
-            'C' Close
-            'T' Close today*/
+            }            
         }
 
         private Side GetDirectionOrder(string direct)
         {
+            // 'B' Buy
+            // 'S' Sell
+            // 'N' All
+
             switch (direct)
             {
                 case "B": return Side.Buy;
                 case "S": return Side.Sell;
                 default: return Side.None;
             }
-
-            /*const DstarApiDirectType DSTAR_API_DIRECT_BUY = 'B';          // Buy
-            const DstarApiDirectType DSTAR_API_DIRECT_SELL = 'S';          // Sell
-            const DstarApiDirectType DSTAR_API_DIRECT_ALL = 'N';          // All*/
         }
 
         private OrderStateType GetOrderState(string orderState)
         {
+            // '1' Accepted
+            // '2' Queued
+            // '3' Applied (exercise/abandon/spread application succeeded)
+            // '4' Suspended
+            // '5' Triggered
+            // '6' Partially filled
+            // '7' Fully filled
+            // '8' Command failed
+            // 'B' Canceled
+            // 'C' Remaining quantity canceled
+            // 'D' Deleted
+            // 'E' Strategy pending trigger*/
+
             switch (orderState)
             {
                 case "1": return OrderStateType.Pending;
@@ -1709,23 +1275,20 @@ namespace OsEngine.Market.Servers.Esunny
                 case "D": return OrderStateType.Cancel;
                 default: return OrderStateType.Fail;
             }
-
-            /*const DstarApiOrderStateType DSTAR_API_STATUS_ACCEPT = '1';          // Accepted
-            const DstarApiOrderStateType DSTAR_API_STATUS_QUEUE = '2';          // Queued
-            const DstarApiOrderStateType DSTAR_API_STATUS_APPLY = '3';          // Applied (exercise/abandon/spread application succeeded)
-            const DstarApiOrderStateType DSTAR_API_STATUS_SUSPENDED = '4';          // Suspended
-            const DstarApiOrderStateType DSTAR_API_STATUS_TRIGGERED = '5';          // Triggered
-            const DstarApiOrderStateType DSTAR_API_STATUS_PARTFILL = '6';          // Partially filled
-            const DstarApiOrderStateType DSTAR_API_STATUS_FILL = '7';          // Fully filled
-            const DstarApiOrderStateType DSTAR_API_STATUS_FAIL = '8';          // Command failed
-            const DstarApiOrderStateType DSTAR_API_STATUS_DELETE = 'B';          // Canceled
-            const DstarApiOrderStateType DSTAR_API_STATUS_LEFTDELETE = 'C';          // Remaining quantity canceled
-            const DstarApiOrderStateType DSTAR_API_STATUS_SYSDELETE = 'D';          // Deleted
-            const DstarApiOrderStateType DSTAR_API_STATUS_TRIGGERING = 'E';          // Strategy pending trigger*/
         }
 
         private OrderPriceType GetOrderPriceType(string orderType)
         {
+            // '0' None
+            // '1' Market order
+            // '2' Limit order
+            // '3' Exercise
+            // '4' Abandon
+            // '5' Inquiry
+            // '6' Quote
+            // '7' Swap
+            // '8' EFP
+
             switch (orderType)
             {
                 case "1": return OrderPriceType.Market;
@@ -1733,16 +1296,6 @@ namespace OsEngine.Market.Servers.Esunny
 
                 default: return OrderPriceType.Market;
             }
-
-            /*const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_NONE = '0';          // None
-            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_MARKET = '1';          // Market order
-            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_LIMIT = '2';          // Limit order
-            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_EXECUTE = '3';          // Exercise
-            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_ABANDON = '4';          // Abandon
-            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_ENQUIRY = '5';          // Inquiry
-            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_OFFER = '6';          // Quote
-            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_SWAP = '7';          // Swap
-            const DstarApiOrderTypeType DSTAR_API_ORDERTYPE_EFP = '8';          // EFP*/
         }
 
         private void GetMyTrade(string message)
@@ -1758,15 +1311,10 @@ namespace OsEngine.Market.Servers.Esunny
                 trade.Price = responce.matchPrice.ToDecimal();
                 trade.Volume = responce.matchQty.ToDecimal();
                 trade.Side = GetDirectionOrder(responce.direct);
-                trade.Time = DateTime.UtcNow;
+                trade.Time = ParseDateTimeTrade(responce.updateTime);
                 trade.NumberTrade = responce.matchId;
                 
-                //MyTradeEvent?.Invoke(trade);
-
-                if (MyTradeEvent != null)
-                {
-                    MyTradeEvent(trade);
-                }
+                MyTradeEvent?.Invoke(trade);
             }
             catch (Exception ex)
             {
@@ -1848,11 +1396,16 @@ namespace OsEngine.Market.Servers.Esunny
 
             _trade.SecurityNameCode = GetSecurityNameForFullName(responce.contractNo);
             _trade.Price = responce.lastPrice.ToDecimal();
-            _trade.Time = DateTime.UtcNow;
+            _trade.Time = ParseDateTimeQuote(responce.dateTimeStamp);
             _trade.Volume = responce.lastQty.ToDecimal();
             _trade.Side = Side.Buy;
 
             NewTradesEvent?.Invoke(_trade);
+        }
+
+        private DateTime ParseDateTimeQuote(string dateTime)
+        {
+            return DateTime.ParseExact(dateTime, "yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
         }
 
         private void GetMarketDepth(ResponceMessageQuote responce)
@@ -1888,7 +1441,7 @@ namespace OsEngine.Market.Servers.Esunny
 
             marketDepth.Asks = ascs;
             marketDepth.Bids = bids;
-            marketDepth.Time = DateTime.UtcNow;
+            marketDepth.Time = ParseDateTimeQuote(responce.dateTimeStamp);
 
             MarketDepthEvent?.Invoke(marketDepth);
         }
@@ -1905,354 +1458,6 @@ namespace OsEngine.Market.Servers.Esunny
 
             return contractNo;
         }
-
-        private void LoadMyOrder(string strMyOrder)
-        {
-            //OrderAction2      0
-            //@177              1 UserOrderId OrderRef
-            //@NI2312 - SH      2 InstrumentID
-            //@0                3 Direction
-            //@3                4 OrderStatus
-            //@20231127         5 InsertDate
-            //@06:17:17         6 InsertTime
-            //@12344            7 LimitPrice
-            //@1                8 VolumeTotalOriginal
-
-            string[] ordArr = strMyOrder.Split('@');
-
-            Order order = new Order();
-
-            order.NumberMarket = ordArr[1];
-
-            try
-            {
-                order.NumberUser = Convert.ToInt32(ordArr[0]);
-            }
-            catch
-            {
-                try
-                {
-                    order.NumberUser = Convert.ToInt32(ordArr[1]);
-                }
-                catch
-                {
-                    // ignore
-                }
-            }
-
-            if (string.IsNullOrEmpty(order.NumberMarket) == true)
-            {
-                order.NumberMarket = ordArr[9];
-            }
-
-            order.SecurityNameCode = ordArr[2];
-
-            order.Price = ordArr[7].ToDecimal();
-            order.Volume = ordArr[8].ToDecimal();
-
-
-            string date = ordArr[5];
-            string time = ordArr[6];
-
-            DateTime timeData = GetTimeFromStrings(date, time);
-            order.TimeCallBack = timeData;
-
-            if (ordArr[3] == "0")
-            {
-                order.Side = Side.Buy;
-            }
-            else
-            {
-                order.Side = Side.Sell;
-            }
-
-            string status = ordArr[4];
-
-            if (status == "0")
-            { // Done
-                order.State = OrderStateType.Done;
-            }
-            else if (status == "5")
-            { // Cancel
-                order.State = OrderStateType.Cancel;
-            }
-            else if (status == "3")
-            { // Cancel
-                order.State = OrderStateType.Active;
-            }
-            else
-            {
-                return;
-            }
-
-            if (order.State == OrderStateType.Active
-                && _lastConnectTime.AddMinutes(1) > DateTime.Now)
-            {
-                return;
-            }
-
-            if (MyOrderEvent != null)
-            {
-                MyOrderEvent(order);
-            }
-        }
-
-        private void LoadMyFailOrder(string strMyOrder)
-        {
-            //OrderFail3@922@55@ @@@15@The order has been all traded or canceled.%
-
-            string[] ordArr = strMyOrder.Split('@');
-
-            Order order = new Order();
-
-            order.NumberMarket = ordArr[1];
-
-            try
-            {
-                order.NumberUser = Convert.ToInt32(ordArr[1]);
-            }
-            catch
-            {
-                // ignore
-            }
-
-            order.State = OrderStateType.Cancel;
-
-            if (MyOrderEvent != null)
-            {
-                MyOrderEvent(order);
-            }
-
-            SendLogMessage(strMyOrder, LogMessageType.Error);
-        }
-
-        private void LoadMyTrade(string strMyTrade)
-        {//MyTrade1      0
-         //@177          1 UserOrderId
-         //@MTwmwtbx     2
-         //@20231127     3 Date
-         //@06:17:17     4 Time
-         //@NI2312 - SH  5 SecCode
-         //@1            6 Volume
-         //@0 %          7 Price
-         //@0 %          8 Direction
-         //@asdfag213    9 TradeId
-
-            string[] mtArr = strMyTrade.Split('@');
-
-            MyTrade trade = new MyTrade();
-            trade.NumberOrderParent = mtArr[1];
-
-            if (string.IsNullOrEmpty(trade.NumberOrderParent) == true)
-            {
-                trade.NumberOrderParent = mtArr[2];
-            }
-
-            trade.SecurityNameCode = mtArr[5].Replace(" ", "");
-
-            string date = mtArr[3];
-            string time = mtArr[4];
-
-            DateTime timeData = GetTimeFromStrings(date, time);
-            trade.Time = timeData;
-
-            decimal volume = mtArr[6].ToDecimal();
-            decimal price = mtArr[7].ToDecimal();
-
-            trade.Volume = volume;
-            trade.Price = price;
-
-            if (mtArr[8] == "0")
-            {
-                trade.Side = Side.Buy;
-            }
-            else
-            {
-                trade.Side = Side.Sell;
-            }
-
-            trade.NumberTrade = mtArr[9];
-
-            if (MyTradeEvent != null)
-            {
-                MyTradeEvent(trade);
-            }
-
-            /*
-            /////////////////////////////////////////////////////////////////////////
-            ///TFtdcDirectionType是一个买卖方向类型
-            /////////////////////////////////////////////////////////////////////////
-            ///买
-            #define THOST_FTDC_D_Buy '0'
-            ///卖
-            #define THOST_FTDC_D_Sell '1'
-
-            typedef char TThostFtdcDirectionType;*/
-        }
-
-        private void LoadMd(string md)
-        {
-            /*
-             * 
-            InstrumentID);
-            TradingDay);
-            UpdateTime);
-
-            LastPrice);
-            Volume);
-
-            BidPrice1);
-            BidVolume1);
-
-            AskPrice1);
-            AskVolume1);
-            */
-
-            string[] str = md.Split('@');
-
-            MarketDepth newMd = new MarketDepth();
-
-            string date = str[2];
-            string time = str[3];
-
-            DateTime timeData = GetTimeFromStrings(date, time);
-
-            // формируем трейд
-
-            Trade newTrade = new Trade();
-            newTrade.SecurityNameCode = str[1];
-            newTrade.Time = timeData;
-            newTrade.Price = str[4].ToDecimal();
-            newTrade.Volume = str[5].ToDecimal();
-
-            if (NewTradesEvent != null)
-            {
-                bool isSameTimeInArray = false;
-                bool isInArray = false;
-
-                for (int i = 0; i < _lastTrades.Count; i++)
-                {
-                    if (_lastTrades[i].SecurityNameCode == newTrade.SecurityNameCode)
-                    {
-                        isInArray = true;
-                        if (_lastTrades[i].Time == newTrade.Time)
-                        {
-                            isSameTimeInArray = true;
-                            break;
-                        }
-
-                        _lastTrades[i] = newTrade;
-                        break;
-                    }
-                }
-
-                if (isInArray == false)
-                {
-                    _lastTrades.Add(newTrade);
-                }
-
-                if (isSameTimeInArray == false)
-                {
-                    NewTradesEvent(newTrade);
-                }
-            }
-
-            // формируем стакан
-
-            newMd.SecurityNameCode = str[1];
-
-            MarketDepthLevel b1 = GetBid(str[6], str[7]);
-
-            MarketDepthLevel a1 = GetAsk(str[8], str[9]);
-
-            if (b1.Price != 0
-                && b1.Bid != 0)
-            {
-                newMd.Bids.Add(b1);
-            }
-
-            if (a1.Price != 0
-                && a1.Ask != 0)
-            {
-                newMd.Asks.Add(a1);
-            }
-
-            if (newMd.Asks.Count != 0 ||
-                newMd.Bids.Count != 0)
-            {
-                if (MarketDepthEvent != null)
-                {
-                    MarketDepthEvent(newMd);
-                }
-            }
-        }
-
-        private DateTime GetTimeFromStrings(string date, string time)
-        {
-            int year = 0;
-            int month = 0;
-            int day = 0;
-
-            try
-            {
-                year = Convert.ToInt32(date.Substring(0, 4));
-                month = Convert.ToInt32(date.Substring(4, 2));
-                day = Convert.ToInt32(date.Substring(6, 2));
-            }
-            catch
-            {
-                DateTime now = DateTime.Now;
-                year = now.Year;
-                month = now.Month;
-                day = now.Day;
-            }
-
-            // Time 3 "15:00:00"
-
-            int hour = 0;
-            int minute = 0;
-            int second = 0;
-
-            try
-            {
-                hour = Convert.ToInt32(time.Substring(0, 2));
-                minute = Convert.ToInt32(time.Substring(3, 2));
-                second = Convert.ToInt32(time.Substring(6, 2));
-            }
-            catch
-            {
-                DateTime now = DateTime.Now;
-                hour = now.Hour;
-                minute = now.Minute;
-                second = now.Second;
-            }
-
-            DateTime timeData = new DateTime(year, month, day, hour, minute, second);
-
-            return timeData;
-        }
-
-        private MarketDepthLevel GetBid(string price, string vol)
-        {
-            MarketDepthLevel level = new MarketDepthLevel();
-
-            level.Bid = vol.ToDouble();
-            level.Price = price.ToDouble();
-
-            return level;
-        }
-
-        private MarketDepthLevel GetAsk(string price, string vol)
-        {
-            MarketDepthLevel level = new MarketDepthLevel();
-
-            level.Ask = vol.ToDouble();
-            level.Price = price.ToDouble();
-
-            return level;
-        }
-
-        private List<Trade> _lastTrades = new List<Trade>();
 
         public event Action<Order> MyOrderEvent;
 

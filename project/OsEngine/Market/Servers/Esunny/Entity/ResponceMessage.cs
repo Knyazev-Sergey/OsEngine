@@ -126,6 +126,7 @@ namespace OsEngine.Market.Servers.Esunny.Entity
         public string orderType;
         public string updateTime;
         public string errCode;
+        public string reference;
     }
 
     public class ResponceMessageMyTrade
