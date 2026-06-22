@@ -3,22 +3,23 @@
  * Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
 */
 
-using System;
-using System.Threading.Tasks;
-using System.Windows.Forms.Integration;
-using System.Windows.Forms;
 using OsEngine.Entity;
-using OsEngine.OsTrader.Panels;
-using OsEngine.Language;
-using System.Threading;
-using System.Collections.Generic;
+using OsEngine.Instructions;
 using OsEngine.Journal;
+using OsEngine.Language;
 using OsEngine.Logging;
-using OsEngine.OsTrader.Panels.Tab;
 using OsEngine.Market;
+using OsEngine.OsTrader.Panels;
+using OsEngine.OsTrader.Panels.Tab;
+using OsEngine.Robots.AlexBots;
+using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using OsEngine.Instructions;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Windows.Forms.Integration;
 
 namespace OsEngine.OsTrader.Gui
 {
@@ -336,7 +337,19 @@ namespace OsEngine.OsTrader.Gui
                     if (_master._startProgram == StartProgram.IsOsTrader
                         && coluIndex == 7)
                     {
-                        ServerMaster.ShowCopyMasterDialog();
+                        //ServerMaster.ShowCopyMasterDialog();
+
+                        //вызываем Дашборд
+                        if (_uiDashboard == null)
+                        {
+                            _uiDashboard = new DashBordUi();
+                            _uiDashboard.Closed += _uiDashboard_Closed;
+                            _uiDashboard.Show();
+                        }
+                        else
+                        {
+                            _uiDashboard.Activate();
+                        }
                     }
                     else if (coluIndex == 8 &&
                        rowIndex == botsCount + 1)
@@ -365,6 +378,13 @@ namespace OsEngine.OsTrader.Gui
                 _master.SendNewLogMessage(error.ToString(), Logging.LogMessageType.Error);
             }
         }
+
+        private void _uiDashboard_Closed(object sender, EventArgs e)
+        {
+            _uiDashboard = null;
+        }
+
+        DashBordUi _uiDashboard;
 
         #region Pop-up menu
 
@@ -1003,7 +1023,7 @@ colum9.HeaderText = "Journal";
 
             if (_master._startProgram == StartProgram.IsOsTrader)
             {
-                row.Cells[7].Value = OsLocalization.Trader.Label570; //"Copy trading";
+                row.Cells[7].Value = OsLocalization.ConvertToLocString("Eng:Dashboard_" + "Ru:Дашборд_"); ; //Dashboard;
             }
 
             row.Cells.Add(new DataGridViewButtonCell());

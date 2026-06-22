@@ -1220,16 +1220,36 @@ position => position.State != PositionStateType.OpeningFail
             if (Parameters == null ||
                 Parameters.Count == 0)
             {
-                CustomMessageBoxUi ui = new CustomMessageBoxUi(OsLocalization.Trader.Label51);
-                ui.ShowDialog();
+                ShowIndividualSettingsDialog();
                 return;
             }
 
             if (_parametersUi == null)
             {
-                _parametersUi = new StrategyParametersUi(Parameters, ParamGuiSettings, this);
-                _parametersUi.Show();
-                _parametersUi.Closing += _parametersUi_Closing;
+                if (this.GetNameStrategyType() == "PairArbitrageAssistant")
+                {
+                    _parametersUi = new StrategyParametersUi(Parameters, ParamGuiSettings, this);
+                    _parametersUi.Show();
+                    _parametersUi.Closing += _parametersUi_Closing;
+                }
+                else if (this.GetNameStrategyType() == "TripleArbitrageAssistant")
+                {
+                    _parametersUi = new StrategyParametersUi(Parameters, ParamGuiSettings, this);
+                    _parametersUi.Show();
+                    _parametersUi.Closing += _parametersUi_Closing;
+                }
+                else if (this.GetNameStrategyType() == "TwapBot")
+                {
+                    _parametersUi = new StrategyParametersUi(Parameters, ParamGuiSettings, this);
+                    _parametersUi.Show();
+                    _parametersUi.Closing += _parametersUi_Closing;
+                }
+                else
+                {
+                    _parametersUi = new StrategyParametersUi(Parameters, ParamGuiSettings, this);
+                    _parametersUi.Show();
+                    _parametersUi.Closing += _parametersUi_Closing;
+                }                
             }
             else
             {
