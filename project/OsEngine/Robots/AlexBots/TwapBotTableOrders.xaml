@@ -1,0 +1,29 @@
+﻿<Window x:Class="OsEngine.Robots.AlexBots.TwapBotTableOrders"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:OsEngine.Robots.AlexBots"
+        mc:Ignorable="d"
+        Title="Twap Table Order" Height="700" Width="700" MinWidth="700" MinHeight="700" Icon="/Images/OsLogo.ico" Style="{StaticResource WindowStyleCanResize}" ResizeMode="CanResize" WindowStartupLocation="CenterScreen" >
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height= "10*" />
+            <RowDefinition Height= "8*" />
+            <RowDefinition Height= "8*" />
+            <RowDefinition Height= "8*" />
+        </Grid.RowDefinitions>
+
+        <WindowsFormsHost Grid.Row="0" Name="TableOrderHost" Margin="2,5,2,5"/>
+
+        <Label Grid.Row="1" Content="Активные" VerticalAlignment="Top" HorizontalAlignment="Center" />
+        <WindowsFormsHost Grid.Row="1" Name="ActiveGeneralStatisticHost" Margin="2,25,2,5"/>
+
+        <Label Grid.Row="2" Content="Завершенные" VerticalAlignment="Top" HorizontalAlignment="Center" />
+        <WindowsFormsHost Grid.Row="2" Name="FinishGeneralStatisticHost" Margin="2,25,2,5"/>
+
+        <Label Grid.Row="3" Content="Отмененные" VerticalAlignment="Top" HorizontalAlignment="Center" />
+        <WindowsFormsHost Grid.Row="3" Name="CancelGeneralStatisticHost" Margin="2,25,2,5"/>
+    </Grid>
+</Window>

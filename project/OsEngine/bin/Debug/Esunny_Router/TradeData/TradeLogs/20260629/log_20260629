@@ -1,0 +1,56 @@
+[20260629 180208.558000]: login rsp, user:Q123567 accountindex:911 udp_auth:2338915215 error:0
+
+[20260629 180208.558000]: submitinfo user:Q123567 keyversion:1 authtype:1 appid:Demo_TestCollect licenseno:Demo_TestCollect
+
+[20260629 180208.829000]: init req num: 1
+
+[20260629 180215.952000]: init req num: 9
+
+[20260629 180216.221000]: init req num: 11
+
+[20260629 180216.499000]: subscribe
+
+[20260629 180216.770000]: subscribe, api ready
+
+[20260629 180236.274000]: heart beat rsp
+
+[20260629 180256.282000]: heart beat rsp
+
+[20260629 180325.272000]: heart beat rsp
+
+[20260629 180345.280000]: heart beat rsp
+
+[20260629 180405.268000]: heart beat rsp
+
+[20260629 180425.278000]: heart beat rsp
+
+[20260629 180445.274000]: heart beat rsp
+
+[20260629 180505.278000]: heart beat rsp
+
+[20260629 180525.269000]: heart beat rsp
+
+[20260629 180545.271000]: heart beat rsp
+
+[20260629 180605.279000]: heart beat rsp
+
+[20260629 180639.272000]: heart beat rsp
+
+[20260629 180659.269000]: heart beat rsp
+
+[20260629 180725.283000]: heart beat rsp
+
+[20260629 180745.268000]: heart beat rsp
+
+[20260629 180810.268000]: heart beat rsp
+
+[20260629 180830.270000]: heart beat rsp
+
+[20260629 180912.269000]: heart beat rsp
+
+[20260629 180932.277000]: heart beat rsp
+
+[20260629 180952.274000]: heart beat rsp
+
+[20260629 181025.277000]: heart beat rsp
+

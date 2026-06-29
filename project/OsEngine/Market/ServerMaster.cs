@@ -93,6 +93,7 @@ using OsEngine.Market.Servers.QscalpMarketDepth;
 using OsEngine.Market.Servers.TData;
 using OsEngine.Market.Servers.BitGetUnified;
 using OsEngine.Market.Servers.TwelveData;
+using OsEngine.Market.Servers.Esunny;
 
 namespace OsEngine.Market
 {
@@ -385,6 +386,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.AscendexSpot);
                 serverTypes.Add(ServerType.BitGetUnified);
                 serverTypes.Add(ServerType.TwelveData);
+                serverTypes.Add(ServerType.Esunny);
 
                 // а теперь сортируем в зависимости от предпочтений пользователя
 
@@ -912,6 +914,10 @@ namespace OsEngine.Market
                     else if (type == ServerType.TwelveData)
                     {
                         newServer = new TwelveDataServer();
+                    }
+                    else if (type == ServerType.Esunny)
+                    {
+                        newServer = new EsunnyServer();
                     }
 
                     if (newServer == null)
@@ -1728,6 +1734,10 @@ namespace OsEngine.Market
                 else if (type == ServerType.TwelveData)
                 {
                     serverPermission = new TwelveDataPermission();
+                }
+                else if (type == ServerType.Esunny)
+                {
+                    serverPermission = new EsunnyServerPermission();
                 }
 
                 if (serverPermission != null)
@@ -2565,6 +2575,11 @@ namespace OsEngine.Market
         /// downloading historical data from T-Invest archives
         /// скачивание исторических данных и трансляция данных в режиме реального времени с TwelveData
         /// </summary>
-        TwelveData
+        TwelveData,
+
+        /// <summary>
+        /// Esunny
+        /// </summary>
+        Esunny
     }
 }
