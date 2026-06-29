@@ -34,8 +34,9 @@ namespace OsEngine.Market.Servers.Esunny
             CreateParameterString("AuthCode", "");
             CreateParameterString("APPID", "");
             CreateParameterString("Data server url", "");
-            CreateParameterString("Trade server url", "");           
-        }
+            CreateParameterString("Trade server url", "");
+            CreateParameterBoolean("Enable full log Data server", false);
+            CreateParameterBoolean("Enable full log Trade server", false);        }
     }
 
     public class EsunnyServerRealization : IServerRealization
@@ -63,50 +64,50 @@ namespace OsEngine.Market.Servers.Esunny
 
         public DateTime ServerTime { get; set; }
 
-        private DateTime _lastConnectTime;
-
         public void Connect(WebProxy proxy = null)
         {
-            AccountId = ((ServerParameterString)ServerParameters[0]).Value;
-            UserPassword = ((ServerParameterPassword)ServerParameters[1]).Value;            
-            AuthCode = ((ServerParameterString)ServerParameters[2]).Value;
-            AppId = ((ServerParameterString)ServerParameters[3]).Value;
-            DataServerUrl = ((ServerParameterString)ServerParameters[4]).Value;
-            TradeServerUrl = ((ServerParameterString)ServerParameters[5]).Value;
+            _accountId = ((ServerParameterString)ServerParameters[0]).Value;
+            _userPassword = ((ServerParameterPassword)ServerParameters[1]).Value;            
+            _authCode = ((ServerParameterString)ServerParameters[2]).Value;
+            _appId = ((ServerParameterString)ServerParameters[3]).Value;
+            _dataServerUrl = ((ServerParameterString)ServerParameters[4]).Value;
+            _tradeServerUrl = ((ServerParameterString)ServerParameters[5]).Value;
+            _fullLogMarketData = ((ServerParameterBool)ServerParameters[6]).Value;
+            _fullLogTradeData = ((ServerParameterBool)ServerParameters[7]).Value;
 
-            if (string.IsNullOrEmpty(AccountId))
+            if (string.IsNullOrEmpty(_accountId))
             {
                 SendLogMessage("No BrokerId!!! No connection!!!", LogMessageType.Error);
                 return;
             }
 
-            if (string.IsNullOrEmpty(UserPassword))
+            if (string.IsNullOrEmpty(_userPassword))
             {
                 SendLogMessage("No UserPassword!!! No connection!!!", LogMessageType.Error);
                 return;
             }
 
-            if (string.IsNullOrEmpty(AuthCode))
+            if (string.IsNullOrEmpty(_authCode))
             {
                 SendLogMessage("No AuthCode!!! No connection!!!", LogMessageType.Error);
                 return;
             }
 
-            if (string.IsNullOrEmpty(AppId))
+            if (string.IsNullOrEmpty(_appId))
             {
                 SendLogMessage("No AppId!!! No connection!!!", LogMessageType.Error);
                 return;
             }
 
             if (DataRouterIsActivate == true &&
-                string.IsNullOrEmpty(DataServerUrl))
+                string.IsNullOrEmpty(_dataServerUrl))
             {
                 SendLogMessage("No Data server url!!! No connection!!!", LogMessageType.Error);
                 return;
             }
 
             if (TradeRouterIsActivate == true &&
-                string.IsNullOrEmpty(TradeServerUrl))
+                string.IsNullOrEmpty(_tradeServerUrl))
             {
                 SendLogMessage("No Trade server url!!! No connection!!!", LogMessageType.Error);
                 return;
@@ -121,8 +122,6 @@ namespace OsEngine.Market.Servers.Esunny
 
             Thread.Sleep(5000);
 
-            //_lastConnectTime = DateTime.Now;
-
             LoadRouters();
 
             Thread.Sleep(5000);
@@ -131,16 +130,16 @@ namespace OsEngine.Market.Servers.Esunny
             _messagesToSendTrade = new ConcurrentQueue<string>();
 
             string connectionMarketData = "{\"cmd\":\"connect\"";
-            connectionMarketData += ",\"dataServerUrl\":\"" + DataServerUrl.Split(':')[0] + "\"";
-            connectionMarketData += ",\"dataServerPort\":\"" + DataServerUrl.Split(':')[1] + "\"}";
+            connectionMarketData += ",\"dataServerUrl\":\"" + _dataServerUrl.Split(':')[0] + "\"";
+            connectionMarketData += ",\"dataServerPort\":\"" + _dataServerUrl.Split(':')[1] + "\"}";
 
             string connectionTrade = "{\"cmd\":\"connect\"";
-            connectionTrade += ",\"accountId\":\"" + AccountId + "\"";
-            connectionTrade += ",\"password\":\"" + UserPassword + "\"";
-            connectionTrade += ",\"appId\":\"" + AppId + "\"";
-            connectionTrade += ",\"authCode\":\"" + AuthCode + "\"";
-            connectionTrade += ",\"tradeServerUrl\":\"" + TradeServerUrl.Split(':')[0] + "\"";
-            connectionTrade += ",\"tradeServerPort\":\"" + TradeServerUrl.Split(':')[1] + "\"}";
+            connectionTrade += ",\"accountId\":\"" + _accountId + "\"";
+            connectionTrade += ",\"password\":\"" + _userPassword + "\"";
+            connectionTrade += ",\"appId\":\"" + _appId + "\"";
+            connectionTrade += ",\"authCode\":\"" + _authCode + "\"";
+            connectionTrade += ",\"tradeServerUrl\":\"" + _tradeServerUrl.Split(':')[0] + "\"";
+            connectionTrade += ",\"tradeServerPort\":\"" + _tradeServerUrl.Split(':')[1] + "\"}";
 
             _messagesToSendMarketData.Enqueue(connectionMarketData);
             _messagesToSendTrade.Enqueue(connectionTrade);
@@ -255,7 +254,7 @@ namespace OsEngine.Market.Servers.Esunny
                 {
                     try
                     {
-                        SendMessage("{\"cmd\":\"disconnect\"" + "}", _socketMarketData, "MarketServer");
+                        //SendMessage("{\"cmd\":\"disconnect\"" + "}", _socketMarketData, "MarketServer");
                         _socketMarketData.Shutdown(SocketShutdown.Send);
                     }
                     catch
@@ -279,7 +278,7 @@ namespace OsEngine.Market.Servers.Esunny
                 {
                     try
                     {
-                        SendMessage("{\"cmd\":\"disconnect\"" + "}", _socketToTrade, "TradeServer");
+                        //SendMessage("{\"cmd\":\"disconnect\"" + "}", _socketToTrade, "TradeServer");
                         _socketToTrade.Shutdown(SocketShutdown.Send);
                     }
                     catch
@@ -321,13 +320,6 @@ namespace OsEngine.Market.Servers.Esunny
         {
             get
             {
-                /*ServerParameterEnum parameter = ((ServerParameterEnum)ServerParameters[7]);
-
-                if (parameter.Value.Contains("trade"))
-                {
-                    return true;
-                }*/
-
                 return true;
             }
         }
@@ -336,13 +328,6 @@ namespace OsEngine.Market.Servers.Esunny
         {
             get
             {
-                /*ServerParameterEnum parameter = ((ServerParameterEnum)ServerParameters[7]);
-
-                if (parameter.Value.Contains("data"))
-                {
-                    return true;
-                }*/
-
                 return true;
             }
         }
@@ -409,8 +394,8 @@ namespace OsEngine.Market.Servers.Esunny
         {
             string curDir = Environment.CurrentDirectory;
 
-            string dirMarketData = curDir + "\\Esunny_Router\\MarketData\\x64\\Debug\\EsunnyMarketData.exe";
-            string dirTrader = curDir + "\\Esunny_Router\\TradeData\\x64\\Debug\\EsunnyTradeData.exe";
+            string dirMarketData = curDir + "\\Esunny_Router\\MarketData\\x64\\Release\\EsunnyMarketData.exe";
+            string dirTrader = curDir + "\\Esunny_Router\\TradeData\\x64\\Release\\EsunnyTradeData.exe";
 
             try
             {
@@ -440,17 +425,21 @@ namespace OsEngine.Market.Servers.Esunny
 
         public bool IsCompletelyDeleted { get; set; }
 
-        private string AccountId;
+        private string _accountId;
 
-        private string UserPassword;
+        private string _userPassword;
 
-        private string AppId;
+        private string _appId;
 
-        private string AuthCode;
+        private string _authCode;
 
-        private string DataServerUrl;
+        private string _dataServerUrl;
 
-        private string TradeServerUrl;
+        private string _tradeServerUrl;
+
+        private bool _fullLogMarketData;
+
+        private bool _fullLogTradeData;
 
         #endregion
 
@@ -903,6 +892,11 @@ namespace OsEngine.Market.Servers.Esunny
 
         private void SendFrame(Socket socket, string payload)
         {
+            if (socket == null)
+            {
+                return;
+            }
+
             byte[] body = Encoding.UTF8.GetBytes(payload);
             int len = body.Length;
             byte[] header = new byte[4];
@@ -1134,8 +1128,6 @@ namespace OsEngine.Market.Servers.Esunny
                 return;
             }
 
-            SendLogMessage("Trade router message: " + message, LogMessageType.System);
-
             if (message.StartsWith("{\"type\":\"connect\"") &&
                 ServerStatus == ServerConnectStatus.Disconnect)
             {
@@ -1145,6 +1137,7 @@ namespace OsEngine.Market.Servers.Esunny
             }
             else if (message.StartsWith("{\"type\":\"disconnect\""))
             {
+                SendLogMessage("Trade router is disconnected", LogMessageType.System);
                 ServerStatus = ServerConnectStatus.Disconnect;
                 DisconnectEvent?.Invoke();
             }
@@ -1162,12 +1155,19 @@ namespace OsEngine.Market.Servers.Esunny
             }
             else if (message.Contains("\"type\":\"rtnOrder\""))
             {
-                GetMyOrder(message);
+                SendLogMessage("Trade router message: " + message, LogMessageType.System);
+                GetMyOrder(message);                
             }
             else if (message.Contains("\"type\":\"rtnMatch\""))
             {
+                SendLogMessage("Trade router message: " + message, LogMessageType.System);
                 GetMyTrade(message);
-            }            
+            }
+
+            if (_fullLogTradeData)
+            {
+                SendLogMessage("Trade router message: " + message, LogMessageType.System);
+            }
         }
 
         private void GetMyOrder(string message)
@@ -1191,7 +1191,16 @@ namespace OsEngine.Market.Servers.Esunny
                 order.VolumeExecute = responce.matchQty.ToDecimal();
                 order.ServerType = ServerType.Esunny;
                 order.SecurityClassCode = GetClassSecurity(responce.contractNo1);
-                order.TimeCreate = ParseDateTimeTrade(responce.updateTime);
+
+                if (responce.orderState == "1")
+                {
+                    order.TimeCreate = ParseDateTimePending(responce.updateTime);
+                }
+                else
+                {
+                    order.TimeCreate = ParseDateTimeTrade(responce.updateTime);
+                }
+
                 order.TimeCallBack = order.TimeCreate;
 
                 MyOrderEvent?.Invoke(order);
@@ -1200,6 +1209,14 @@ namespace OsEngine.Market.Servers.Esunny
             {
                 SendLogMessage(ex.ToString(), LogMessageType.Error);
             }
+        }
+
+        private DateTime ParseDateTimePending(string updateTime)
+        {
+            string time = updateTime.Split(' ')[0];
+            string dateNow = DateTime.Now.ToString("yyyy-MM-dd");
+
+            return ParseDateTimeTrade(dateNow + " " + time);
         }
 
         private DateTime ParseDateTimeTrade(string dateTime)
@@ -1334,8 +1351,6 @@ namespace OsEngine.Market.Servers.Esunny
                 return true;
             }
 
-            //SendLogMessage("DateRouter: " + message, LogMessageType.System);
-
             if (message.Contains("{\"type\":\"connect\"") &&
                 ServerStatus != ServerConnectStatus.Connect)
             {
@@ -1355,7 +1370,11 @@ namespace OsEngine.Market.Servers.Esunny
 
                 ResponceMessageMarketDataError responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageMarketDataError());
 
+                SendLogMessage("Data router is disconnected", LogMessageType.System);
                 SendLogMessage("MarketData. Code: " + responce.code + ", Message: " + responce.message, LogMessageType.Error);
+
+                //string connectionMarketData = "{\"cmd\":\"disconnect\"";
+                //_messagesToSendMarketData.Enqueue(connectionMarketData);
             }
             else if (message.Contains("\"type\":\"quote\""))
             {
@@ -1364,6 +1383,11 @@ namespace OsEngine.Market.Servers.Esunny
             else
             {
                 SendLogMessage(message, LogMessageType.System);
+            }
+
+            if (_fullLogMarketData)
+            {
+                SendLogMessage("MarketDateRouter: " + message, LogMessageType.System);
             }
 
             return false;
