@@ -59,49 +59,52 @@ namespace OsEngine.Market.Servers.Esunny.Entity
         public string lastPrice;
         public string lastQty;
 
-        public string bidPrice1;
-        public string bidPrice2;
-        public string bidPrice3;
-        public string bidPrice4;
-        public string bidPrice5;
-        public string bidPrice6;
-        public string bidPrice7;
-        public string bidPrice8;
-        public string bidPrice9;
-        public string bidPrice10;
+        public List<List<string>> bids;
+        public List<List<string>> asks;
 
-        public string bidQty1;
-        public string bidQty2;
-        public string bidQty3;
-        public string bidQty4;
-        public string bidQty5;
-        public string bidQty6;
-        public string bidQty7;
-        public string bidQty8;
-        public string bidQty9;
-        public string bidQty10;
+        /* public string bidPrice1;
+         public string bidPrice2;
+         public string bidPrice3;
+         public string bidPrice4;
+         public string bidPrice5;
+         public string bidPrice6;
+         public string bidPrice7;
+         public string bidPrice8;
+         public string bidPrice9;
+         public string bidPrice10;
 
-        public string askPrice1;
-        public string askPrice2;
-        public string askPrice3;
-        public string askPrice4;
-        public string askPrice5;
-        public string askPrice6;
-        public string askPrice7;
-        public string askPrice8;
-        public string askPrice9;
-        public string askPrice10;
+         public string bidQty1;
+         public string bidQty2;
+         public string bidQty3;
+         public string bidQty4;
+         public string bidQty5;
+         public string bidQty6;
+         public string bidQty7;
+         public string bidQty8;
+         public string bidQty9;
+         public string bidQty10;
 
-        public string askQty1;
-        public string askQty2;
-        public string askQty3;
-        public string askQty4;
-        public string askQty5;
-        public string askQty6;
-        public string askQty7;
-        public string askQty8;
-        public string askQty9;
-        public string askQty10;
+         public string askPrice1;
+         public string askPrice2;
+         public string askPrice3;
+         public string askPrice4;
+         public string askPrice5;
+         public string askPrice6;
+         public string askPrice7;
+         public string askPrice8;
+         public string askPrice9;
+         public string askPrice10;
+
+         public string askQty1;
+         public string askQty2;
+         public string askQty3;
+         public string askQty4;
+         public string askQty5;
+         public string askQty6;
+         public string askQty7;
+         public string askQty8;
+         public string askQty9;
+         public string askQty10;*/
     }
 
     public class ResponceMessageMarketDataError

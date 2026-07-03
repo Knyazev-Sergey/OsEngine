@@ -3,16 +3,11 @@
 ///@author  Hao Lin 2021-01-20
 
 #include "ApiClient.h"
-#include "UdpClient.h"
 #include <iostream>
 #include <list>
 #include <mutex>
 #include <string>
 #include <nlohmann/json.hpp>
-
-#include <chrono>
-#include <iomanip>
-#include <sstream>
 
 #include <stdio.h>
 #if defined WIN32 || defined _WIN32
@@ -145,12 +140,13 @@ DWORD WINAPI serverReceive(LPVOID lpParam)
 
             if (!RecvFrame(client, incoming))
             {                
-                cout << apiClient.GetDateTimeNow() << "recv function failed with error " << WSAGetLastError() << endl;
+                cout << apiClient.GetDateTimeNow() << "recv function failed with error " << WSAGetLastError() << '\n';
                 return -1;
             }
 
             if (incoming.empty())
             {
+                Sleep(1);
                 continue;
             }
 
@@ -179,7 +175,9 @@ DWORD WINAPI serverReceive(LPVOID lpParam)
             }   
 
             lock_guard<mutex> inLock(mutex_array_in);
-            MessagesIn.push_back(incoming);
+            MessagesIn.push_back(incoming);     
+
+            Sleep(1);
         }
         catch (...)
         {
@@ -197,13 +195,13 @@ int SocketWorkPlace()
     SOCKADDR_IN serverAddr, clientAddr;
 
     if (WSAStartup(MAKEWORD(2, 0), &WSAData) != 0) {
-        cout << apiClient.GetDateTimeNow() << "WSAStartup failed with error:" << WSAGetLastError() << endl;
+        cout << apiClient.GetDateTimeNow() << "WSAStartup failed with error:" << WSAGetLastError() << '\n';
         return -1;
     }
 
     server = socket(AF_INET, SOCK_STREAM, 0);
     if (server == INVALID_SOCKET) {
-        cout << apiClient.GetDateTimeNow() << "Socket creation failed with error:" << WSAGetLastError() << endl;
+        cout << apiClient.GetDateTimeNow() << "Socket creation failed with error:" << WSAGetLastError() << '\n';
         return -1;
     }
 
@@ -212,26 +210,26 @@ int SocketWorkPlace()
     serverAddr.sin_port = htons(5556);
 
     if (::bind(server, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        cout << apiClient.GetDateTimeNow() << "Bind function failed with error: " << WSAGetLastError() << endl;
+        cout << apiClient.GetDateTimeNow() << "Bind function failed with error: " << WSAGetLastError() << '\n';
         return -1;
     }
 
     if (listen(server, 0) == SOCKET_ERROR) {
-        cout << apiClient.GetDateTimeNow() << "Listen function failed with error:" << WSAGetLastError() << endl;
+        cout << apiClient.GetDateTimeNow() << "Listen function failed with error:" << WSAGetLastError() << '\n';
         return -1;
     }
 
-    cout << apiClient.GetDateTimeNow() << "Listening for incoming connections...." << endl;
+    cout << apiClient.GetDateTimeNow() << "Listening for incoming connections...." << '\n';
 
     int clientAddrSize = sizeof(clientAddr);
 
     if ((client = accept(server, (SOCKADDR*)&clientAddr, &clientAddrSize)) != INVALID_SOCKET) {
-        cout << apiClient.GetDateTimeNow() << "Client connected!" << endl;
+        cout << apiClient.GetDateTimeNow() << "Client connected!" << '\n';
 
         DWORD tid;
         HANDLE t1 = CreateThread(NULL, 0, serverReceive, &client, 0, &tid);
         if (t1 == NULL) {
-            cout << apiClient.GetDateTimeNow() << "Thread Creation Error: " << WSAGetLastError() << endl;
+            cout << apiClient.GetDateTimeNow() << "Thread Creation Error: " << WSAGetLastError() << '\n';
         }
 
         else {
@@ -242,11 +240,11 @@ int SocketWorkPlace()
         closesocket(client);
 
         if (closesocket(server) == SOCKET_ERROR) {
-            cout << apiClient.GetDateTimeNow() << "Close socket failed with error: " << WSAGetLastError() << endl;
+            cout << apiClient.GetDateTimeNow() << "Close socket failed with error: " << WSAGetLastError() << '\n';
             return -1;
         }
 
-        cout << apiClient.GetDateTimeNow() << "Client disconnected!" << endl;
+        cout << apiClient.GetDateTimeNow() << "Client disconnected!" << '\n';
 
         WSACleanup();
     }
@@ -261,10 +259,12 @@ void ThreadWorkerPlace()
         try 
         {
             SocketWorkPlace();
+            Sleep(1);
         }
         catch (const std::exception& e)
         {
-            cout << apiClient.GetDateTimeNow() << "Exception ThreadWorkerPlace Exception: " << e.what() << endl;
+            cout << apiClient.GetDateTimeNow() << "Exception ThreadWorkerPlace Exception: " << e.what() << '\n';
+            Sleep(2000);
         }
     }
 }
@@ -330,7 +330,7 @@ void GetSecuritiesList()
     }
     catch (const std::exception& e)
     {
-        cout << apiClient.GetDateTimeNow() << "Exception GetSecuritiesList error: " << e.what() << endl;
+        cout << apiClient.GetDateTimeNow() << "Exception GetSecuritiesList error: " << e.what() << '\n';
     }
 }
 
@@ -360,22 +360,6 @@ void from_json(const nlohmann::json& json, ResponceMessagePlaceOrder& responce)
     json.at("hedge").get_to(responce.hedge);
 }
 
-DstarApiOffsetType GetOffset(const string& offset)
-{
-    if (offset == "Open")
-    {
-        return DSTAR_API_OFFSET_OPEN;
-    }
-    else if (offset == "Close")
-    {
-        return DSTAR_API_OFFSET_CLOSE;
-    }
-    else if (offset == "None")
-    {
-        return DSTAR_API_OFFSET_CLOSETODAY;
-    }
-}
-
 void PlaceOrder(string* str)
 {
     try {
@@ -385,7 +369,6 @@ void PlaceOrder(string* str)
         DstarApiReqOrderInsertField req = { 0 };
         req.Direct = responce.side == "Buy" ? DSTAR_API_DIRECT_BUY : DSTAR_API_DIRECT_SELL;
         req.Offset = responce.offset == "Open" ? DSTAR_API_OFFSET_OPEN : DSTAR_API_OFFSET_CLOSE;
-        //req.Offset = GetOffset(responce.offset);
         req.Hedge = responce.hedge == "Speculate" ? DSTAR_API_HEDGE_SPECULATE : DSTAR_API_HEDGE_HEDGE;
         req.Hedge = DSTAR_API_HEDGE_HEDGE;
         req.OrderType = responce.orderType == "Limit" ? DSTAR_API_ORDERTYPE_LIMIT : DSTAR_API_ORDERTYPE_MARKET;
@@ -403,7 +386,7 @@ void PlaceOrder(string* str)
     }
     catch (const std::exception& e)
     {
-        cout << apiClient.GetDateTimeNow() << "Exception PlaceOrder error: " << e.what() << endl;
+        cout << apiClient.GetDateTimeNow() << "Exception PlaceOrder error: " << e.what() << '\n';
     }
 }
 
@@ -432,7 +415,7 @@ void CancelOrder(string* str)
     }
     catch (const std::exception& e)
     {
-        cout << apiClient.GetDateTimeNow() << "Exception CancelOrder error: " << e.what() << endl;
+        cout << apiClient.GetDateTimeNow() << "Exception CancelOrder error: " << e.what() << '\n';
     }
 }
 
@@ -458,13 +441,13 @@ void from_json(const nlohmann::json& json, ResponceMessageConnect& responce)
     json.at("tradeServerPort").get_to(responce.tradeServerPort);
 }
 
-int Connection(string* str)
+bool Connection(string* str)
 {
     try 
     {        
         if (apiClient.CreateApi() != 0)
         {
-            return 1;
+            return false;
         }
 
         if (*str == "test")
@@ -485,26 +468,17 @@ int Connection(string* str)
 
         if (ret < 0)
         {
-            cout << apiClient.GetDateTimeNow() << "Api init failed, ret=" << ret << endl;
-            return 1;
+            cout << apiClient.GetDateTimeNow() << "Api init failed, ret=" << ret << '\n';
+            return false;
         }
     }
     catch (const std::exception& e)
     {
-        cout << apiClient.GetDateTimeNow() << "json/init error: " << e.what() << endl;
-        return 1;
+        cout << apiClient.GetDateTimeNow() << "json/init error: " << e.what() << '\n';
+        return false;
     }
 
-    return 0;
-}
-
-void TSleep(int sec)
-{
-#if defined WIN32 || defined _WIN32
-    Sleep(1000 * sec);
-#else
-    sleep(sec);
-#endif
+    return true;
 }
 
 #pragma endregion
@@ -665,7 +639,7 @@ void Test()
 
     while (1)
     {
-        TSleep(5);
+        Sleep(5000);
     }
 
     return;
@@ -681,7 +655,7 @@ int main(int argc, char *argv[])
     thread thread(ThreadWorkerPlace);
        
     std::chrono::milliseconds timespan(10);
-    bool isStarted = false;
+    bool isStarted = true;
 
     while (true)
     {
@@ -698,43 +672,49 @@ int main(int argc, char *argv[])
 
             mutex_array_in.lock();
 
+            if (MessagesIn.size() == 0)
+            {
+                mutex_array_in.unlock();
+                continue;
+			}
+
             for (it = MessagesIn.begin(); it != MessagesIn.end(); it++)
             {
                 string& str = *it;
 
                 if (str.find("{\"cmd\":\"connect\"") != string::npos)
                 {
-                    cout << apiClient.GetDateTimeNow() << "Client -> {\"cmd\":\"connect\....\"" << endl;
+                    cout << apiClient.GetDateTimeNow() << "Client -> {\"cmd\":\"connect\....\"" << '\n';
                     isStarted = Connection(&str);
                 }
                 else if (str.find("{\"cmd\":\"disconnect\"") != string::npos)
                 {
-                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << endl;
+                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << '\n';
                     isDisconnected = true;
                 }
                 else if (str == "getPortfolio")
                 {
-                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << endl;
+                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << '\n';
                     GetPortfolio();
                 }
                 else if (str == "getPositions")
                 {
-                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << endl;
+                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << '\n';
                     GetPositions();
                 }
                 else if (str == "getSecurities")
                 {
-                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << endl;
+                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << '\n';
                     GetSecuritiesList();
                 }
                 else if (str.find("{\"cmd\":\"placeOrder\"") != string::npos)
                 {
-                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << endl;
+                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << '\n';
                     PlaceOrder(&str);
                 }
                 else if (str.find("{\"cmd\":\"cancelOrder\"") != string::npos)
                 {
-                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << endl;
+                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << '\n';
                     CancelOrder(&str);
                 }
 
@@ -745,9 +725,13 @@ int main(int argc, char *argv[])
 
             mutex_array_in.unlock();
 
-            if (isStarted == false)
+            if (isStarted == true)
             {
                 continue;
+            }
+            else
+            {
+                isDisconnected = true;
             }
         }
         catch (...)

@@ -24,6 +24,7 @@ mutex mutex_array_all;
 mutex mutex_array_in;
 mutex mutex_array_out;
 bool isDisconnected = false;
+bool fullLog = false;
 
 apiClient* api = new apiClient();
 
@@ -115,12 +116,13 @@ DWORD WINAPI serverReceive(LPVOID lpParam)
 
             if (!RecvFrame(client, incoming))
             {
-                cout << api->GetDateTimeNow() << "recv function failed with error " << WSAGetLastError() << endl;
+                cout << api->GetDateTimeNow() << "recv function failed with error " << WSAGetLastError() << '\n';
                 return -1;
             }
 
             if (incoming.empty())
             {
+                Sleep(1);
                 continue;
             }
 
@@ -145,7 +147,9 @@ DWORD WINAPI serverReceive(LPVOID lpParam)
             }
 
             lock_guard<mutex> inLock(mutex_array_in);
-            MessagesIn.push_back(incoming);
+            MessagesIn.push_back(incoming);         
+
+            Sleep(1);
         }
         catch (...)
         {
@@ -166,7 +170,7 @@ int SocketWorkPlace()
 
     server = socket(AF_INET, SOCK_STREAM, 0);
     if (server == INVALID_SOCKET) {
-        cout << api->GetDateTimeNow() << "Socket creation failed with error:" << WSAGetLastError() << endl;
+        cout << api->GetDateTimeNow() << "Socket creation failed with error:" << WSAGetLastError() << '\n';
         return -1;
     }
 
@@ -175,26 +179,26 @@ int SocketWorkPlace()
     serverAddr.sin_port = htons(5555);
 
     if (::bind(server, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        cout << api->GetDateTimeNow() << "Bind function failed with error: " << WSAGetLastError() << endl;
+        cout << api->GetDateTimeNow() << "Bind function failed with error: " << WSAGetLastError() << '\n';
         return -1;
     }
 
     if (listen(server, 0) == SOCKET_ERROR) {
-        cout << api->GetDateTimeNow() << "Listen function failed with error:" << WSAGetLastError() << endl;
+        cout << api->GetDateTimeNow() << "Listen function failed with error:" << WSAGetLastError() << '\n';
         return -1;
     }
 
-    cout << api->GetDateTimeNow() << "Listening for incoming connections...." << endl;
+    cout << api->GetDateTimeNow() << "Listening for incoming connections...." << '\n';
 
     int clientAddrSize = sizeof(clientAddr);
 
     if ((client = accept(server, (SOCKADDR*)&clientAddr, &clientAddrSize)) != INVALID_SOCKET) {
-        cout << api->GetDateTimeNow() << "Client connected!" << endl;
+        cout << api->GetDateTimeNow() << "Client connected!" << '\n';
 
         DWORD tid;
         HANDLE t1 = CreateThread(NULL, 0, serverReceive, &client, 0, &tid);
         if (t1 == NULL) {
-            cout << api->GetDateTimeNow() << "Thread Creation Error: " << WSAGetLastError() << endl;
+            cout << api->GetDateTimeNow() << "Thread Creation Error: " << WSAGetLastError() << '\n';
         }
 
         WaitForSingleObject(t1, INFINITE);
@@ -202,11 +206,11 @@ int SocketWorkPlace()
         closesocket(client);
 
         if (closesocket(server) == SOCKET_ERROR) {
-            cout << api->GetDateTimeNow() << "Close socket failed with error: " << WSAGetLastError() << endl;
+            cout << api->GetDateTimeNow() << "Close socket failed with error: " << WSAGetLastError() << '\n';
             return -1;
         }
 
-        cout << api->GetDateTimeNow() << "Client disconnected!" << endl;
+        cout << api->GetDateTimeNow() << "Client disconnected!" << '\n';
 
         WSACleanup();
     }
@@ -218,7 +222,16 @@ void ThreadWorkerPlace()
 {
     while (true)
     {
-        SocketWorkPlace();
+        try 
+        {
+            SocketWorkPlace();
+            Sleep(1);
+        }
+        catch (const std::exception& e)
+        {
+            cout << api->GetDateTimeNow() << "Exception ThreadWorkerPlace Exception: " << e.what() << '\n';
+            Sleep(2000);
+        }
     }
 }
 
@@ -231,6 +244,7 @@ struct ResponceMessageConnect
     string cmd;    
     string dataServerUrl;
     string dataServerPort;
+    string fullLog;
 };
 
 void from_json(const nlohmann::json& json, ResponceMessageConnect& responce)
@@ -238,6 +252,7 @@ void from_json(const nlohmann::json& json, ResponceMessageConnect& responce)
     json.at("cmd").get_to(responce.cmd);
     json.at("dataServerUrl").get_to(responce.dataServerUrl);
     json.at("dataServerPort").get_to(responce.dataServerPort);
+    json.at("fullLog").get_to(responce.fullLog);
 }
 
 bool Connection(string* str)
@@ -247,24 +262,33 @@ bool Connection(string* str)
         bool bret = false;
         int ret = 0;
 
-        cout << api->GetDateTimeNow() << "Api Version: " << api->GetVerion() << endl;
-        cout << "-----------------------------------------------------" << endl;
+        cout << api->GetDateTimeNow() << "Api Version: " << api->GetVerion() << '\n';
+        cout << "-----------------------------------------------------" << '\n';
 
         const char* logPath = ".\\Esunny_Router\\MarketData\\MarketDataLogs\\";
         ret = _mkdir(logPath);
         if (ret != 0 && errno != EEXIST)
         {
-            cout << api->GetDateTimeNow() << "Api: failed to create log directory " << logPath << ", errno=" << errno << endl;
+            cout << api->GetDateTimeNow() << "Api: failed to create log directory " << logPath << ", errno=" << errno << '\n';
         }
 
         if (!(api->Init()))
-            cout << api->GetDateTimeNow() << "Api: init error" << endl;
+            cout << api->GetDateTimeNow() << "Api: init error" << '\n';
 
         api->SetCpuId(2);
         api->SetAutoRelogin(true);
 
         nlohmann::json json = nlohmann::json::parse(*str);
         ResponceMessageConnect responce = json.get<ResponceMessageConnect>();
+
+		if (responce.fullLog == "true")
+        {
+            fullLog = true;
+        }
+        else
+        {
+            fullLog = false;
+        }
 
         std::string ip = responce.dataServerUrl;
         unsigned short port = stoi(responce.dataServerPort);
@@ -273,11 +297,11 @@ bool Connection(string* str)
 
         if (bret)
         {
-            cout << api->GetDateTimeNow() << "Api: Host set correct " << ip << ":" << port << endl;
+            cout << api->GetDateTimeNow() << "Api: Host set correct " << ip << ":" << port << '\n';
         }
         else
         {
-            cout << api->GetDateTimeNow() << "Api: Host set wrong" << endl;
+            cout << api->GetDateTimeNow() << "Api: Host set wrong" << '\n';
         }
 
         api->SetApiLogPath(logPath);
@@ -290,8 +314,8 @@ bool Connection(string* str)
         {
             if (api->isReady)
             {
-                cout << api->GetDateTimeNow() << "Api: API is Ready" << endl;
-                cout << "-----------------------------------------------------" << endl;
+                cout << api->GetDateTimeNow() << "Api: API is Ready" << '\n';
+                cout << "-----------------------------------------------------" << '\n';
 
                 lock_guard<mutex> outLock(mutex_array_out);
                 MessagesOut.push_back("{\"type\":\"connect\"}");
@@ -303,7 +327,7 @@ bool Connection(string* str)
 
             if (elapsed.count() >= 30)
             {
-                std::cout << api->GetDateTimeNow() << "No response from the server. Disconnected due to timeout: " << elapsed.count() << " с\n";
+                std::cout << api->GetDateTimeNow() << "No response from the server. Disconnected due to timeout: " << elapsed.count() << " s\n";
 
                 lock_guard<mutex> outLock(mutex_array_out);
                 MessagesOut.push_back("{\"type\":\"disconnect\"}");
@@ -318,7 +342,7 @@ bool Connection(string* str)
     }
     catch (const std::exception& e)
     {
-        cout << api->GetDateTimeNow() << "Connection error: " << e.what() << endl;
+        cout << api->GetDateTimeNow() << "Connection error: " << e.what() << '\n';
         return false;
 	}
 }
@@ -357,28 +381,30 @@ void SubscribeQuote(const string& str)
     }
     catch (const std::exception& e)
     {
-        cout << api->GetDateTimeNow() << "json/init error: " << e.what() << endl;
+        cout << api->GetDateTimeNow() << "json/init error: " << e.what() << '\n';
     }
 }
 
 void Disconnect()
 {
     try {
-        cout << api->GetDateTimeNow() << "Api: begin to free" << endl;
+        cout << api->GetDateTimeNow() << "Api: begin to free" << '\n';
         Sleep(1000);
         api->Free();
         
-        cout << "Api: free success" << endl;
+        cout << "Api: free success" << '\n';
 
         delete api;
     }
     catch (const std::exception& e)
     {
-        cout << api->GetDateTimeNow() << "Disconnect error: " << e.what() << endl;
+        cout << api->GetDateTimeNow() << "Disconnect error: " << e.what() << '\n';
     }
 }
 
 #pragma endregion
+
+#pragma region Test API
 
 int TestRequests()
 {
@@ -462,6 +488,8 @@ int TestRequests()
     return 0;
 }
 
+#pragma endregion
+
 int main(int argc, char** argv)
 {
     //if (TestRequests() == 0) return 0;
@@ -486,23 +514,29 @@ int main(int argc, char** argv)
 
             mutex_array_in.lock();
 
+            if (MessagesIn.size() == 0) 
+            {
+                mutex_array_in.unlock();
+				continue;
+            }
+
             for (it = MessagesIn.begin(); it != MessagesIn.end(); it++)
             {
                 string str = *it;
 
                 if (str.find("{\"cmd\":\"connect\"") != string::npos)
                 {
-                    cout << api->GetDateTimeNow() << "Client -> " << str << endl;
+                    cout << api->GetDateTimeNow() << "Client -> " << str << '\n';
                     isStarted = Connection(&str);
                 }
                 else if (str.find("{\"cmd\":\"disconnect\"") != string::npos)
                 {
-                    cout << api->GetDateTimeNow() << "Client -> " << str << endl;
+                    cout << api->GetDateTimeNow() << "Client -> " << str << '\n';
                     Disconnect();
                 }
                 else if (str.find("{\"cmd\":\"subscribeQuote\"") != string::npos)               
                 {
-                    cout << api->GetDateTimeNow() << "Client -> " << str << endl;
+                    cout << api->GetDateTimeNow() << "Client -> " << str << '\n';
                     SubscribeQuote(str);                    
                 }
                                 

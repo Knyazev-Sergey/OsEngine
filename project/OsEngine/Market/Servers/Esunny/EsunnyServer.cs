@@ -131,6 +131,16 @@ namespace OsEngine.Market.Servers.Esunny
             _messagesToSendTrade = new ConcurrentQueue<string>();
 
             string connectionMarketData = "{\"cmd\":\"connect\"";
+
+            if (_fullLogMarketData)
+            {
+                connectionMarketData += ",\"fullLog\":\"true\"";
+            }
+            else
+            {
+                connectionMarketData += ",\"fullLog\":\"false\"";
+            }
+
             connectionMarketData += ",\"dataServerUrl\":\"" + _dataServerUrl.Split(':')[0] + "\"";
             connectionMarketData += ",\"dataServerPort\":\"" + _dataServerUrl.Split(':')[1] + "\"}";
 
@@ -490,10 +500,11 @@ namespace OsEngine.Market.Servers.Esunny
                     sec.PriceStepCost = responce.list[i].contractTickSize.ToDecimal();
                     sec.Decimals = GetDecimals(responce.list[i].contractTickSize);
                     sec.NameFull = GetFullNameSecurity(responce.list[i], sec);
+                    sec.State = SecurityStateType.Activ;
                     
                     loadSecurities.Add(sec);
                 }
-
+                _securities.Clear();
                 _securities = loadSecurities;
             }
             catch (Exception ex)
@@ -1049,6 +1060,10 @@ namespace OsEngine.Market.Servers.Esunny
                 ConnectEvent();
             }
 
+            if (_securities != null && _securities.Count > 0)// запрашиваем обновление списка бумаг после переподключения
+            {
+                _messagesToSendTrade.Enqueue("getSecurities");
+            }
         }
 
         private DateTime _lastTimeSendMessageInSocketTrade;
@@ -1212,7 +1227,8 @@ namespace OsEngine.Market.Servers.Esunny
                 order.ServerType = ServerType.Esunny;
                 order.SecurityClassCode = GetClassSecurity(responce.contractNo1);
 
-                if (responce.orderState == "1")
+                if (responce.orderState == "1" ||
+                    responce.orderState == "8")
                 {
                     order.TimeCreate = ParseDateTimePending(responce.updateTime);
                 }
@@ -1392,9 +1408,6 @@ namespace OsEngine.Market.Servers.Esunny
 
                 SendLogMessage("Data router is disconnected", LogMessageType.System);
                 SendLogMessage("MarketData. Code: " + responce.code + ", Message: " + responce.message, LogMessageType.System);
-
-                //string connectionMarketData = "{\"cmd\":\"disconnect\"";
-                //_messagesToSendMarketData.Enqueue(connectionMarketData);
             }
             else if (message.Contains("\"type\":\"quote\""))
             {
@@ -1456,34 +1469,28 @@ namespace OsEngine.Market.Servers.Esunny
         {
             MarketDepth marketDepth = new MarketDepth();
 
-            List<MarketDepthLevel> ascs = new List<MarketDepthLevel>();
+            List<MarketDepthLevel> asks = new List<MarketDepthLevel>();
             List<MarketDepthLevel> bids = new List<MarketDepthLevel>();
 
             marketDepth.SecurityNameCode = GetSecurityNameForFullName(responce.contractNo);
 
-            bids.Add(new MarketDepthLevel { Price = responce.bidPrice1.ToDouble(), Bid = responce.bidQty1.ToDouble() });
-            bids.Add(new MarketDepthLevel { Price = responce.bidPrice2.ToDouble(), Bid = responce.bidQty2.ToDouble() });
-            bids.Add(new MarketDepthLevel { Price = responce.bidPrice3.ToDouble(), Bid = responce.bidQty3.ToDouble() });
-            bids.Add(new MarketDepthLevel { Price = responce.bidPrice4.ToDouble(), Bid = responce.bidQty4.ToDouble() });
-            bids.Add(new MarketDepthLevel { Price = responce.bidPrice5.ToDouble(), Bid = responce.bidQty5.ToDouble() });
-            bids.Add(new MarketDepthLevel { Price = responce.bidPrice6.ToDouble(), Bid = responce.bidQty6.ToDouble() });
-            bids.Add(new MarketDepthLevel { Price = responce.bidPrice7.ToDouble(), Bid = responce.bidQty7.ToDouble() });
-            bids.Add(new MarketDepthLevel { Price = responce.bidPrice8.ToDouble(), Bid = responce.bidQty8.ToDouble() });
-            bids.Add(new MarketDepthLevel { Price = responce.bidPrice9.ToDouble(), Bid = responce.bidQty9.ToDouble() });
-            bids.Add(new MarketDepthLevel { Price = responce.bidPrice10.ToDouble(), Bid = responce.bidQty10.ToDouble() });
+            for (int i = 0; i < responce.bids.Count; i++)
+            {
+                MarketDepthLevel bid = new MarketDepthLevel();
+                bid.Price = responce.bids[i][0].ToDouble();
+                bid.Bid = responce.bids[i][1].ToDouble();
+                bids.Add(bid);
+            }
 
-            ascs.Add(new MarketDepthLevel { Price = responce.askPrice1.ToDouble(), Ask = responce.askQty1.ToDouble() });
-            ascs.Add(new MarketDepthLevel { Price = responce.askPrice2.ToDouble(), Ask = responce.askQty2.ToDouble() });
-            ascs.Add(new MarketDepthLevel { Price = responce.askPrice3.ToDouble(), Ask = responce.askQty3.ToDouble() });
-            ascs.Add(new MarketDepthLevel { Price = responce.askPrice4.ToDouble(), Ask = responce.askQty4.ToDouble() });
-            ascs.Add(new MarketDepthLevel { Price = responce.askPrice5.ToDouble(), Ask = responce.askQty5.ToDouble() });
-            ascs.Add(new MarketDepthLevel { Price = responce.askPrice6.ToDouble(), Ask = responce.askQty6.ToDouble() });
-            ascs.Add(new MarketDepthLevel { Price = responce.askPrice7.ToDouble(), Ask = responce.askQty7.ToDouble() });
-            ascs.Add(new MarketDepthLevel { Price = responce.askPrice8.ToDouble(), Ask = responce.askQty8.ToDouble() });
-            ascs.Add(new MarketDepthLevel { Price = responce.askPrice9.ToDouble(), Ask = responce.askQty9.ToDouble() });
-            ascs.Add(new MarketDepthLevel { Price = responce.askPrice10.ToDouble(), Ask = responce.askQty10.ToDouble() });
+            for (int i = 0; i < responce.asks.Count; i++)
+            {
+                MarketDepthLevel ask = new MarketDepthLevel();
+                ask.Price = responce.asks[i][0].ToDouble();
+                ask.Ask = responce.asks[i][1].ToDouble();
+                asks.Add(ask);
+            }
 
-            marketDepth.Asks = ascs;
+            marketDepth.Asks = asks;
             marketDepth.Bids = bids;
             marketDepth.Time = ParseDateTimeQuote(responce.dateTimeStamp);
 

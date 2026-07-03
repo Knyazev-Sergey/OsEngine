@@ -34,6 +34,7 @@ using namespace std;
 
 string DoubleToString(double val);
 string GetDstarErrorString(int code);
+extern bool fullLog;
 
 class apiClient
 {
@@ -62,7 +63,7 @@ public:
         std::vector<DstarApiQuoteData> GetQuoteHistorySnapshot();
         size_t GetQuoteHistorySize();
 
-        string GetDateTimeNow();
+        string GetDateTimeNow();		
 
 public:
         //std::vector<const DstarFrontApiCommodityDataRsp *> vec_commdodity;        //Variety search results saved locally
@@ -75,7 +76,7 @@ public:
         
 private:
         DstarQuoteApi  *m_QuoteApi;
-        DstarQuoteSpi  *m_QuoteSpi;
+        DstarQuoteSpi  *m_QuoteSpi;        
 };
 
 class Notify : public DstarQuoteSpi

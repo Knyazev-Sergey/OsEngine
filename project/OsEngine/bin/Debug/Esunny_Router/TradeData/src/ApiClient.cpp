@@ -32,9 +32,24 @@ ApiClient::~ApiClient()
 
 string ApiClient::DoubleToString(double val)
 {
-    string s = to_string(val);
-    s.erase(s.find_last_not_of('0') + 1);
-    s.erase(s.find_last_not_of('.') + 1);
+    char buf[64];
+    int len = snprintf(buf, sizeof(buf), "%.15g", val);
+
+    if (len <= 0)
+        return "0";
+
+    std::string s(buf, static_cast<size_t>(len));
+
+    size_t dot = s.find('.');
+    if (dot != std::string::npos)
+    {
+        while (!s.empty() && s.back() == '0')
+            s.pop_back();
+
+        if (!s.empty() && s.back() == '.')
+            s.pop_back();
+    }
+
     return s;
 }
 
@@ -82,12 +97,12 @@ int ApiClient::CreateApi()
     m_pApi = CreateDstarTradeApi();
     if (!m_pApi)
     {
-        cout << ApiClient::GetDateTimeNow() << "Create Api Failed" << endl;
+        cout << ApiClient::GetDateTimeNow() << "Create Api Failed" << '\n';
         return 1;
     }
     else
     {
-        cout << ApiClient::GetDateTimeNow() << "Create Api Successfully, version:" << m_pApi->GetApiVersion() << endl;
+        cout << ApiClient::GetDateTimeNow() << "Create Api Successfully, version:" << m_pApi->GetApiVersion() << '\n';
     }
 
     return 0;
@@ -112,26 +127,12 @@ int ApiClient::Init()
     m_pApi->SetCpuId(0, 1);
 
     // flags connection message
-    DstarApiInitQryInfoField initQry = { 0 };
-    
+    DstarApiInitQryInfoField initQry = { 0 };    
     initQry.ContractInitQryFlag = 1;
-    initQry.CmbContractInitQryFlag = 0;
-    initQry.SeatInitQryFlag = 0;
-    initQry.TrdFeeInitQryFlag = 0;
-    initQry.TrdMarInitQryFlag = 0;
-    initQry.TrdRightInitQryFlag = 0;
-    initQry.AccountCommListInitQryFlag = 0;
-    initQry.TrdExchangeStateInitQryFlag = 0; // OnRspTrdExchangeState
-    initQry.PrePositionInitQryFlag = 0;
-    initQry.OrderInitQryFlag = 0;
-    initQry.OfferInitQryFlag = 0;
-    initQry.MatchInitQryFlag = 0;
-    initQry.CashInOutInitQryFlag = 0;
-
     m_pApi->SetInitQryInfo(&initQry);
 
     m_pApi->SetSubscribeStartId(-1);
-
+    m_pApi->SetRunMode(-1);
     int ret = SubmitSystemInfo();
 
     if (ret != 0)
@@ -154,7 +155,7 @@ bool ApiClient::IsUdpAuth()
 
 void ApiClient::OnFrontDisconnected()
 {
-    cout << ApiClient::GetDateTimeNow() << "OnFrontDisconnected" << endl;
+    cout << ApiClient::GetDateTimeNow() << "OnFrontDisconnected" << '\n';
 
     lock_guard<mutex> lockout(mutex_array_out);
     MessagesOut.push_back("{\"type\":\"disconnect\"}");
@@ -162,12 +163,12 @@ void ApiClient::OnFrontDisconnected()
 
 void ApiClient::OnRspError(DstarApiErrorCodeType nErrorCode)
 {
-    cout << ApiClient::GetDateTimeNow() << "OnRspError:" << nErrorCode << endl;
+    cout << ApiClient::GetDateTimeNow() << "OnRspError:" << nErrorCode << '\n';
 }
 
 void ApiClient::OnApiReady(const DstarApiSerialIdType nSerialId)
 {
-    cout << ApiClient::GetDateTimeNow() << "OnApiReady, serial:" << nSerialId << endl;
+    cout << ApiClient::GetDateTimeNow() << "OnApiReady, serial:" << nSerialId << '\n';
 
     m_bReady = true;
 
@@ -230,7 +231,7 @@ void ApiClient::OnRtnOrder(const DstarApiOrderField *pOrder)
         MessagesOut.push_back(json);
     }
 
-    cout << ApiClient::GetDateTimeNow() << "API -> " << json << endl;
+    cout << ApiClient::GetDateTimeNow() << "API -> " << json << '\n';
 
     /*printf("OnRtnOrder AccountNo:%s ContractNo1:%s ContractNo2:%s Direct:%c "
             "ExchInsertTime:%s Fee:%f FrozenMargin:%f Hedge:%c Margin:%f MatchQty:%d "
@@ -300,7 +301,7 @@ void ApiClient::OnRtnMatch(const DstarApiMatchField *pMatch)
         MessagesOut.push_back(json);
     }
 
-    cout << ApiClient::GetDateTimeNow() << "API -> " << json << endl;
+    cout << ApiClient::GetDateTimeNow() << "API -> " << json << '\n';
 
     /*printf("OnRtnMatch MatchId: %llu AccountNo:%s CloseProfit:%f ContractNo:%s Direct:%c ExchMatchNo:%s "
             "Fee:%f FrozenMargin:%f Hedge:%c Margin:%f MatchId:%llu MatchPrice:%f MatchQty:%d "
@@ -385,7 +386,7 @@ void ApiClient::OnRspQryPosition(const DstarApiPositionField* pPosition, bool bL
 
         listPositions.clear();
 
-        cout << ApiClient::GetDateTimeNow() << "API -> " << json << endl;
+        cout << ApiClient::GetDateTimeNow() << "API -> " << json << '\n';
 
         lock_guard<mutex> outLock(mutex_array_out);
         MessagesOut.push_back(json);        
@@ -417,7 +418,7 @@ void ApiClient::OnRspQryFund(const DstarApiFundField* pFund)
     json.append(DoubleToString(pFund->PositionProfit));
     json.append("\"}");
 
-    cout << ApiClient::GetDateTimeNow() << "API -> " << json << endl;
+    cout << ApiClient::GetDateTimeNow() << "API -> " << json << '\n';
 
     lock_guard<mutex> lockout(mutex_array_out);
     MessagesOut.push_back(json);

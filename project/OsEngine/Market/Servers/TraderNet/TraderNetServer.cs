@@ -157,7 +157,7 @@ namespace OsEngine.Market.Servers.TraderNet
 
         public List<IServerParameter> ServerParameters { get; set; }
 
-        private string _baseUrl = "https://tradernet.ru";
+        private string _baseUrl = "https://tradernet.com";
 
         private string _publicKey;
 
@@ -441,6 +441,7 @@ namespace OsEngine.Market.Servers.TraderNet
                 HttpResponseMessage responseMessage = CreateQuery("/api/", "POST", null, reqData);
 
                 if (responseMessage == null
+                    || responseMessage.ToString() == ""
                     || responseMessage.ToString().StartsWith("<")
                     || responseMessage.ToString().Contains("<!DOCTYPE"))
                 {

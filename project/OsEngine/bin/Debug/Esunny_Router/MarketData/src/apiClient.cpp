@@ -5,6 +5,8 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <cstdio>
+#include <windows.h>
 
 #include "apiClient.h"
 
@@ -26,9 +28,24 @@ apiClient::~apiClient()
 
 string DoubleToString(double val)
 {
-    string s = to_string(val);
-    s.erase(s.find_last_not_of('0') + 1);
-    s.erase(s.find_last_not_of('.') + 1);
+    char buf[64];
+    int len = snprintf(buf, sizeof(buf), "%.15g", val);
+
+    if (len <= 0)
+        return "0";
+
+    std::string s(buf, static_cast<size_t>(len));
+
+    size_t dot = s.find('.');
+    if (dot != std::string::npos)
+    {
+        while (!s.empty() && s.back() == '0')
+            s.pop_back();
+
+        if (!s.empty() && s.back() == '.')
+            s.pop_back();
+    }
+
     return s;
 }
 
@@ -139,8 +156,9 @@ int apiClient::CommodityQry()
     {
         return -1;
     }
-    //cout<<"apiClient::CommodityQry 1"<<endl;
+
     m_QuoteApi->QryCommodity();
+
     return 0;
 }
 
@@ -152,15 +170,12 @@ int apiClient::ContractQry()
     }
     
     m_QuoteApi->QryContract();
+
     return 0;
 }
 
 void apiClient::SetCpuId(DstarApiCpuIdType nRecvNoticeDataCpuId)
 {
-//    if (!m_QuoteApi)
-//    {
-//        return -1;
-//    }
     m_QuoteApi->SetCpuId(nRecvNoticeDataCpuId);
 }
 
@@ -195,9 +210,7 @@ void Notify::OnApiReady()
 
 void Notify::OnRspCommodity(const DstarQuoteApiCommodityData* buf, bool isLast)
 {
-    std::string str(buf->CommodityNo);
-    //cout<<"Notify::OnCommodityQry "<<str<<endl;
-    
+    std::string str(buf->CommodityNo);    
     m_Api->map_commodity.insert(make_pair(str, *buf));
     
     if(isLast)
@@ -218,7 +231,6 @@ void Notify::OnError(int reasonCode)
 void Notify::OnRspContract(const char* buf, bool isLast)
 {
     std::string str(buf);
-    //cout<<"Notify::OnCommodityQry "<<str<<endl;
     
     m_Api->set_contract.insert(str);
     
@@ -231,110 +243,77 @@ void Notify::OnRspContract(const char* buf, bool isLast)
 
 void Notify::OnRtnQuote(const DstarApiQuoteData* info)
 {   
-    string msg;
-    msg.reserve(2000);
+    try 
+    {
+        string json;
+        json.reserve(2048);
+        json.append("{\"type\":\"quote\",");
 
-    msg.append("\"contractNo\":\"");
-    msg.append(info->QContractNo);
-    msg.append("\",\"dateTimeStamp\":\"");
-    msg.append(info->QDateTimeStamp);
-    msg.append("\",\"lastPrice\":\"");
-    msg.append(DoubleToString(info->QLastPrice));
-    msg.append("\",\"lastQty\":\"");
-    msg.append(DoubleToString(info->QLastQty));
+        auto appendField = [&json](const double& price, const double& volume, bool first)
+            {
+                if (!first)
+                {
+                    json.append(",");
+                }
 
-    msg.append("\",\"bidPrice1\":\"");
-    msg.append(DoubleToString(info->QBidPrice1));
-    msg.append("\",\"bidPrice2\":\"");
-    msg.append(DoubleToString(info->QBidPrice2));
-    msg.append("\",\"bidPrice3\":\"");
-    msg.append(DoubleToString(info->QBidPrice3));
-    msg.append("\",\"bidPrice4\":\"");
-    msg.append(DoubleToString(info->QBidPrice4));
-    msg.append("\",\"bidPrice5\":\"");
-    msg.append(DoubleToString(info->QBidPrice5));
-    msg.append("\",\"bidPrice6\":\"");
-    msg.append(DoubleToString(info->QBidPrice6));
-    msg.append("\",\"bidPrice7\":\"");
-    msg.append(DoubleToString(info->QBidPrice7));
-    msg.append("\",\"bidPrice8\":\"");
-    msg.append(DoubleToString(info->QBidPrice8));
-    msg.append("\",\"bidPrice9\":\"");
-    msg.append(DoubleToString(info->QBidPrice9));
-    msg.append("\",\"bidPrice10\":\"");
-    msg.append(DoubleToString(info->QBidPrice10));
+                json.append("[");
+                json.append(DoubleToString(price));
+                json.append(",");
+                json.append(DoubleToString(volume));
+                json.append("]");
+            };
 
-    msg.append("\",\"bidQty1\":\"");
-    msg.append(DoubleToString(info->QBidQty1));
-    msg.append("\",\"bidQty2\":\"");
-    msg.append(DoubleToString(info->QBidQty2));
-    msg.append("\",\"bidQty3\":\"");
-    msg.append(DoubleToString(info->QBidQty3));
-    msg.append("\",\"bidQty4\":\"");
-    msg.append(DoubleToString(info->QBidQty4));
-    msg.append("\",\"bidQty5\":\"");
-    msg.append(DoubleToString(info->QBidQty5));
-    msg.append("\",\"bidQty6\":\"");
-    msg.append(DoubleToString(info->QBidQty6));
-    msg.append("\",\"bidQty7\":\"");
-    msg.append(DoubleToString(info->QBidQty7));
-    msg.append("\",\"bidQty8\":\"");
-    msg.append(DoubleToString(info->QBidQty8));
-    msg.append("\",\"bidQty9\":\"");
-    msg.append(DoubleToString(info->QBidQty9));
-    msg.append("\",\"bidQty10\":\"");
-    msg.append(DoubleToString(info->QBidQty10));
+        json.append("\"contractNo\":\"");
+        json.append(info->QContractNo);
+        json.append("\",\"dateTimeStamp\":\"");
+        json.append(info->QDateTimeStamp);
+        json.append("\",\"lastPrice\":");
+        json.append(DoubleToString(info->QLastPrice));
+        json.append(",\"lastQty\":");
+        json.append(DoubleToString(info->QLastQty));
 
-    msg.append("\",\"askPrice1\":\"");
-    msg.append(DoubleToString(info->QAskPrice1));
-    msg.append("\",\"askPrice2\":\"");
-    msg.append(DoubleToString(info->QAskPrice2));
-    msg.append("\",\"askPrice3\":\"");
-    msg.append(DoubleToString(info->QAskPrice3));
-    msg.append("\",\"askPrice4\":\"");
-    msg.append(DoubleToString(info->QAskPrice4));
-    msg.append("\",\"askPrice5\":\"");
-    msg.append(DoubleToString(info->QAskPrice5));
-    msg.append("\",\"askPrice6\":\"");
-    msg.append(DoubleToString(info->QAskPrice6));
-    msg.append("\",\"askPrice7\":\"");
-    msg.append(DoubleToString(info->QAskPrice7));
-    msg.append("\",\"askPrice8\":\"");
-    msg.append(DoubleToString(info->QAskPrice8));
-    msg.append("\",\"askPrice9\":\"");
-    msg.append(DoubleToString(info->QAskPrice9));
-    msg.append("\",\"askPrice10\":\"");
-    msg.append(DoubleToString(info->QAskPrice10));
+        json.append(",\"bids\":[");
 
-    msg.append("\",\"askQty1\":\"");
-    msg.append(DoubleToString(info->QAskQty1));
-    msg.append("\",\"askQty2\":\"");
-    msg.append(DoubleToString(info->QAskQty2));
-    msg.append("\",\"askQty3\":\"");
-    msg.append(DoubleToString(info->QAskQty3));
-    msg.append("\",\"askQty4\":\"");
-    msg.append(DoubleToString(info->QAskQty4));
-    msg.append("\",\"askQty5\":\"");
-    msg.append(DoubleToString(info->QAskQty5));
-    msg.append("\",\"askQty6\":\"");
-    msg.append(DoubleToString(info->QAskQty6));
-    msg.append("\",\"askQty7\":\"");
-    msg.append(DoubleToString(info->QAskQty7));
-    msg.append("\",\"askQty8\":\"");
-    msg.append(DoubleToString(info->QAskQty8));
-    msg.append("\",\"askQty9\":\"");
-    msg.append(DoubleToString(info->QAskQty9));
-    msg.append("\",\"askQty10\":\"");
-    msg.append(DoubleToString(info->QAskQty10));
-    msg.append("\"");
+        if (info->QBidPrice1 > 0) appendField(info->QBidPrice1, info->QBidQty1, true);
+        if (info->QBidPrice2 > 0) appendField(info->QBidPrice2, info->QBidQty2, false);
+        if (info->QBidPrice3 > 0) appendField(info->QBidPrice3, info->QBidQty3, false);
+        if (info->QBidPrice4 > 0) appendField(info->QBidPrice4, info->QBidQty4, false);
+        if (info->QBidPrice5 > 0) appendField(info->QBidPrice5, info->QBidQty5, false);
+        if (info->QBidPrice6 > 0) appendField(info->QBidPrice6, info->QBidQty6, false);
+        if (info->QBidPrice7 > 0) appendField(info->QBidPrice7, info->QBidQty7, false);
+        if (info->QBidPrice8 > 0) appendField(info->QBidPrice8, info->QBidQty8, false);
+        if (info->QBidPrice9 > 0) appendField(info->QBidPrice9, info->QBidQty9, false);
+        if (info->QBidPrice10 > 0) appendField(info->QBidPrice10, info->QBidQty10, false);
+
+        json.append("],\"asks\":[");
+
+        if (info->QAskPrice1 > 0) appendField(info->QAskPrice1, info->QAskQty1, true);
+        if (info->QAskPrice2 > 0) appendField(info->QAskPrice2, info->QAskQty2, false);
+        if (info->QAskPrice3 > 0) appendField(info->QAskPrice3, info->QAskQty3, false);
+        if (info->QAskPrice4 > 0) appendField(info->QAskPrice4, info->QAskQty4, false);
+        if (info->QAskPrice5 > 0) appendField(info->QAskPrice5, info->QAskQty5, false);
+        if (info->QAskPrice6 > 0) appendField(info->QAskPrice6, info->QAskQty6, false);
+        if (info->QAskPrice7 > 0) appendField(info->QAskPrice7, info->QAskQty7, false);
+        if (info->QAskPrice8 > 0) appendField(info->QAskPrice8, info->QAskQty8, false);
+        if (info->QAskPrice9 > 0) appendField(info->QAskPrice9, info->QAskQty9, false);
+        if (info->QAskPrice10 > 0) appendField(info->QAskPrice10, info->QAskQty10, false);
+
+        json.append("]}");
+
+        if (fullLog)
+        {
+            cout << m_Api->GetDateTimeNow() << "API -> " << json << '\n';
+        }
+
+        lock_guard<mutex> outLock(mutex_array_out);
+        MessagesOut.push_back(json);
+    }
+    catch (const std::exception& e)
+    {
+        cout << m_Api->GetDateTimeNow() << "Notify::OnRtnQuote error: " << e.what() << '\n';
+        Sleep(2000);
+    }
     
-    string json = "{\"type\":\"quote\"," + msg + "}";
-
-    lock_guard<mutex> outLock(mutex_array_out);
-    MessagesOut.push_back(json);
-
-    cout << m_Api->GetDateTimeNow() << "API -> " << json << endl;
-
     //cout << "subcribeQuote: " << "info->QContractNo: " << info->QContractNo << "info->QLastPrice: "<<info->QLastPrice<< "info->QBidPrice1: " << info->QBidPrice1 << "info->QAskPrice1: " << info->QAskPrice1 << endl;
 
     /*std::cout.setf(std::ios::fixed);
