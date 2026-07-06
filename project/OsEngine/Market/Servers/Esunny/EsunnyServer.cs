@@ -145,6 +145,16 @@ namespace OsEngine.Market.Servers.Esunny
             connectionMarketData += ",\"dataServerPort\":\"" + _dataServerUrl.Split(':')[1] + "\"}";
 
             string connectionTrade = "{\"cmd\":\"connect\"";
+
+            if (_fullLogTradeData)
+            {
+                connectionTrade += ",\"fullLog\":\"true\"";
+            }
+            else
+            {
+                connectionTrade += ",\"fullLog\":\"false\"";
+            }
+
             connectionTrade += ",\"accountId\":\"" + _accountId + "\"";
             connectionTrade += ",\"password\":\"" + _userPassword + "\"";
             connectionTrade += ",\"appId\":\"" + _appId + "\"";
@@ -265,7 +275,6 @@ namespace OsEngine.Market.Servers.Esunny
                 {
                     try
                     {
-                        //SendMessage("{\"cmd\":\"disconnect\"" + "}", _socketMarketData, "MarketServer");
                         _socketMarketData.Shutdown(SocketShutdown.Send);
                     }
                     catch
@@ -289,7 +298,6 @@ namespace OsEngine.Market.Servers.Esunny
                 {
                     try
                     {
-                        //SendMessage("{\"cmd\":\"disconnect\"" + "}", _socketToTrade, "TradeServer");
                         _socketToTrade.Shutdown(SocketShutdown.Send);
                     }
                     catch
@@ -775,7 +783,6 @@ namespace OsEngine.Market.Servers.Esunny
                 Thread.Sleep(1);
                 try
                 {
-
                     if (_socketMarketData == null)
                     {
                         _lastTimeSendMessageInSocketData = DateTime.Now;
@@ -1080,25 +1087,33 @@ namespace OsEngine.Market.Servers.Esunny
                     _lastTimeSendMessageInSocketTrade.AddSeconds(10) < DateTime.Now
                     && _lastTimeSendMessageInSocketTrade.AddSeconds(30) > DateTime.Now)
                 {
-                    SendLogMessage("Sockets thread is lost. Trade router. Reconnect", LogMessageType.Error);
-                    SendLogMessage("Place lost trade socket thread: " + _placeLostTradeSocket, LogMessageType.Error);
-                    SendLogMessage("Last message to trade server: " + _lastMessageToTradeServer, LogMessageType.Error);
-                    CloseRouters();
+                    string msg = "Sockets thread is lost. Trade router. Reconnect\n" +
+                        "Place lost trade socket thread: " + _placeLostTradeSocket + "\n" +
+                        "Last message to trade server: " + _lastMessageToTradeServer;
+                    
+                    SendLogMessage(msg, LogMessageType.Error);
+                    /*CloseRouters();
                     ServerStatus = ServerConnectStatus.Disconnect;
-                    DisconnectEvent();
+                    DisconnectEvent();*/
+
+                    Dispose();
                 }
 
                 if (_socketMarketData != null &&
                     _lastTimeSendMessageInSocketData.AddSeconds(10) < DateTime.Now
                      && _lastTimeSendMessageInSocketData.AddSeconds(30) > DateTime.Now)
                 {
-                    SendLogMessage("Sockets thread is lost. Data router. Reconnect", LogMessageType.Error);
-                    SendLogMessage("Place lost data socket thread: " + _placeLostDataSocket, LogMessageType.Error);
-                    SendLogMessage("Last message to data server: " + _lastMessageToDataServer, LogMessageType.Error);
+                    string msg = "Sockets thread is lost. Data router. Reconnect\n" +
+                        "Place lost data socket thread: " + _placeLostDataSocket + "\n" +
+                        "Last message to data server: " + _lastMessageToDataServer;
 
-                    CloseRouters();
+                    SendLogMessage(msg, LogMessageType.Error);
+
+                    /*CloseRouters();
                     ServerStatus = ServerConnectStatus.Disconnect;
-                    DisconnectEvent();
+                    DisconnectEvent();*/
+
+                    Dispose();
                 }
             }
         }
@@ -1192,6 +1207,10 @@ namespace OsEngine.Market.Servers.Esunny
             {
                 SendLogMessage("Trade router message: " + message, LogMessageType.System);
                 GetMyTrade(message);
+            }
+            else if (message.Contains("\"cmd\":"))
+            {
+                SendLogMessage(message, LogMessageType.System);
             }
 
             if (_fullLogTradeData)
