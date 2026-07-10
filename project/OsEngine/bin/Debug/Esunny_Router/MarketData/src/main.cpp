@@ -104,6 +104,30 @@ bool SendFrame(SOCKET s, const string& msg)
     return true;
 }
 
+bool IsSocketReadyToRead(SOCKET s)
+{
+    if (s == INVALID_SOCKET)
+    {
+        return false;
+    }
+
+    fd_set readSet;
+    FD_ZERO(&readSet);
+    FD_SET(s, &readSet);
+
+    timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+
+    int res = select(0, &readSet, nullptr, nullptr, &tv);
+    if (res == SOCKET_ERROR)
+    {
+        return false;
+    }
+
+    return FD_ISSET(s, &readSet);
+}
+
 DWORD WINAPI serverReceive(LPVOID lpParam)
 {
     SOCKET client = *(SOCKET*)lpParam;
@@ -116,52 +140,50 @@ DWORD WINAPI serverReceive(LPVOID lpParam)
     while (true)
     {
         try
-        {
-            string incoming;
+        {           
+            bool didWork = false;
 
-            if (!RecvFrame(client, incoming))
-            {
-                cout << api->GetDateTimeNow() << "recv function failed with error " << WSAGetLastError() << '\n';
-                return -1;
-            }
-
-            if (incoming.empty())
-            {
-                Sleep(1);
-                continue;
-            }
-
-            if (incoming == "Process")
             {
                 lock_guard<mutex> outLock(mutex_array_out);
 
-                if (!MessagesOut.empty())
+                while (!MessagesOut.empty())
                 {
-                    while (!MessagesOut.empty())
-                    {
-                        string out = MessagesOut.front();
-                        MessagesOut.pop_front();
-                        SendFrame(client, out);
+                    string out = MessagesOut.front();
+                    MessagesOut.pop_front();
+                    SendFrame(client, out);
+                    didWork = true;
 
-                        /*auto now = std::chrono::steady_clock::now();
-                        if (now >= nextLog)
-                        {
-                            cout << api->GetDateTimeNow() << out << '\n';
-                            nextLog += std::chrono::seconds(20);
-                        }*/
-                    }
+                    /*auto now = std::chrono::steady_clock::now();
+                    if (now >= nextLog)
+                    {
+                        cout << api->GetDateTimeNow() << out << '\n';
+                        nextLog += std::chrono::seconds(20);
+                    }*/
                 }
-                else
-                {
-                    SendFrame(client, incoming);
-                }
-                continue;
             }
 
-            lock_guard<mutex> inLock(mutex_array_in);
-            MessagesIn.push_back(incoming);         
+            if (IsSocketReadyToRead(client))
+            {
+                string incoming;
 
-            Sleep(1);
+                if (!RecvFrame(client, incoming))
+                {
+                    cout << api->GetDateTimeNow() << "recv function failed with error " << WSAGetLastError() << '\n';
+                    return -1;
+                }
+
+                if (!incoming.empty())
+                {
+                    lock_guard<mutex> inLock(mutex_array_in);
+                    MessagesIn.push_back(incoming);
+                    didWork = true;
+                }
+            }
+
+            if (!didWork)
+            {
+                Sleep(1);
+            }
         }
         catch (...)
         {
@@ -329,8 +351,10 @@ bool Connection(string* str)
                 cout << api->GetDateTimeNow() << "Api: API is Ready" << '\n';
                 cout << "-----------------------------------------------------" << '\n';
 
-                lock_guard<mutex> outLock(mutex_array_out);
-                MessagesOut.push_back("{\"type\":\"connect\"}");
+                {
+                    lock_guard<mutex> outLock(mutex_array_out);
+                    MessagesOut.push_back("{\"type\":\"connect\"}");
+                }
                 break;
             }
 
@@ -373,7 +397,8 @@ void from_json(const nlohmann::json& j, ResponceMessageSubscribeQuote& responce)
 
 void SubscribeQuote(const string& str)
 {
-    try {
+    try 
+    {
         if (str == "")// test subscription
         {
             string msg = R"({"cmd":"subscribeQuote","symbol":"PL607"})";
@@ -580,8 +605,6 @@ std::string BuildQuoteJson(const DstarApiQuoteData& info)
 
 void QuoteWorkerLoop()
 {
-    //auto nextLog = std::chrono::steady_clock::now() + std::chrono::seconds(20);
-
     while (true)
     {
         try
@@ -601,15 +624,7 @@ void QuoteWorkerLoop()
                 MessagesOut.push_back(json);
             }            
 
-            // раз в 20 секунд выводим в консоль размер MessagesOut (то что должно уйти в Осу)
-            /*auto now = std::chrono::steady_clock::now();
-            if (now >= nextLog)
-            {
-                cout << api->GetDateTimeNow() << "MessagesOut size = " << MessagesOut.size() << '\n';
-                nextLog += std::chrono::seconds(20);
-            }   */         
-
-            Sleep(100);
+            Sleep(100); // переписать под таймер ожидания
         }
         catch (const std::exception& e)
         {

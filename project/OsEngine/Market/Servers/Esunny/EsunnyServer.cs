@@ -3,6 +3,7 @@
  *Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
 */
 
+using BytesRoad.Net.Sockets;
 using Newtonsoft.Json;
 using OsEngine.Entity;
 using OsEngine.Logging;
@@ -50,9 +51,17 @@ namespace OsEngine.Market.Servers.Esunny
             Thread worker = new Thread(ThreadPortfolio);
             worker.Start();
 
-            Thread worker2 = new Thread(WorkerPlaceMarketData);
+            Thread worker2 = new Thread(ThreadReciveMarketData);
             worker2.IsBackground = true;
             worker2.Start();
+
+            Thread parseMarketData = new Thread(ThreadParseMarketData);
+            parseMarketData.IsBackground = true;
+            parseMarketData.Start();
+
+            Thread sendMarketData = new Thread(ThreadSendMarketData);
+            sendMarketData.IsBackground = true;
+            sendMarketData.Start();
 
             Thread worker3 = new Thread(WorkerPlaceTradeRouter);
             worker3.IsBackground = true;
@@ -775,58 +784,35 @@ namespace OsEngine.Market.Servers.Esunny
 
         private ConcurrentQueue<string> _messagesToSendMarketData = new ConcurrentQueue<string>();
 
-        
+        private ConcurrentQueue<string> _incomingMarketDataMessages = new ConcurrentQueue<string>();
 
-        private void WorkerPlaceMarketData()
+        private void ThreadReciveMarketData()
         {
-            
-
             while (true)
             {
-                Thread.Sleep(1);
                 try
-                {                   
-                    if (_socketMarketData == null)
+                {  
+                    if (_socketMarketData == null || _canSendMessagesMarketData == false)
                     {
-                        _lastTimeSendMessageInSocketData = DateTime.Now;
-                        continue;
-                    }
-
-                    if (_canSendMessagesMarketData == false)
-                    {
-                        _lastTimeSendMessageInSocketData = DateTime.Now;
-                        continue;
-                    }
-
-                    if (_messagesToSendMarketData.IsEmpty)
-                    { // request any incoming data for us that are saving in server / запрос каких-либо входящих данных для нас, которые копятся в сервере
-                        if (IncomeMessageFromDataRouter(SendMessage("Process", _socketMarketData, "MarketServer")))
-                        {
-                            Thread.Sleep(10);
-                        }
-                        
-
-                        _lastTimeSendMessageInSocketData = DateTime.Now;
+                        Thread.Sleep(1);
                         continue;
                     }
 
                     string message = null;
-                    _messagesToSendMarketData.TryDequeue(out message);
 
-                    if (message == null)
+                    if (_socketMarketData.Poll(1, SelectMode.SelectRead)
+                        && _socketMarketData.Available > 0)
                     {
-                        _lastTimeSendMessageInSocketData = DateTime.Now;
+                        message = ReceiveFrame(_socketMarketData);
+                    }                    
+
+                    if (string.IsNullOrEmpty(message))
+                    {
+                        Thread.Sleep(1);
                         continue;
                     }
 
-                    _lastTimeSendMessageInSocketData = DateTime.Now;
-
-                    
-
-                    IncomeMessageFromDataRouter(SendMessage(message, _socketMarketData, "MarketServer"));
-
-                    
-
+                    _incomingMarketDataMessages.Enqueue(message);
                 }
                 catch (Exception error)
                 {
@@ -844,6 +830,90 @@ namespace OsEngine.Market.Servers.Esunny
                     Thread.Sleep(10000);
                     SendLogMessage(error.ToString(), LogMessageType.Error);
                 }
+            }
+        }
+
+        private void ThreadParseMarketData()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (_canSendMessagesMarketData == false)
+                    {
+                        Thread.Sleep(1);
+                        continue;
+                    }
+
+                    if (_incomingMarketDataMessages.IsEmpty)
+                    {
+                        Thread.Sleep(1);
+                        continue;
+                    }
+
+                    while (_incomingMarketDataMessages.TryDequeue(out string message))
+                    {
+                        IncomeMessageFromDataRouter(message);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SendLogMessage("Market parse worker error: " + ex, LogMessageType.Error);
+                    Thread.Sleep(1000);
+                }
+            }
+        }
+
+        private void ThreadSendMarketData()
+        {
+            while (true)
+            {
+                Thread.Sleep(1);
+
+                try
+                {
+                    if (_socketMarketData == null || _canSendMessagesMarketData == false)
+                    {
+                        continue;
+                    }
+
+                    if (_messagesToSendMarketData.TryDequeue(out string message))
+                    {
+                        SendMessageMD(message, _socketMarketData);
+                    }
+                }
+                catch (Exception error)
+                {
+                    _canSendMessagesMarketData = false;
+                    if (ServerStatus != ServerConnectStatus.Disconnect)
+                    {
+                        ServerStatus = ServerConnectStatus.Disconnect;
+                        DisconnectEvent?.Invoke();
+                    }
+
+                    SendLogMessage(error.ToString(), LogMessageType.Error);
+                    Thread.Sleep(10000);
+                }
+            }
+        }
+
+        private void SendMessageMD(string message, Socket socket)
+        {
+            if (socket == null)
+            {
+                return;
+            }
+
+            SendFrame(socket, message);
+
+            if (_fullLogMarketData && socket == _socketMarketData)
+            {
+                _lastMessageToDataServer = message;
+            }
+
+            if (_fullLogTradeData && socket == _socketToTrade)
+            {
+                _lastMessageToTradeServer = message;
             }
         }
 
