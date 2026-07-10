@@ -99,14 +99,14 @@ public:
         */
         virtual void SetApiLogPath(const DstarApiPathType Path) = 0;
         /**
-        * @brief        线程绑定CPU核心
-        * @details      设置接收数据的线程工作在哪个Cpu核心,ID号必须是有效的Cpu Id号
+        * @brief        Binding a thread to a CPU core
+        * @details      Specify the CPU core on which the data-receiving thread runs; the ID must be a valid CPU ID.
         * @param[in]    RecvNoticeDataCpuId 接收数据线程所在的CPU Id号
         */
         virtual void SetCpuId(DstarApiCpuIdType RecvNoticeDataCpuId) = 0;
         /**
-        * @brief       设置Api与行情服务器断连后是否自动重新连接，默认不自动连接;
-        * @details     如果设置了自动重连（IsAuto=1），当Api与行情服务器发生断连之后Api将自动重新向服务器
+        * @brief       Configure whether to automatically reconnect to the API and market data servers after a disconnection; automatic reconnection is disabled by default.
+        * @details     If automatic reconnection is enabled (IsAuto=1), the API will automatically attempt to reconnect to the server after the connection to the market data server is lost.
         *                       发出连接服务器申请。成功连接到服务器后，将重新订阅用户在断连之前订阅的合约。
         *                       如果不设置自动重连，用户需要自行重新设定要订阅那些合约。 
         * @param[in]   IsAuto 是否自动重连标志位。

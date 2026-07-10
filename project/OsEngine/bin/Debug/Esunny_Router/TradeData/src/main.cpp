@@ -51,6 +51,7 @@ mutex mutex_array_all;
 mutex mutex_array_in;
 mutex mutex_array_out;
 bool isDisconnected = false;
+bool fullLog = true;
 
 #pragma region Server
 
@@ -325,6 +326,11 @@ void GetSecuritiesList()
 
         string str = "{\"type\":\"security\",\"list\":[" + msg + "]}";
 
+        if (fullLog)
+        {
+            cout << apiClient.GetDateTimeNow() << str << '\n';
+        }
+
         lock_guard<mutex> outLock(mutex_array_out);
         MessagesOut.push_back(str);
     }
@@ -428,6 +434,7 @@ struct ResponceMessageConnect
     string authCode;
     string tradeServerUrl;
     string tradeServerPort;
+    string fullLog;
 };
 
 void from_json(const nlohmann::json& json, ResponceMessageConnect& responce)
@@ -439,6 +446,7 @@ void from_json(const nlohmann::json& json, ResponceMessageConnect& responce)
     json.at("authCode").get_to(responce.authCode);
     json.at("tradeServerUrl").get_to(responce.tradeServerUrl);
     json.at("tradeServerPort").get_to(responce.tradeServerPort);
+    json.at("fullLog").get_to(responce.fullLog);
 }
 
 bool Connection(string* str)
@@ -462,6 +470,11 @@ bool Connection(string* str)
 
             apiClient.SetAddress(responce.tradeServerUrl.c_str(), stoi(responce.tradeServerPort));
             apiClient.SetUser(responce.accountId.c_str(), responce.password.c_str(), responce.appId.c_str(), responce.authCode.c_str());
+
+            if (responce.fullLog == "false")
+            {
+                fullLog = false;
+            }
         }
 
         int ret = apiClient.Init();
@@ -694,12 +707,20 @@ int main(int argc, char *argv[])
                 }
                 else if (str == "getPortfolio")
                 {
-                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << '\n';
+                    if (fullLog) 
+                    {
+                        cout << apiClient.GetDateTimeNow() << "Client -> " << str << '\n';
+                    }
+
                     GetPortfolio();
                 }
                 else if (str == "getPositions")
                 {
-                    cout << apiClient.GetDateTimeNow() << "Client -> " << str << '\n';
+                    if (fullLog)
+                    {
+                        cout << apiClient.GetDateTimeNow() << "Client -> " << str << '\n';
+                    }
+
                     GetPositions();
                 }
                 else if (str == "getSecurities")

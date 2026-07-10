@@ -25,6 +25,7 @@
 #include <vector>
 #include <iostream>
 
+#include <unordered_map>
 #include <map>
 #include <set>
 #include <deque>
@@ -59,11 +60,12 @@ public:
         void SetApiLogPath(const DstarApiPathType pPath);
 
 		void Free();
-        void PushQuote(const DstarApiQuoteData& quote);
         std::vector<DstarApiQuoteData> GetQuoteHistorySnapshot();
         size_t GetQuoteHistorySize();
 
         string GetDateTimeNow();		
+
+        void PushQuote(const DstarApiQuoteData& quote);
 
 public:
         //std::vector<const DstarFrontApiCommodityDataRsp *> vec_commdodity;        //Variety search results saved locally
@@ -76,7 +78,7 @@ public:
         
 private:
         DstarQuoteApi  *m_QuoteApi;
-        DstarQuoteSpi  *m_QuoteSpi;        
+        DstarQuoteSpi  *m_QuoteSpi;   
 };
 
 class Notify : public DstarQuoteSpi
@@ -99,12 +101,5 @@ class Notify : public DstarQuoteSpi
     public:  
         apiClient *m_Api;
 };
-
-
-
-
-
-
-
 
 #endif /* APICLIENT_H */

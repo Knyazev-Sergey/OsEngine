@@ -1,0 +1,628 @@
+﻿#include <cstdlib>
+#include "apiClient.h"
+#include <string>
+#include <string.h>
+#include <windows.h>
+#include <direct.h>
+#include <errno.h>
+#include <stdio.h>
+#include <vector>
+#include <conio.h>
+#include <list>
+#include <cstdint>
+#include <thread>
+#include <chrono>
+#include <mutex>
+#include <iostream>
+
+using namespace std;
+
+list<string> MessagesIn;
+list<string> MessagesOut;
+static std::mutex mutex_array_all;
+static std::mutex mutex_array_in;
+static std::mutex mutex_array_out;
+static bool isDisconnected = false;
+
+#pragma region Server
+
+static string EscapeJson(const string& s)
+{
+    string out;
+    out.reserve(s.size() + 8);
+    for (size_t i = 0; i < s.size(); ++i)
+    {
+        char c = s[i];
+        if (c == '\\') out += "\\\\";
+        else if (c == '"') out += "\\\"";
+        else if (c == '\n') out += "\\n";
+        else if (c == '\r') out += "\\r";
+        else if (c == '\t') out += "\\t";
+        else out += c;
+    }
+    return out;
+}
+
+static string JsonOk(const string& type, const string& message)
+{
+    return "{\"ok\":true,\"type\":\"" + EscapeJson(type) + "\",\"message\":\"" + EscapeJson(message) + "\"}";
+}
+
+static string JsonError(const string& code, const string& message)
+{
+    return "{\"ok\":false,\"error\":\"" + EscapeJson(code) + "\",\"message\":\"" + EscapeJson(message) + "\"}";
+}
+
+static bool RecvAll(SOCKET s, char* data, size_t n)
+{
+    size_t got = 0;
+    while (got < n)
+    {
+        int ret = recv(s, data + got, (int)(n - got), 0);
+        if (ret <= 0)
+        {
+            return false;
+        }
+        got += (size_t)ret;
+    }
+    return true;
+}
+
+static bool SendAll(SOCKET s, const char* data, size_t n)
+{
+    size_t sent = 0;
+    while (sent < n)
+    {
+        int ret = send(s, data + sent, (int)(n - sent), 0);
+        if (ret <= 0)
+        {
+            return false;
+        }
+        sent += (size_t)ret;
+    }
+    return true;
+}
+
+static bool RecvFrame(SOCKET s, string& out)
+{
+    uint32_t lenNet = 0;
+    if (!RecvAll(s, reinterpret_cast<char*>(&lenNet), sizeof(lenNet)))
+    {
+        return false;
+    }
+
+    const uint32_t len = ntohl(lenNet);
+    const uint32_t maxLen = 10U * 1024U * 1024U;
+    if (len > maxLen)
+    {
+        return false;
+    }
+
+    out.clear();
+    out.resize(len);
+    if (len > 0 && !RecvAll(s, &out[0], len))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static bool SendFrame(SOCKET s, const string& msg)
+{
+    const uint32_t len = (uint32_t)msg.size();
+    const uint32_t lenNet = htonl(len);
+
+    if (!SendAll(s, reinterpret_cast<const char*>(&lenNet), sizeof(lenNet)))
+    {
+        return false;
+    }
+    if (len > 0 && !SendAll(s, msg.data(), len))
+    {
+        return false;
+    }
+    return true;
+}
+
+static bool ExtractJsonStringField(const string& json, const string& key, string& value)
+{
+    const string token = "\"" + key + "\"";
+    const size_t keyPos = json.find(token);
+    if (keyPos == string::npos)
+    {
+        return false;
+    }
+
+    const size_t colonPos = json.find(':', keyPos + token.size());
+    if (colonPos == string::npos)
+    {
+        return false;
+    }
+
+    size_t q1 = json.find('"', colonPos + 1);
+    if (q1 == string::npos)
+    {
+        return false;
+    }
+
+    size_t q2 = q1 + 1;
+    while (q2 < json.size())
+    {
+        if (json[q2] == '"' && json[q2 - 1] != '\\')
+        {
+            break;
+        }
+        q2++;
+    }
+
+    if (q2 >= json.size())
+    {
+        return false;
+    }
+
+    value = json.substr(q1 + 1, q2 - q1 - 1);
+    return true;
+}
+
+/*static string BuildLegacyCommandFromJson(const string& json)
+{
+    string cmd;
+
+    if (!ExtractJsonStringField(json, "cmd", cmd))
+    {
+        return "";
+    }
+       
+    return cmd;
+}*/
+
+DWORD WINAPI serverReceive(LPVOID lpParam)
+{
+    SOCKET client = *(SOCKET*)lpParam;
+
+    MessagesIn.clear();
+    MessagesOut.clear();
+
+    while (true)
+    {
+        try
+        {
+            string incoming;
+
+            if (!RecvFrame(client, incoming))
+            {
+                cout << "recv function failed with error " << WSAGetLastError() << endl;
+                return -1;
+            }
+
+            if (incoming.empty())
+            {
+                SendFrame(client, JsonError("empty_request", "Request payload is empty"));
+                continue;
+            }
+
+            string cmd;
+
+            if (!ExtractJsonStringField(incoming, "cmd", cmd))
+            {
+                SendFrame(client, JsonError("invalid_json", "Missing string field 'cmd'"));
+                continue;
+            }
+
+            if (cmd == "poll")
+            {
+                lock_guard<mutex> inLock(mutex_array_out);
+
+                if (!MessagesOut.empty())
+                {
+                    string out = MessagesOut.front();
+                    MessagesOut.pop_front();
+                    SendFrame(client, out);
+                }
+                else
+                {
+                    SendFrame(client, JsonOk("poll", "no_messages"));
+                }
+                continue;
+            }
+
+            /*if (cmd == "disconnect")
+            {
+                std::lock_guard<std::mutex> inLock(mutex_array_in);
+                MessagesIn.push_back("D");
+                SendFrame(client, JsonOk("disconnect", "accepted"));
+                cout << "Client Disconnected." << endl;
+                return -1;
+            }*/
+                                                
+            lock_guard<mutex> inLock(mutex_array_in);
+
+            MessagesIn.push_back(cmd);
+            
+            /*if (!SendFrame(client, JsonOk(cmd, "accepted")))
+            {
+                return -1;
+            }*/
+        }
+        catch (...)
+        {
+            SendFrame(client, JsonError("server_exception", "Unhandled server exception"));
+        }
+    }
+
+    return 1;
+}
+
+int SocketWorkPlace()
+{
+    WSADATA WSAData;
+    SOCKET server, client;
+    SOCKADDR_IN serverAddr, clientAddr;
+
+    WSAStartup(MAKEWORD(2, 0), &WSAData);
+
+    server = socket(AF_INET, SOCK_STREAM, 0);
+    if (server == INVALID_SOCKET) {
+        cout << "Socket creation failed with error:" << WSAGetLastError() << endl;
+        return -1;
+    }
+
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(5555);
+
+    if (bind(server, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        cout << "Bind function failed with error: " << WSAGetLastError() << endl;
+        return -1;
+    }
+
+    if (listen(server, 0) == SOCKET_ERROR) {
+        cout << "Listen function failed with error:" << WSAGetLastError() << endl;
+        return -1;
+    }
+
+    cout << "Listening for incoming connections...." << endl;
+
+    int clientAddrSize = sizeof(clientAddr);
+
+    if ((client = accept(server, (SOCKADDR*)&clientAddr, &clientAddrSize)) != INVALID_SOCKET) {
+        cout << "Client connected!" << endl;
+
+        DWORD tid;
+        HANDLE t1 = CreateThread(NULL, 0, serverReceive, &client, 0, &tid);
+        if (t1 == NULL) {
+            cout << "Thread Creation Error: " << WSAGetLastError() << endl;
+        }
+
+        WaitForSingleObject(t1, INFINITE);
+
+        closesocket(client);
+
+        if (closesocket(server) == SOCKET_ERROR) {
+            cout << "Close socket failed with error: " << WSAGetLastError() << endl;
+            return -1;
+        }
+
+        cout << "Client disconnected!" << endl;
+
+        WSACleanup();
+    }
+
+    return -1;
+}
+
+void ThreadWorkerPlace()
+{
+    while (true)
+    {
+        SocketWorkPlace();
+    }
+}
+
+#pragma endregion
+
+#pragma region Queries
+
+bool Connection(apiClient* api)
+{
+    bool bret = false;
+    int ret = 0;
+
+    cout << "Api Version: " << api->GetVerion() << endl;
+    cout << "-----------------------------------------------------" << endl;
+
+    const char* logPath = "\\md_logs\\";
+    ret = _mkdir(logPath);
+    if (ret != 0 && errno != EEXIST)
+    {
+        cout << "Api: failed to create log directory " << logPath << ", errno=" << errno << endl;
+    }
+
+    if (!(api->Init()))
+        cout << "Api: init error" << endl;
+
+    api->SetCpuId(2);
+    api->SetAutoRelogin(true);
+
+    std::string IP = "61.163.243.173";
+    unsigned short port = 6161;
+
+    bret = api->SetHostAddress(IP.c_str(), port);
+    if (bret)
+    {
+        cout << "Api: Host set correct " << IP << ":" << port << endl;
+    }
+    else
+    {
+        cout << "Api: Host set wrong" << endl;
+    }
+
+    api->SetApiLogPath(logPath);
+
+    api->Login();
+
+    while (1)
+    {
+        if (api->isReady)
+        {
+            cout << "Api: API is Ready" << endl;
+            cout << "-----------------------------------------------------" << endl;
+
+            std::lock_guard<std::mutex> outLock(mutex_array_out);
+            MessagesOut.push_back(JsonOk("connect", "ready"));
+            break;
+        }
+        Sleep(1000);
+    }
+
+    return true;
+}
+
+string DoubleToString(double val)
+{
+    string s = to_string(val);
+    s.erase(s.find_last_not_of('0') + 1);
+    s.erase(s.find_last_not_of('.') + 1);
+    return s;
+}
+
+void GetSecuritiesList(apiClient* api)
+{
+    api->CommodityQry();
+
+    if (api->ContractQry())
+    {
+        cout << "Api: ContractQry error" << endl;
+    }
+
+    while (true)
+    {
+        if (api->isLast1_cont && api->isLast1_comm)
+        {     
+            string msg = "";
+
+            for (set<string>::iterator it = api->set_contract.begin(); it != api->set_contract.end(); it++)
+            {     
+                for (map<string, const DstarQuoteApiCommodityData >::iterator comm = api->map_commodity.begin(); comm != api->map_commodity.end(); comm++)
+                {
+                    string nameFull = *it;
+                    string name = "";
+                    size_t pos = 0;
+
+                    for (int i = 0; i < 3; ++i)
+                    {
+                        pos = nameFull.find('|', pos);
+                        ++pos;
+                    }
+
+                    name = nameFull.substr(0, pos - 1);
+
+                    if (comm->first == name) 
+                    {
+                        msg += "{\"symbol\":\"" + *it + "\"," +
+                            "\"exchange\":\"" + comm->second.ExchangeNo + "\"," +
+                            "\"contractType\":\"" + comm->second.CommodityType + "\"," +
+                            "\"contractSize\":" + DoubleToString(comm->second.ContractSize) + "," +
+                            "\"contractTickSize\":" + DoubleToString(comm->second.ContractTickSize) + "}";
+                    }
+                }
+
+                if (next(it) != api->set_contract.end())  
+                {
+                    msg += ",";
+                }
+            }
+
+            string str = "{\"type\":\"security\",\"symbols\":[" + msg + "]}";
+
+            //{"type":"security","symbols":[{"symbol":"AFLT", "contractSize": 200, "contractTickSize":0,01}]}
+           
+            cout << str << endl;
+
+            std::lock_guard<std::mutex> outLock(mutex_array_out);
+            MessagesOut.push_back(str);
+
+            cout << "Api: ContractQry size = " << api->set_contract.size() << endl;
+            break;
+        }
+    }
+}
+
+#pragma endregion
+
+int TestRequests()
+{
+    bool bret = false;
+    apiClient* api = new apiClient();
+
+    int ret = 0;
+
+    cout << "Api Version: " << api->GetVerion() << endl;
+    cout << "-----------------------------------------------------" << endl;
+
+
+    // 1： API work log directory (absolute path), note the \\ separator in Windows paths.
+    const char* logPath = "\\md_logs\\";
+    //_mkdir("C:\\OsE");
+    //_mkdir("C:\\OsE\\esunny");
+    //_mkdir("\\md_logs");
+    ret = _mkdir(logPath);
+    if (ret != 0 && errno != EEXIST)
+    {
+        cout << "Api Demo: failed to create log directory " << logPath << ", errno=" << errno << endl;
+    }
+
+    if (!(api->Init()))
+        cout << "Api Demo: init error" << endl;
+
+    // 2: To configure CPU core settings, you must call the `open` function before calling it; otherwise, the changes will not take effect.
+    api->SetCpuId(2);
+
+    // 3: Set whether to automatically restart
+    api->SetAutoRelogin(true);
+
+    // 4: Server directory settings to be written.
+    std::string IP = "61.163.243.173";
+    unsigned short port = 6161;
+
+    bret = api->SetHostAddress(IP.c_str(), port);
+    if (bret)
+    {
+        cout << "Api Demo: Host set correct " << IP << ":" << port << endl;
+    }
+    else
+    {
+        cout << "Api Demo: Host set wrong" << endl;
+    }
+
+    // 5: Set log directory
+    api->SetApiLogPath(logPath);
+
+    api->Login();
+
+    while (1)
+    {
+        if (api->isReady)
+        {
+            cout << "Api Demo: API is Ready" << endl;
+            cout << "-----------------------------------------------------" << endl;
+            break;
+        }
+        Sleep(1000);
+    }
+
+    GetSecuritiesList(api);
+
+
+    while (1)
+    {
+        if (_kbhit())   // если нажата любая клавиша
+        {
+            break;
+        }
+        Sleep(100);
+    }
+
+    // Resource release
+    cout << "Api Demo: begin to free" << endl;
+    Sleep(1000);
+    api->Free();
+
+    delete api;
+    cout << "Api Demo: free success" << endl;
+
+    system("pause");
+    return 0;
+}
+
+int main(int argc, char** argv)
+{
+    //if (TestRequests() == 0) return 0;
+
+    std::thread thread(ThreadWorkerPlace);
+
+    apiClient* api = new apiClient();
+
+    std::chrono::milliseconds timespan(10);
+    bool isStarted = false;
+
+    while (true)
+    {
+        try
+        {
+            std::this_thread::sleep_for(timespan);
+
+            if (isDisconnected)
+            {
+                return -1;
+            }
+
+            list<string>::iterator it;
+
+            mutex_array_in.lock();
+
+            for (it = MessagesIn.begin(); it != MessagesIn.end(); it++)
+            {
+                string str = *it;
+
+                if (str == "connect")
+                {
+                    isStarted = Connection(api);
+                }
+                else if (str == "disconnect")
+                {
+                    isDisconnected = true;
+                }
+                else if (str == "subscribeQuote")
+                {
+                    string buff = str;
+
+                    int endV = 2;
+                    for (int i = 2; i < (int)buff.length(); i++)
+                    {
+                        if (buff[i] == '@')
+                        {
+                            endV = i - 2;
+                            break;
+                        }
+                    }
+
+                    string const secName = buff.substr(2, endV);
+                    char* cstr2 = const_cast<char*>(secName.c_str());
+                    (void)cstr2;
+                    // api->SubscribeQuote(cstr2);
+                }
+                else if (str == "security")
+                {
+                    GetSecuritiesList(api);
+                }
+                
+                MessagesIn.erase(it);
+                break;
+            }
+
+            mutex_array_in.unlock();
+
+            if (isStarted == false)
+            {
+                continue;
+            }
+        }
+        catch (...)
+        {
+        }
+    }
+
+    cout << "do exit by exit from cycle" << " \n";
+
+    cout << "UnSubscribeQuote" << endl;
+    cout << "Api: begin to free" << endl;
+    Sleep(1000);
+    api->Free();
+
+    delete api;
+    cout << "Api: free success" << endl;
+
+    system("pause");
+    return 0;
+}

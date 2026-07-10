@@ -13,6 +13,7 @@ using namespace std;
 
 extern list<string> MessagesOut;
 extern mutex mutex_array_out;
+extern bool fullLog;
 
 vector<DstarApiPositionField> listPositions;
 vector<DstarApiContractField> listContractIndex;
@@ -386,7 +387,10 @@ void ApiClient::OnRspQryPosition(const DstarApiPositionField* pPosition, bool bL
 
         listPositions.clear();
 
-        cout << ApiClient::GetDateTimeNow() << "API -> " << json << '\n';
+        if (fullLog) 
+        {
+            cout << ApiClient::GetDateTimeNow() << "API -> " << json << '\n';
+        }
 
         lock_guard<mutex> outLock(mutex_array_out);
         MessagesOut.push_back(json);        
@@ -418,7 +422,10 @@ void ApiClient::OnRspQryFund(const DstarApiFundField* pFund)
     json.append(DoubleToString(pFund->PositionProfit));
     json.append("\"}");
 
-    cout << ApiClient::GetDateTimeNow() << "API -> " << json << '\n';
+    if (fullLog)
+    {
+        cout << ApiClient::GetDateTimeNow() << "API -> " << json << '\n';
+    }
 
     lock_guard<mutex> lockout(mutex_array_out);
     MessagesOut.push_back(json);

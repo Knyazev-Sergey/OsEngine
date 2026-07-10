@@ -26,6 +26,9 @@ mutex mutex_array_out;
 bool isDisconnected = false;
 bool fullLog = false;
 
+unordered_map<string, DstarApiQuoteData> latestQuotes;
+mutex quotesMutex;
+
 apiClient* api = new apiClient();
 
 #pragma region Server
@@ -108,6 +111,8 @@ DWORD WINAPI serverReceive(LPVOID lpParam)
     MessagesIn.clear();
     MessagesOut.clear();
 
+    //auto nextLog = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+
     while (true)
     {
         try
@@ -137,6 +142,13 @@ DWORD WINAPI serverReceive(LPVOID lpParam)
                         string out = MessagesOut.front();
                         MessagesOut.pop_front();
                         SendFrame(client, out);
+
+                        /*auto now = std::chrono::steady_clock::now();
+                        if (now >= nextLog)
+                        {
+                            cout << api->GetDateTimeNow() << out << '\n';
+                            nextLog += std::chrono::seconds(20);
+                        }*/
                     }
                 }
                 else
@@ -490,11 +502,131 @@ int TestRequests()
 
 #pragma endregion
 
+#pragma region Assemly batch market data
+
+std::string BuildQuoteJson(const DstarApiQuoteData& info)
+{
+    try
+    {
+        string json;
+        json.reserve(2048);
+        json.append("{\"type\":\"quote\",");
+
+        auto appendField = [&json](const double& price, const double& volume, bool first)
+            {
+                if (!first)
+                {
+                    json.append(",");
+                }
+
+                json.append("[");
+                json.append(DoubleToString(price));
+                json.append(",");
+                json.append(DoubleToString(volume));
+                json.append("]");
+            };
+
+        json.append("\"contractNo\":\"");
+        json.append(info.QContractNo);
+        json.append("\",\"dateTimeStamp\":\"");
+        json.append(info.QDateTimeStamp);
+        json.append("\",\"lastPrice\":");
+        json.append(DoubleToString(info.QLastPrice));
+        json.append(",\"lastQty\":");
+        json.append(DoubleToString(info.QLastQty));
+
+        json.append(",\"bids\":[");
+
+        if (info.QBidPrice1 > 0) appendField(info.QBidPrice1, info.QBidQty1, true);
+        if (info.QBidPrice2 > 0) appendField(info.QBidPrice2, info.QBidQty2, false);
+        if (info.QBidPrice3 > 0) appendField(info.QBidPrice3, info.QBidQty3, false);
+        if (info.QBidPrice4 > 0) appendField(info.QBidPrice4, info.QBidQty4, false);
+        if (info.QBidPrice5 > 0) appendField(info.QBidPrice5, info.QBidQty5, false);
+        if (info.QBidPrice6 > 0) appendField(info.QBidPrice6, info.QBidQty6, false);
+        if (info.QBidPrice7 > 0) appendField(info.QBidPrice7, info.QBidQty7, false);
+        if (info.QBidPrice8 > 0) appendField(info.QBidPrice8, info.QBidQty8, false);
+        if (info.QBidPrice9 > 0) appendField(info.QBidPrice9, info.QBidQty9, false);
+        if (info.QBidPrice10 > 0) appendField(info.QBidPrice10, info.QBidQty10, false);
+
+        json.append("],\"asks\":[");
+
+        if (info.QAskPrice1 > 0) appendField(info.QAskPrice1, info.QAskQty1, true);
+        if (info.QAskPrice2 > 0) appendField(info.QAskPrice2, info.QAskQty2, false);
+        if (info.QAskPrice3 > 0) appendField(info.QAskPrice3, info.QAskQty3, false);
+        if (info.QAskPrice4 > 0) appendField(info.QAskPrice4, info.QAskQty4, false);
+        if (info.QAskPrice5 > 0) appendField(info.QAskPrice5, info.QAskQty5, false);
+        if (info.QAskPrice6 > 0) appendField(info.QAskPrice6, info.QAskQty6, false);
+        if (info.QAskPrice7 > 0) appendField(info.QAskPrice7, info.QAskQty7, false);
+        if (info.QAskPrice8 > 0) appendField(info.QAskPrice8, info.QAskQty8, false);
+        if (info.QAskPrice9 > 0) appendField(info.QAskPrice9, info.QAskQty9, false);
+        if (info.QAskPrice10 > 0) appendField(info.QAskPrice10, info.QAskQty10, false);
+
+        json.append("]}");
+
+        if (fullLog)
+        {
+            cout << api->GetDateTimeNow() << "API -> " << json << '\n';
+        }
+
+        return json;
+    }
+    catch (const std::exception& e)
+    {
+        cout << api->GetDateTimeNow() << "BuildQuoteJson error: " << e.what() << '\n';
+        Sleep(2000);
+        return "";
+    }
+}
+
+void QuoteWorkerLoop()
+{
+    //auto nextLog = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+
+    while (true)
+    {
+        try
+        {
+            std::unordered_map<std::string, DstarApiQuoteData> batch;
+
+            {
+                std::lock_guard<std::mutex> lock(quotesMutex);
+                batch.swap(latestQuotes);
+            }
+                      
+            for (auto& item : batch)
+            {
+                std::string json = BuildQuoteJson(item.second);
+
+                std::lock_guard<std::mutex> outLock(mutex_array_out);
+                MessagesOut.push_back(json);
+            }            
+
+            // раз в 20 секунд выводим в консоль размер MessagesOut (то что должно уйти в Осу)
+            /*auto now = std::chrono::steady_clock::now();
+            if (now >= nextLog)
+            {
+                cout << api->GetDateTimeNow() << "MessagesOut size = " << MessagesOut.size() << '\n';
+                nextLog += std::chrono::seconds(20);
+            }   */         
+
+            Sleep(100);
+        }
+        catch (const std::exception& e)
+        {
+            cout << api->GetDateTimeNow() << "QuoteWorkerLoop error: " << e.what() << '\n';
+            Sleep(2000);
+        }
+    }
+}
+
+#pragma endregion
+
 int main(int argc, char** argv)
 {
     //if (TestRequests() == 0) return 0;
 
     std::thread thread(ThreadWorkerPlace);
+    std::thread threadQuote(QuoteWorkerLoop);
 
     std::chrono::milliseconds timespan(10);
     bool isStarted = false;

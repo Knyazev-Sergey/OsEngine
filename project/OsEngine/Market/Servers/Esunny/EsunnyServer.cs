@@ -13,7 +13,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -262,15 +261,6 @@ namespace OsEngine.Market.Servers.Esunny
 
             try
             {
-                CloseRouters();
-            }
-            catch (Exception exeption)
-            {
-                HandlerException(exeption);
-            }
-
-            try
-            {
                 if (_socketMarketData != null)
                 {
                     try
@@ -309,6 +299,15 @@ namespace OsEngine.Market.Servers.Esunny
                     _socketToTrade.Dispose();
                     _socketToTrade = null;
                 }
+            }
+            catch (Exception exeption)
+            {
+                HandlerException(exeption);
+            }
+
+            try
+            {
+                CloseRouters();
             }
             catch (Exception exeption)
             {
@@ -776,13 +775,17 @@ namespace OsEngine.Market.Servers.Esunny
 
         private ConcurrentQueue<string> _messagesToSendMarketData = new ConcurrentQueue<string>();
 
+        
+
         private void WorkerPlaceMarketData()
         {
+            
+
             while (true)
             {
                 Thread.Sleep(1);
                 try
-                {
+                {                   
                     if (_socketMarketData == null)
                     {
                         _lastTimeSendMessageInSocketData = DateTime.Now;
@@ -801,6 +804,7 @@ namespace OsEngine.Market.Servers.Esunny
                         {
                             Thread.Sleep(10);
                         }
+                        
 
                         _lastTimeSendMessageInSocketData = DateTime.Now;
                         continue;
@@ -816,8 +820,13 @@ namespace OsEngine.Market.Servers.Esunny
                     }
 
                     _lastTimeSendMessageInSocketData = DateTime.Now;
-                                        
+
+                    
+
                     IncomeMessageFromDataRouter(SendMessage(message, _socketMarketData, "MarketServer"));
+
+                    
+
                 }
                 catch (Exception error)
                 {
@@ -854,8 +863,7 @@ namespace OsEngine.Market.Servers.Esunny
             {
                 Thread.Sleep(100);
                 try
-                {
-
+                {                   
                     if (_socketToTrade == null)
                     {
                         _lastTimeSendMessageInSocketTrade = DateTime.Now;
@@ -980,7 +988,7 @@ namespace OsEngine.Market.Servers.Esunny
         }
 
         private string SendMessage(string message, Socket socket, string socketName)
-        {           
+        {            
             if (socketName == "MarketServer")
             {               
                 _placeLostDataSocket = "Sending";
@@ -1092,9 +1100,9 @@ namespace OsEngine.Market.Servers.Esunny
                         "Last message to trade server: " + _lastMessageToTradeServer;
                     
                     SendLogMessage(msg, LogMessageType.Error);
-                    /*CloseRouters();
+                    //CloseRouters();
                     ServerStatus = ServerConnectStatus.Disconnect;
-                    DisconnectEvent();*/
+                    DisconnectEvent();
 
                     Dispose();
                 }
@@ -1109,9 +1117,9 @@ namespace OsEngine.Market.Servers.Esunny
 
                     SendLogMessage(msg, LogMessageType.Error);
 
-                    /*CloseRouters();
+                    //CloseRouters();
                     ServerStatus = ServerConnectStatus.Disconnect;
-                    DisconnectEvent();*/
+                    DisconnectEvent();
 
                     Dispose();
                 }
@@ -1394,6 +1402,8 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
+        private DateTime nextLog = DateTime.Now;
+
         private bool IncomeMessageFromDataRouter(string message)
         {
             if (string.IsNullOrEmpty(message))
@@ -1430,6 +1440,14 @@ namespace OsEngine.Market.Servers.Esunny
             }
             else if (message.Contains("\"type\":\"quote\""))
             {
+                var now = DateTime.Now;
+
+                if (now >= nextLog)
+                {
+                    SendLogMessage(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + message, LogMessageType.Error);
+                    nextLog = nextLog.AddSeconds(20);
+                }
+
                 ParseQuote(message);
             }            
             else

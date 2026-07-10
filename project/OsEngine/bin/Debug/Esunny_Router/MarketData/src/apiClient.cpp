@@ -1,4 +1,3 @@
-#include <map>
 #include <list>
 #include <string>
 #include <chrono>
@@ -12,6 +11,8 @@
 
 extern list<string> MessagesOut;
 extern mutex mutex_array_out;
+extern std::unordered_map<std::string, DstarApiQuoteData> latestQuotes;
+extern std::mutex quotesMutex;
 
 apiClient::apiClient()
             : isReady(false),
@@ -19,12 +20,17 @@ apiClient::apiClient()
               isLast1_cont(false)
 {
     m_QuoteSpi = new Notify(this);
+    //StartQuoteWorker();
+    //std::thread thread(QuoteWorkerLoop);
 }
 
 apiClient::~apiClient()
 {
+    //StopQuoteWorker();
     delete m_QuoteSpi;
 }
+
+#pragma region Helpers
 
 string DoubleToString(double val)
 {
@@ -66,6 +72,10 @@ string apiClient::GetDateTimeNow()
 
     return oss.str();
 }
+
+#pragma endregion
+
+#pragma region Requests
 
 bool apiClient::Init()
 {
@@ -196,6 +206,41 @@ void apiClient::SetApiLogPath(const DstarApiPathType pPath)
     m_QuoteApi->SetApiLogPath(pPath);
 }
 
+void apiClient::Free()
+{
+    FreeDstarQuoteApi(m_QuoteApi);
+}
+
+string GetDstarErrorString(int code)
+{
+    switch (code)
+    {
+    case ERROR_DISCONNECT_CLOSE_PASS:        return "ERROR_DISCONNECT_CLOSE_PASS";
+    case ERROR_DISCONNECT_CONNECT_TIMEOUT:   return "ERROR_DISCONNECT_CONNECT_TIMEOUT";
+    case ERROR_DISCONNECT_RECONNECT_TIMEOUT: return "ERROR_DISCONNECT_RECONNECT_TIMEOUT";
+    case ERROR_SEND_LOGIN_DATA:              return "ERROR_SEND_LOGIN_DATA";
+    case ERROR_SEND_HEARTBEATDATA:           return "ERROR_SEND_HEARTBEATDATA";
+    case ERROR_SEND_COMMODITYDATA:           return "ERROR_SEND_COMMODITYDATA";
+    case ERROR_SEND_CONTRACTDATA:            return "ERROR_SEND_CONTRACTDATA";
+    case ERROR_SUBSNAPSHOTDATA:              return "ERROR_SUBSNAPSHOTDATA";
+    case ERROR_UNSUBSNAPSHOTDATA:            return "ERROR_UNSUBSNAPSHOTDATA";
+    case ERROR_NO_DECIMAL:                   return "ERROR_NO_DECIMAL";
+    case ERROR_OPEN_LOGDIR:                  return "ERROR_OPEN_LOGDIR";
+    case ERROR_INPUT_NULL:                   return "ERROR_INPUT_NULL";
+    case ERROR_UNKNOWN_CONTRACT:             return "ERROR_UNKNOWN_CONTRACT";
+    case ERROR_UNSUBCONT:                    return "ERROR_UNSUBCONT";
+    case ERROR_INIT_LOG:                     return "ERROR_INIT_LOG";
+    case ERROR_SET_CPUID:                    return "ERROR_SET_CPUID";
+    case ERROR_IP_FORMAT:                    return "ERROR_IP_FORMAT";
+    case ERROR_LOG_PATH:                     return "ERROR_LOG_PATH";
+    default:                                 return "Unknown error";
+    }
+}
+
+#pragma endregion
+
+#pragma region Notify
+
 Notify::Notify(apiClient *testApi)
             : m_Api(testApi)
 {
@@ -241,104 +286,55 @@ void Notify::OnRspContract(const char* buf, bool isLast)
     }
 }
 
+void Notify::OnDisconnect(int reasonCode)
+{
+    string error = GetDstarErrorString(reasonCode);
+
+    string str = R"({"type":"disconnect","code":")" + to_string(reasonCode) + R"(","message":")" + error + "\"}";
+
+    cout << m_Api->GetDateTimeNow() << "Api: Disconnect to server, reason=" << reasonCode << endl;
+
+    lock_guard<mutex> outLock(mutex_array_out);
+    MessagesOut.push_back(str);
+}
+
 void Notify::OnRtnQuote(const DstarApiQuoteData* info)
-{   
-    try 
+{
+    try
     {
-        string json;
-        json.reserve(2048);
-        json.append("{\"type\":\"quote\",");
-
-        auto appendField = [&json](const double& price, const double& volume, bool first)
-            {
-                if (!first)
-                {
-                    json.append(",");
-                }
-
-                json.append("[");
-                json.append(DoubleToString(price));
-                json.append(",");
-                json.append(DoubleToString(volume));
-                json.append("]");
-            };
-
-        json.append("\"contractNo\":\"");
-        json.append(info->QContractNo);
-        json.append("\",\"dateTimeStamp\":\"");
-        json.append(info->QDateTimeStamp);
-        json.append("\",\"lastPrice\":");
-        json.append(DoubleToString(info->QLastPrice));
-        json.append(",\"lastQty\":");
-        json.append(DoubleToString(info->QLastQty));
-
-        json.append(",\"bids\":[");
-
-        if (info->QBidPrice1 > 0) appendField(info->QBidPrice1, info->QBidQty1, true);
-        if (info->QBidPrice2 > 0) appendField(info->QBidPrice2, info->QBidQty2, false);
-        if (info->QBidPrice3 > 0) appendField(info->QBidPrice3, info->QBidQty3, false);
-        if (info->QBidPrice4 > 0) appendField(info->QBidPrice4, info->QBidQty4, false);
-        if (info->QBidPrice5 > 0) appendField(info->QBidPrice5, info->QBidQty5, false);
-        if (info->QBidPrice6 > 0) appendField(info->QBidPrice6, info->QBidQty6, false);
-        if (info->QBidPrice7 > 0) appendField(info->QBidPrice7, info->QBidQty7, false);
-        if (info->QBidPrice8 > 0) appendField(info->QBidPrice8, info->QBidQty8, false);
-        if (info->QBidPrice9 > 0) appendField(info->QBidPrice9, info->QBidQty9, false);
-        if (info->QBidPrice10 > 0) appendField(info->QBidPrice10, info->QBidQty10, false);
-
-        json.append("],\"asks\":[");
-
-        if (info->QAskPrice1 > 0) appendField(info->QAskPrice1, info->QAskQty1, true);
-        if (info->QAskPrice2 > 0) appendField(info->QAskPrice2, info->QAskQty2, false);
-        if (info->QAskPrice3 > 0) appendField(info->QAskPrice3, info->QAskQty3, false);
-        if (info->QAskPrice4 > 0) appendField(info->QAskPrice4, info->QAskQty4, false);
-        if (info->QAskPrice5 > 0) appendField(info->QAskPrice5, info->QAskQty5, false);
-        if (info->QAskPrice6 > 0) appendField(info->QAskPrice6, info->QAskQty6, false);
-        if (info->QAskPrice7 > 0) appendField(info->QAskPrice7, info->QAskQty7, false);
-        if (info->QAskPrice8 > 0) appendField(info->QAskPrice8, info->QAskQty8, false);
-        if (info->QAskPrice9 > 0) appendField(info->QAskPrice9, info->QAskQty9, false);
-        if (info->QAskPrice10 > 0) appendField(info->QAskPrice10, info->QAskQty10, false);
-
-        json.append("]}");
-
-        if (fullLog)
-        {
-            cout << m_Api->GetDateTimeNow() << "API -> " << json << '\n';
-        }
-
-        lock_guard<mutex> outLock(mutex_array_out);
-        MessagesOut.push_back(json);
+        m_Api->PushQuote(*info);          
     }
     catch (const std::exception& e)
     {
         cout << m_Api->GetDateTimeNow() << "Notify::OnRtnQuote error: " << e.what() << '\n';
         Sleep(2000);
     }
-    
+
     //cout << "subcribeQuote: " << "info->QContractNo: " << info->QContractNo << "info->QLastPrice: "<<info->QLastPrice<< "info->QBidPrice1: " << info->QBidPrice1 << "info->QAskPrice1: " << info->QAskPrice1 << endl;
 
     /*std::cout.setf(std::ios::fixed);
-   
-    cout<<"info->QContractNo:      "<<info->QContractNo<<endl;              ///< 合约  
-    cout<<"info->QDateTimeStamp:   "<<info->QDateTimeStamp<<endl;           ///< 时间戳   
-    cout<<"info->QPreClosingPrice: "<<info->QPreClosingPrice<<endl;         ///< 昨收盘价      
-    cout<<"info->QPreSettlePrice:  "<<info->QPreSettlePrice<<endl;          ///< 昨结算价      	
-    cout<<"info->QPrePositionQty:  "<<info->QPrePositionQty<<endl;          ///< 昨持仓量      	
-    cout<<"info->QOpeningPrice:    "<<info->QOpeningPrice<<endl;            ///< 开盘价       
-    cout<<"info->QLastPrice:       "<<info->QLastPrice<<endl;               ///< 最新价   
-    cout<<"info->QHighPrice:       "<<info->QHighPrice<<endl;               ///< 最高价    
-    cout<<"info->QLowPrice:        "<<info->QLowPrice<<endl;                ///< 最低价    
-    cout<<"info->QHisHighPrice:    "<<info->QHisHighPrice<<endl;            ///< 历史最高价   
-    cout<<"info->QHisLowPrice:     "<<info->QHisLowPrice<<endl;             ///< 历史最低价   
-    cout<<"info->QLimitUpPrice:    "<<info->QLimitUpPrice<<endl;            ///< 涨停价   
-    cout<<"info->QLimitDownPrice:  "<<info->QLimitDownPrice<<endl;          ///< 跌停价    
-    cout<<"info->QTotalQty:        "<<info->QTotalQty<<endl;                ///< 成交量    
-    cout<<"info->QPositionQty:     "<<info->QPositionQty<<endl;             ///< 持仓量     
-    cout<<"info->QAveragePrice:    "<<info->QAveragePrice<<endl;            ///< 均价     
-    cout<<"info->QClosingPrice:    "<<info->QClosingPrice<<endl;            ///< 收盘价     
-    cout<<"info->QSettlePrice:     "<<info->QSettlePrice<<endl;             ///< 结算价     
-    cout<<"info->QLastQty:         "<<info->QLastQty<<endl;                 ///< 最新成交量     
-    cout<<"info->QTotalBidQty:     "<<info->QTotalBidQty<<endl;             ///< 委买总量       
-    cout<<"info->QTotalAskQty:     "<<info->QTotalAskQty<<endl;             ///< 委卖总量          
+
+    cout<<"info->QContractNo:      "<<info->QContractNo<<endl;              ///< 合约
+    cout<<"info->QDateTimeStamp:   "<<info->QDateTimeStamp<<endl;           ///< 时间戳
+    cout<<"info->QPreClosingPrice: "<<info->QPreClosingPrice<<endl;         ///< 昨收盘价
+    cout<<"info->QPreSettlePrice:  "<<info->QPreSettlePrice<<endl;          ///< 昨结算价
+    cout<<"info->QPrePositionQty:  "<<info->QPrePositionQty<<endl;          ///< 昨持仓量
+    cout<<"info->QOpeningPrice:    "<<info->QOpeningPrice<<endl;            ///< 开盘价
+    cout<<"info->QLastPrice:       "<<info->QLastPrice<<endl;               ///< 最新价
+    cout<<"info->QHighPrice:       "<<info->QHighPrice<<endl;               ///< 最高价
+    cout<<"info->QLowPrice:        "<<info->QLowPrice<<endl;                ///< 最低价
+    cout<<"info->QHisHighPrice:    "<<info->QHisHighPrice<<endl;            ///< 历史最高价
+    cout<<"info->QHisLowPrice:     "<<info->QHisLowPrice<<endl;             ///< 历史最低价
+    cout<<"info->QLimitUpPrice:    "<<info->QLimitUpPrice<<endl;            ///< 涨停价
+    cout<<"info->QLimitDownPrice:  "<<info->QLimitDownPrice<<endl;          ///< 跌停价
+    cout<<"info->QTotalQty:        "<<info->QTotalQty<<endl;                ///< 成交量
+    cout<<"info->QPositionQty:     "<<info->QPositionQty<<endl;             ///< 持仓量
+    cout<<"info->QAveragePrice:    "<<info->QAveragePrice<<endl;            ///< 均价
+    cout<<"info->QClosingPrice:    "<<info->QClosingPrice<<endl;            ///< 收盘价
+    cout<<"info->QSettlePrice:     "<<info->QSettlePrice<<endl;             ///< 结算价
+    cout<<"info->QLastQty:         "<<info->QLastQty<<endl;                 ///< 最新成交量
+    cout<<"info->QTotalBidQty:     "<<info->QTotalBidQty<<endl;             ///< 委买总量
+    cout<<"info->QTotalAskQty:     "<<info->QTotalAskQty<<endl;             ///< 委卖总量
     cout<<"info->QBidPrice1:       "<<info->QBidPrice1<<endl;			    ///< 买价1
     cout<<"info->QBidPrice2:       "<<info->QBidPrice2<<endl;			    ///< 买价2
     cout<<"info->QBidPrice3:       "<<info->QBidPrice3<<endl;			    ///< 买价3
@@ -383,45 +379,18 @@ void Notify::OnRtnQuote(const DstarApiQuoteData* info)
     cout<<"-----------------------------------------------------"<<endl;*/
 }
 
-void Notify::OnDisconnect(int reasonCode)
+void apiClient::PushQuote(const DstarApiQuoteData& quote)
 {
-    string error = GetDstarErrorString(reasonCode);
-
-    string str = R"({"type":"disconnect","code":")" + to_string(reasonCode) + R"(","message":")" + error + "\"}";
-
-    cout << m_Api->GetDateTimeNow() << "Api: Disconnect to server, reason=" << reasonCode << endl;
-
-    lock_guard<mutex> outLock(mutex_array_out);
-    MessagesOut.push_back(str);    
-}
-
-void apiClient::Free()
-{
-    FreeDstarQuoteApi(m_QuoteApi);
-}
-
-string GetDstarErrorString(int code)
-{
-    switch (code)
+    try
     {
-    case ERROR_DISCONNECT_CLOSE_PASS:        return "ERROR_DISCONNECT_CLOSE_PASS";
-    case ERROR_DISCONNECT_CONNECT_TIMEOUT:   return "ERROR_DISCONNECT_CONNECT_TIMEOUT";
-    case ERROR_DISCONNECT_RECONNECT_TIMEOUT: return "ERROR_DISCONNECT_RECONNECT_TIMEOUT";
-    case ERROR_SEND_LOGIN_DATA:              return "ERROR_SEND_LOGIN_DATA";
-    case ERROR_SEND_HEARTBEATDATA:           return "ERROR_SEND_HEARTBEATDATA";
-    case ERROR_SEND_COMMODITYDATA:           return "ERROR_SEND_COMMODITYDATA";
-    case ERROR_SEND_CONTRACTDATA:            return "ERROR_SEND_CONTRACTDATA";
-    case ERROR_SUBSNAPSHOTDATA:              return "ERROR_SUBSNAPSHOTDATA";
-    case ERROR_UNSUBSNAPSHOTDATA:            return "ERROR_UNSUBSNAPSHOTDATA";
-    case ERROR_NO_DECIMAL:                   return "ERROR_NO_DECIMAL";
-    case ERROR_OPEN_LOGDIR:                  return "ERROR_OPEN_LOGDIR";
-    case ERROR_INPUT_NULL:                   return "ERROR_INPUT_NULL";
-    case ERROR_UNKNOWN_CONTRACT:             return "ERROR_UNKNOWN_CONTRACT";
-    case ERROR_UNSUBCONT:                    return "ERROR_UNSUBCONT";
-    case ERROR_INIT_LOG:                     return "ERROR_INIT_LOG";
-    case ERROR_SET_CPUID:                    return "ERROR_SET_CPUID";
-    case ERROR_IP_FORMAT:                    return "ERROR_IP_FORMAT";
-    case ERROR_LOG_PATH:                     return "ERROR_LOG_PATH";
-    default:                                 return "Unknown error";
+        std::lock_guard<std::mutex> lock(quotesMutex);
+        latestQuotes.insert_or_assign(quote.QContractNo, quote);        
+    }
+    catch (const std::exception& e)
+    {
+        cout << GetDateTimeNow() << "PushQuote error: " << e.what() << '\n';
+        Sleep(2000);
     }
 }
+
+#pragma endregion
