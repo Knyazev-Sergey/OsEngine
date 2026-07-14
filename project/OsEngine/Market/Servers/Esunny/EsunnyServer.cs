@@ -51,7 +51,7 @@ namespace OsEngine.Market.Servers.Esunny
             Thread worker = new Thread(ThreadPortfolio);
             worker.Start();
 
-            Thread worker2 = new Thread(ThreadReciveMarketData);
+            Thread worker2 = new Thread(ThreadReceiveMarketData);
             worker2.IsBackground = true;
             worker2.Start();
 
@@ -63,9 +63,17 @@ namespace OsEngine.Market.Servers.Esunny
             sendMarketData.IsBackground = true;
             sendMarketData.Start();
 
-            Thread worker3 = new Thread(WorkerPlaceTradeRouter);
-            worker3.IsBackground = true;
-            worker3.Start();
+            Thread receiveTradeData = new Thread(ThreadReceiveTradeData);
+            receiveTradeData.IsBackground = true;
+            receiveTradeData.Start();
+
+            Thread parseTradeData = new Thread(ThreadParseTradeData);
+            parseTradeData.IsBackground = true;
+            parseTradeData.Start();
+
+            Thread sendTradeData = new Thread(ThreadSendTradeData);
+            sendTradeData.IsBackground = true;
+            sendTradeData.Start();
 
             Thread worker4 = new Thread(CheckSocketThreadsStatus);
             worker4.Start();
@@ -267,6 +275,8 @@ namespace OsEngine.Market.Servers.Esunny
         {
             _canSendMessagesMarketData = false;
             _canSendMessagesTradeRouter = false;
+            _tradeSocketConnect = false;
+            _marketSocketConnect = false;
 
             try
             {
@@ -786,7 +796,7 @@ namespace OsEngine.Market.Servers.Esunny
 
         private ConcurrentQueue<string> _incomingMarketDataMessages = new ConcurrentQueue<string>();
 
-        private void ThreadReciveMarketData()
+        private void ThreadReceiveMarketData()
         {
             while (true)
             {
@@ -842,6 +852,7 @@ namespace OsEngine.Market.Servers.Esunny
                     if (_canSendMessagesMarketData == false)
                     {
                         Thread.Sleep(1);
+                        _lastTimeSendMessageInSocketData = DateTime.Now;
                         continue;
                     }
 
@@ -853,6 +864,7 @@ namespace OsEngine.Market.Servers.Esunny
 
                     while (_incomingMarketDataMessages.TryDequeue(out string message))
                     {
+                        _lastTimeSendMessageInSocketData = DateTime.Now;
                         IncomeMessageFromDataRouter(message);
                     }
                 }
@@ -873,13 +885,13 @@ namespace OsEngine.Market.Servers.Esunny
                 try
                 {
                     if (_socketMarketData == null || _canSendMessagesMarketData == false)
-                    {
+                    {                        
                         continue;
                     }
 
                     if (_messagesToSendMarketData.TryDequeue(out string message))
-                    {
-                        SendMessageMD(message, _socketMarketData);
+                    {                       
+                        SendMessage(message, _socketMarketData);
                     }
                 }
                 catch (Exception error)
@@ -897,26 +909,6 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
-        private void SendMessageMD(string message, Socket socket)
-        {
-            if (socket == null)
-            {
-                return;
-            }
-
-            SendFrame(socket, message);
-
-            if (_fullLogMarketData && socket == _socketMarketData)
-            {
-                _lastMessageToDataServer = message;
-            }
-
-            if (_fullLogTradeData && socket == _socketToTrade)
-            {
-                _lastMessageToTradeServer = message;
-            }
-        }
-
         // trade socket
 
         private bool _canSendMessagesTradeRouter;
@@ -925,62 +917,45 @@ namespace OsEngine.Market.Servers.Esunny
 
         private ConcurrentQueue<string> _messagesToSendTrade = new ConcurrentQueue<string>();
 
-        private DateTime _lastTimeSendPing;
+        private ConcurrentQueue<string> _incomingTradeDataMessages = new ConcurrentQueue<string>();
 
-        private void WorkerPlaceTradeRouter()
+        //private DateTime _lastTimeSendPing;
+
+        private void ThreadReceiveTradeData()
         {
             while (true)
             {
-                Thread.Sleep(100);
                 try
-                {                   
-                    if (_socketToTrade == null)
+                {
+                    if (_socketToTrade == null || _canSendMessagesTradeRouter == false)
                     {
-                        _lastTimeSendMessageInSocketTrade = DateTime.Now;
+                        Thread.Sleep(1);
                         continue;
-                    }
-
-                    if (_canSendMessagesTradeRouter == false)
-                    {
-                        _lastTimeSendMessageInSocketTrade = DateTime.Now;
-                        continue;
-                    }
-
-                    if (_messagesToSendTrade.IsEmpty)
-                    {
-                        // request any incoming data for us that are saving in server
-                        // запрос каких-либо входящих данных для нас, которые копятся в сервере
-
-                        if (_lastTimeSendPing.AddMilliseconds(200) < DateTime.Now)
-                        {
-                            _lastTimeSendPing = DateTime.Now;
-                            _lastTimeSendMessageInSocketTrade = DateTime.Now;
-                            IncomeMessageFromTradeRouter(SendMessage("Process", _socketToTrade, "TradeServer"));
-                            continue;
-                        }
                     }
 
                     string message = null;
-                    _messagesToSendTrade.TryDequeue(out message);
 
-                    if (message == null)
+                    if (_socketToTrade.Poll(1, SelectMode.SelectRead)
+                        && _socketToTrade.Available > 0)
                     {
-                        _lastTimeSendMessageInSocketTrade = DateTime.Now;
+                        message = ReceiveFrame(_socketToTrade);
+                    }
+
+                    if (string.IsNullOrEmpty(message))
+                    {
+                        Thread.Sleep(1);
                         continue;
                     }
 
-                    _lastTimeSendMessageInSocketTrade = DateTime.Now;
-
-                    IncomeMessageFromTradeRouter(SendMessage(message, _socketToTrade, "TradeServer"));
+                    _incomingTradeDataMessages.Enqueue(message);
                 }
                 catch (Exception error)
                 {
-                    _canSendMessagesTradeRouter = false;
+                    _canSendMessagesMarketData = false;
 
                     if (ServerStatus != ServerConnectStatus.Disconnect)
                     {
                         ServerStatus = ServerConnectStatus.Disconnect;
-
                         if (DisconnectEvent != null)
                         {
                             DisconnectEvent();
@@ -993,13 +968,79 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
-        private string _placeLostDataSocket = "";
+        private void ThreadSendTradeData()
+        {
+            while (true)
+            {
+                Thread.Sleep(1);
+
+                try
+                {
+                    if (_socketToTrade == null || _canSendMessagesTradeRouter == false)
+                    {
+                        continue;
+                    }
+
+                    if (_messagesToSendTrade.TryDequeue(out string message))
+                    {
+                        SendMessage(message, _socketToTrade);
+                    }
+                }
+                catch (Exception error)
+                {
+                    _canSendMessagesTradeRouter = false;
+                    if (ServerStatus != ServerConnectStatus.Disconnect)
+                    {
+                        ServerStatus = ServerConnectStatus.Disconnect;
+                        DisconnectEvent?.Invoke();
+                    }
+
+                    SendLogMessage(error.ToString(), LogMessageType.Error);
+                    Thread.Sleep(10000);
+                }
+            }
+        }
+
+        private void ThreadParseTradeData()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (_canSendMessagesTradeRouter == false)
+                    {
+                        Thread.Sleep(1);
+                        _lastTimeSendMessageInSocketTrade = DateTime.Now;
+                        continue;
+                    }
+
+                    if (_incomingTradeDataMessages.IsEmpty)
+                    {
+                        Thread.Sleep(1);
+                        continue;
+                    }
+
+                    while (_incomingTradeDataMessages.TryDequeue(out string message))
+                    {
+                        _lastTimeSendMessageInSocketTrade = DateTime.Now;
+                        IncomeMessageFromTradeRouter(message);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SendLogMessage("Market parse worker error: " + ex, LogMessageType.Error);
+                    Thread.Sleep(1000);
+                }
+            }
+        }
+
+        /*private string _placeLostDataSocket = "";
 
         private string _placeLostTradeSocket = "";
 
         private string _lastMessageToDataServer = "";
 
-        private string _lastMessageToTradeServer = "";
+        private string _lastMessageToTradeServer = "";*/
 
         private void SendFrame(Socket socket, string payload)
         {
@@ -1057,7 +1098,27 @@ namespace OsEngine.Market.Servers.Esunny
             return buffer;
         }
 
-        private string SendMessage(string message, Socket socket, string socketName)
+        private void SendMessage(string message, Socket socket)
+        {
+            if (socket == null)
+            {
+                return;
+            }
+
+            SendFrame(socket, message);
+
+            /*if (_fullLogMarketData && socket == _socketMarketData)
+            {
+                _lastMessageToDataServer = message;
+            }
+
+            if (_fullLogTradeData && socket == _socketToTrade)
+            {
+                _lastMessageToTradeServer = message;
+            }*/
+        }
+
+        /*private string SendMessage(string message, Socket socket, string socketName)
         {            
             if (socketName == "MarketServer")
             {               
@@ -1117,7 +1178,7 @@ namespace OsEngine.Market.Servers.Esunny
             }
 
             return request;
-        }
+        }*/
 
         // common connect
 
@@ -1159,35 +1220,30 @@ namespace OsEngine.Market.Servers.Esunny
         {
             while (true)
             {
-                Thread.Sleep(5000);
+                Thread.Sleep(2000);
 
-                if (_socketToTrade != null &&
+                if (_tradeSocketConnect == true &&
                     _lastTimeSendMessageInSocketTrade.AddSeconds(10) < DateTime.Now
                     && _lastTimeSendMessageInSocketTrade.AddSeconds(30) > DateTime.Now)
                 {
-                    string msg = "Sockets thread is lost. Trade router. Reconnect\n" +
-                        "Place lost trade socket thread: " + _placeLostTradeSocket + "\n" +
-                        "Last message to trade server: " + _lastMessageToTradeServer;
+                    string msg = "Sockets thread is lost. Trade router. Reconnect";
                     
                     SendLogMessage(msg, LogMessageType.Error);
-                    //CloseRouters();
+
                     ServerStatus = ServerConnectStatus.Disconnect;
                     DisconnectEvent();
 
                     Dispose();
                 }
 
-                if (_socketMarketData != null &&
+                if (_marketSocketConnect == true &&
                     _lastTimeSendMessageInSocketData.AddSeconds(10) < DateTime.Now
                      && _lastTimeSendMessageInSocketData.AddSeconds(30) > DateTime.Now)
                 {
-                    string msg = "Sockets thread is lost. Data router. Reconnect\n" +
-                        "Place lost data socket thread: " + _placeLostDataSocket + "\n" +
-                        "Last message to data server: " + _lastMessageToDataServer;
+                    string msg = "Sockets thread is lost. Data router. Reconnect";
 
                     SendLogMessage(msg, LogMessageType.Error);
 
-                    //CloseRouters();
                     ServerStatus = ServerConnectStatus.Disconnect;
                     DisconnectEvent();
 
@@ -1246,11 +1302,6 @@ namespace OsEngine.Market.Servers.Esunny
                 return;
             }
 
-            if (message.StartsWith("Process"))
-            {
-                return;
-            }
-
             if (message.StartsWith("{\"type\":\"connect\"") &&
                 ServerStatus == ServerConnectStatus.Disconnect)
             {
@@ -1272,21 +1323,25 @@ namespace OsEngine.Market.Servers.Esunny
             {
                 GetPositionsData(message);
             }
-            else if (message.Contains("\"type\":\"security\""))
+            else if (message.Contains("{\"type\":\"security\""))
             {
                 GetSecurityList(message);
             }
-            else if (message.Contains("\"type\":\"rtnOrder\""))
+            else if (message.Contains("{\"type\":\"rtnOrder\""))
             {
                 SendLogMessage("Trade router message: " + message, LogMessageType.System);
                 GetMyOrder(message);                
             }
-            else if (message.Contains("\"type\":\"rtnMatch\""))
+            else if (message.Contains("{\"type\":\"rtnMatch\""))
             {
                 SendLogMessage("Trade router message: " + message, LogMessageType.System);
                 GetMyTrade(message);
             }
-            else if (message.Contains("\"cmd\":"))
+            else if (message.StartsWith("{\"type\":\"ping\""))
+            {
+                //SendLogMessage("Trade router message: " + message, LogMessageType.Error);
+            }
+            else
             {
                 SendLogMessage(message, LogMessageType.System);
             }
@@ -1481,11 +1536,6 @@ namespace OsEngine.Market.Servers.Esunny
                 return true;
             }
 
-            if (message.Contains("Process"))
-            {
-                return true;
-            }
-
             if (message.Contains("{\"type\":\"connect\"") &&
                 ServerStatus != ServerConnectStatus.Connect)
             {
@@ -1510,16 +1560,22 @@ namespace OsEngine.Market.Servers.Esunny
             }
             else if (message.Contains("\"type\":\"quote\""))
             {
-                var now = DateTime.Now;
+                // посмотреть задержку между временем котировки и временем когда котировка пришла в Осу
+
+                /*var now = DateTime.Now;
 
                 if (now >= nextLog)
                 {
                     SendLogMessage(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + message, LogMessageType.Error);
                     nextLog = nextLog.AddSeconds(20);
-                }
+                }*/
 
                 ParseQuote(message);
-            }            
+            }
+            else if (message.Contains("{\"type\":\"ping\""))
+            {
+                //SendLogMessage("MarketData Router: " + message, LogMessageType.Error);
+            }
             else
             {
                 SendLogMessage(message, LogMessageType.System);

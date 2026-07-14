@@ -126,6 +126,30 @@ bool SendFrame(SOCKET s, const string& msg)
     return true;
 }
 
+bool IsSocketReadyToRead(SOCKET s)
+{
+    if (s == INVALID_SOCKET)
+    {
+        return false;
+    }
+
+    fd_set readSet;
+    FD_ZERO(&readSet);
+    FD_SET(s, &readSet);
+
+    timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+
+    int res = select(0, &readSet, nullptr, nullptr, &tv);
+    if (res == SOCKET_ERROR)
+    {
+        return false;
+    }
+
+    return FD_ISSET(s, &readSet);
+}
+
 DWORD WINAPI serverReceive(LPVOID lpParam)
 {
     SOCKET client = *(SOCKET*)lpParam;
@@ -133,52 +157,64 @@ DWORD WINAPI serverReceive(LPVOID lpParam)
     MessagesIn.clear();
     MessagesOut.clear();
 
+    using clock = std::chrono::steady_clock;
+    clock::time_point lastRun = clock::now();
+
     while (true)
     {
         try
         {
-            string incoming;
+            clock::time_point now = clock::now();
 
-            if (!RecvFrame(client, incoming))
-            {                
-                cout << apiClient.GetDateTimeNow() << "recv function failed with error " << WSAGetLastError() << '\n';
-                return -1;
-            }
-
-            if (incoming.empty())
+            if (now - lastRun >= std::chrono::milliseconds(10000))
             {
-                Sleep(1);
-                continue;
+                lastRun = now;
+
+                lock_guard<mutex> outLock(mutex_array_out);
+                MessagesOut.push_back("{\"type\":\"ping\"}");
+
+                if (fullLog)
+                {
+                    cout << apiClient.GetDateTimeNow() << "{\"type\":\"ping\"}" << '\n';
+                }
             }
 
-            if (incoming == "Process")
-            {               
+            bool didWork = false;
+
+            {
                 lock_guard<mutex> outLock(mutex_array_out);
 
-                if (MessagesOut.size() > 0)
+                while (!MessagesOut.empty())
                 {
-                    list <string>::iterator it;
-
-                    for (it = MessagesOut.begin(); it != MessagesOut.end(); it++)
-                    {
-                        string str = *it;
-                        SendFrame(client, str);
-                        MessagesOut.erase(it);
-
-                        break;
-                    }
+                    string out = MessagesOut.front();
+                    MessagesOut.pop_front();
+                    SendFrame(client, out);
+                    didWork = true;
                 }
-                else
+            }
+
+            if (IsSocketReadyToRead(client))
+            {
+                string incoming;
+
+                if (!RecvFrame(client, incoming))
                 {
-                    SendFrame(client, incoming);
+                    cout << apiClient.GetDateTimeNow() << "recv function failed with error " << WSAGetLastError() << '\n';
+                    return -1;
                 }
-                continue;
-            }   
 
-            lock_guard<mutex> inLock(mutex_array_in);
-            MessagesIn.push_back(incoming);     
+                if (!incoming.empty())
+                {
+                    lock_guard<mutex> inLock(mutex_array_in);
+                    MessagesIn.push_back(incoming);
+                    didWork = true;
+                }
+            }
 
-            Sleep(1);
+            if (!didWork)
+            {
+                Sleep(1);
+            }
         }
         catch (...)
         {

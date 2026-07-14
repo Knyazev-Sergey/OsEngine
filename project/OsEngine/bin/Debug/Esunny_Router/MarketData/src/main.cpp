@@ -136,12 +136,29 @@ DWORD WINAPI serverReceive(LPVOID lpParam)
     MessagesOut.clear();
 
     //auto nextLog = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+    using clock = std::chrono::steady_clock;
+    clock::time_point lastRun = clock::now();
 
     while (true)
     {
         try
         {           
             bool didWork = false;
+
+            clock::time_point now = clock::now();
+
+            if (now - lastRun >= std::chrono::milliseconds(10000))
+            {
+                lastRun = now;
+
+                lock_guard<mutex> outLock(mutex_array_out);
+                MessagesOut.push_back("{\"type\":\"ping\"}");
+
+                if (fullLog) 
+                {
+                    cout << api->GetDateTimeNow() << "{\"type\":\"ping\"}" << '\n';
+                }
+            }
 
             {
                 lock_guard<mutex> outLock(mutex_array_out);
@@ -605,26 +622,37 @@ std::string BuildQuoteJson(const DstarApiQuoteData& info)
 
 void QuoteWorkerLoop()
 {
+    using clock = std::chrono::steady_clock;
+    clock::time_point lastRun = clock::now();
+
     while (true)
     {
         try
         {
-            std::unordered_map<std::string, DstarApiQuoteData> batch;
+            // забираем последние котировки не менее чем через 200 мс
+            clock::time_point now = clock::now();
 
+            if (now - lastRun >= std::chrono::milliseconds(200)) 
             {
-                std::lock_guard<std::mutex> lock(quotesMutex);
-                batch.swap(latestQuotes);
+                lastRun = now;
+
+                std::unordered_map<std::string, DstarApiQuoteData> batch;
+
+                {
+                    std::lock_guard<std::mutex> lock(quotesMutex);
+                    batch.swap(latestQuotes);
+                }
+
+                for (auto& item : batch)
+                {
+                    std::string json = BuildQuoteJson(item.second);
+
+                    std::lock_guard<std::mutex> outLock(mutex_array_out);
+                    MessagesOut.push_back(json);
+                }
             }
-                      
-            for (auto& item : batch)
-            {
-                std::string json = BuildQuoteJson(item.second);
 
-                std::lock_guard<std::mutex> outLock(mutex_array_out);
-                MessagesOut.push_back(json);
-            }            
-
-            Sleep(100); // переписать под таймер ожидания
+            Sleep(1);
         }
         catch (const std::exception& e)
         {
