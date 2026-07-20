@@ -20,13 +20,10 @@ apiClient::apiClient()
               isLast1_cont(false)
 {
     m_QuoteSpi = new Notify(this);
-    //StartQuoteWorker();
-    //std::thread thread(QuoteWorkerLoop);
 }
 
 apiClient::~apiClient()
 {
-    //StopQuoteWorker();
     delete m_QuoteSpi;
 }
 
@@ -310,73 +307,7 @@ void Notify::OnRtnQuote(const DstarApiQuoteData* info)
         Sleep(2000);
     }
 
-    //cout << "subcribeQuote: " << "info->QContractNo: " << info->QContractNo << "info->QLastPrice: "<<info->QLastPrice<< "info->QBidPrice1: " << info->QBidPrice1 << "info->QAskPrice1: " << info->QAskPrice1 << endl;
-
-    /*std::cout.setf(std::ios::fixed);
-
-    cout<<"info->QContractNo:      "<<info->QContractNo<<endl;              ///< 合约
-    cout<<"info->QDateTimeStamp:   "<<info->QDateTimeStamp<<endl;           ///< 时间戳
-    cout<<"info->QPreClosingPrice: "<<info->QPreClosingPrice<<endl;         ///< 昨收盘价
-    cout<<"info->QPreSettlePrice:  "<<info->QPreSettlePrice<<endl;          ///< 昨结算价
-    cout<<"info->QPrePositionQty:  "<<info->QPrePositionQty<<endl;          ///< 昨持仓量
-    cout<<"info->QOpeningPrice:    "<<info->QOpeningPrice<<endl;            ///< 开盘价
-    cout<<"info->QLastPrice:       "<<info->QLastPrice<<endl;               ///< 最新价
-    cout<<"info->QHighPrice:       "<<info->QHighPrice<<endl;               ///< 最高价
-    cout<<"info->QLowPrice:        "<<info->QLowPrice<<endl;                ///< 最低价
-    cout<<"info->QHisHighPrice:    "<<info->QHisHighPrice<<endl;            ///< 历史最高价
-    cout<<"info->QHisLowPrice:     "<<info->QHisLowPrice<<endl;             ///< 历史最低价
-    cout<<"info->QLimitUpPrice:    "<<info->QLimitUpPrice<<endl;            ///< 涨停价
-    cout<<"info->QLimitDownPrice:  "<<info->QLimitDownPrice<<endl;          ///< 跌停价
-    cout<<"info->QTotalQty:        "<<info->QTotalQty<<endl;                ///< 成交量
-    cout<<"info->QPositionQty:     "<<info->QPositionQty<<endl;             ///< 持仓量
-    cout<<"info->QAveragePrice:    "<<info->QAveragePrice<<endl;            ///< 均价
-    cout<<"info->QClosingPrice:    "<<info->QClosingPrice<<endl;            ///< 收盘价
-    cout<<"info->QSettlePrice:     "<<info->QSettlePrice<<endl;             ///< 结算价
-    cout<<"info->QLastQty:         "<<info->QLastQty<<endl;                 ///< 最新成交量
-    cout<<"info->QTotalBidQty:     "<<info->QTotalBidQty<<endl;             ///< 委买总量
-    cout<<"info->QTotalAskQty:     "<<info->QTotalAskQty<<endl;             ///< 委卖总量
-    cout<<"info->QBidPrice1:       "<<info->QBidPrice1<<endl;			    ///< 买价1
-    cout<<"info->QBidPrice2:       "<<info->QBidPrice2<<endl;			    ///< 买价2
-    cout<<"info->QBidPrice3:       "<<info->QBidPrice3<<endl;			    ///< 买价3
-    cout<<"info->QBidPrice4:       "<<info->QBidPrice4<<endl;			    ///< 买价4
-    cout<<"info->QBidPrice5:       "<<info->QBidPrice5<<endl;			    ///< 买价5
-    cout<<"info->QBidPrice6:       "<<info->QBidPrice6<<endl;			    ///< 买价6
-    cout<<"info->QBidPrice7:       "<<info->QBidPrice7<<endl;			    ///< 买价7
-    cout<<"info->QBidPrice8:       "<<info->QBidPrice8<<endl;			    ///< 买价8
-    cout<<"info->QBidPrice9:       "<<info->QBidPrice9<<endl;			    ///< 买价9
-    cout<<"info->QBidPrice10:      "<<info->QBidPrice10<<endl;			    ///< 买价10
-    cout<<"info->QBidQty1:         "<<info->QBidQty1<<endl;					///< 买量1
-    cout<<"info->QBidQty2:         "<<info->QBidQty2<<endl;					///< 买量2
-    cout<<"info->QBidQty3:         "<<info->QBidQty3<<endl;					///< 买量3
-    cout<<"info->QBidQty4:         "<<info->QBidQty4<<endl;					///< 买量4
-    cout<<"info->QBidQty5:         "<<info->QBidQty5<<endl;					///< 买量5
-    cout<<"info->QBidQty6:         "<<info->QBidQty6<<endl;					///< 买量6
-    cout<<"info->QBidQty7:         "<<info->QBidQty7<<endl;					///< 买量7
-    cout<<"info->QBidQty8:         "<<info->QBidQty8<<endl;					///< 买量8
-    cout<<"info->QBidQty9:         "<<info->QBidQty9<<endl;					///< 买量9
-    cout<<"info->QBidQty10:        "<<info->QBidQty10<<endl;				///< 买量10
-    cout<<"info->QAskPrice1:       "<<info->QAskPrice1<<endl;				///< 卖价1
-    cout<<"info->QAskPrice2:       "<<info->QAskPrice2<<endl;				///< 卖价2
-    cout<<"info->QAskPrice3:       "<<info->QAskPrice3<<endl;				///< 卖价3
-    cout<<"info->QAskPrice4:       "<<info->QAskPrice4<<endl;				///< 卖价4
-    cout<<"info->QAskPrice5:       "<<info->QAskPrice5<<endl;				///< 卖价5
-    cout<<"info->QAskPrice6:       "<<info->QAskPrice6<<endl;				///< 卖价6
-    cout<<"info->QAskPrice7:       "<<info->QAskPrice7<<endl;				///< 卖价7
-    cout<<"info->QAskPrice8:       "<<info->QAskPrice8<<endl;				///< 卖价8
-    cout<<"info->QAskPrice9:       "<<info->QAskPrice9<<endl;				///< 卖价9
-    cout<<"info->QAskPrice10:      "<<info->QAskPrice10<<endl;				///< 卖价10
-    cout<<"info->QAskQty1:         "<<info->QAskQty1<<endl;					///< 卖量1
-    cout<<"info->QAskQty2:         "<<info->QAskQty2<<endl;					///< 卖量2
-    cout<<"info->QAskQty3:         "<<info->QAskQty3<<endl;					///< 卖量3
-    cout<<"info->QAskQty4:         "<<info->QAskQty4<<endl;					///< 卖量4
-    cout<<"info->QAskQty5:         "<<info->QAskQty5<<endl;					///< 卖量5
-    cout<<"info->QAskQty6:         "<<info->QAskQty6<<endl;					///< 卖量6
-    cout<<"info->QAskQty7:         "<<info->QAskQty7<<endl;					///< 卖量7
-    cout<<"info->QAskQty8:         "<<info->QAskQty8<<endl;					///< 卖量8
-    cout<<"info->QAskQty9:         "<<info->QAskQty9<<endl;					///< 卖量9
-    cout<<"info->QAskQty10:        "<<info->QAskQty10<<endl;				///< 卖量10
-    cout<<"info->QTotalTurnOver:   "<<info->QTotalTurnOver<<endl;			///< 成交额
-    cout<<"-----------------------------------------------------"<<endl;*/
+    //cout << "subcribeQuote: " << "info->QContractNo: " << info->QContractNo << "info->QLastPrice: "<<info->QLastPrice<< "info->QBidPrice1: " << info->QBidPrice1 << "info->QAskPrice1: " << info->QAskPrice1 << endl;       
 }
 
 void apiClient::PushQuote(const DstarApiQuoteData& quote)

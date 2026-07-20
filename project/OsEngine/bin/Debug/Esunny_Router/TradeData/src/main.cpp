@@ -308,7 +308,7 @@ void ThreadWorkerPlace()
 
 #pragma endregion
 
-#pragma region Quaries
+#pragma region Queries
 
 void GetPortfolio()
 {

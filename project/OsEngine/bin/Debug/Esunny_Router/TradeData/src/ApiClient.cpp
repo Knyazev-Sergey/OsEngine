@@ -233,36 +233,6 @@ void ApiClient::OnRtnOrder(const DstarApiOrderField *pOrder)
     }
 
     cout << ApiClient::GetDateTimeNow() << "API -> " << json << '\n';
-
-    /*printf("OnRtnOrder AccountNo:%s ContractNo1:%s ContractNo2:%s Direct:%c "
-            "ExchInsertTime:%s Fee:%f FrozenMargin:%f Hedge:%c Margin:%f MatchQty:%d "
-            "MinQty:%d Offset:%c OrderId:%llu OrderLocalNo:%s OrderPrice:%f OrderQty:%d "
-            "OrderState:%c OrderType:%c UpSeatNo:%s SystemNo:%s UpdateTime:%s SeatIndex:%d "
-            "CmbId:%llu ErrCode:%u\n",
-            pOrder->AccountNo,
-            pOrder->ContractNo1,
-            pOrder->ContractNo2,
-            pOrder->Direct,
-            pOrder->ExchInsertTime,
-            pOrder->Fee,
-            pOrder->FrozenMargin,
-            pOrder->Hedge,
-            pOrder->Margin,
-            pOrder->MatchQty,
-            pOrder->MinQty,
-            pOrder->Offset,
-            pOrder->OrderId,
-            pOrder->OrderLocalNo,
-            pOrder->OrderPrice,
-            pOrder->OrderQty,
-            pOrder->OrderState,
-            pOrder->OrderType,
-            pOrder->UpSeatNo,
-            pOrder->SystemNo,
-            pOrder->UpdateTime,
-            pOrder->SeatIndex,
-            pOrder->CmbId,
-            pOrder->ErrCode);*/
 }
 
 
@@ -303,33 +273,6 @@ void ApiClient::OnRtnMatch(const DstarApiMatchField *pMatch)
     }
 
     cout << ApiClient::GetDateTimeNow() << "API -> " << json << '\n';
-
-    /*printf("OnRtnMatch MatchId: %llu AccountNo:%s CloseProfit:%f ContractNo:%s Direct:%c ExchMatchNo:%s "
-            "Fee:%f FrozenMargin:%f Hedge:%c Margin:%f MatchId:%llu MatchPrice:%f MatchQty:%d "
-            "MatchTime:%s Offset:%c OrderId:%llu OrderType:%c Premium:%f Reference:%llu SerialId:%llu "
-            "SystemNo:%s UpdateTime:%s\n", 
-            pMatch->MatchId,
-            pMatch->AccountNo,
-            pMatch->CloseProfit,
-            pMatch->ContractNo,
-            pMatch->Direct,
-            pMatch->ExchMatchNo,
-            pMatch->Fee,
-            pMatch->FrozenMargin,
-            pMatch->Hedge,
-            pMatch->Margin,
-            pMatch->MatchId,
-            pMatch->MatchPrice,
-            pMatch->MatchQty,
-            pMatch->MatchTime,
-            pMatch->Offset,
-            pMatch->OrderId,
-            pMatch->OrderType,
-            pMatch->Premium,
-            pMatch->Reference,
-            pMatch->SerialId,
-            pMatch->SystemNo,
-            pMatch->UpdateTime);*/
 }
 
 void ApiClient::OnRspQryPosition(const DstarApiPositionField* pPosition, bool bLast)

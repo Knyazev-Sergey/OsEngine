@@ -2,8 +2,6 @@
  *Your rights to use the code are governed by this license https://github.com/AlexWan/OsEngine/blob/master/LICENSE
  *Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
 */
-
-using BytesRoad.Net.Sockets;
 using Newtonsoft.Json;
 using OsEngine.Entity;
 using OsEngine.Logging;
@@ -1033,15 +1031,7 @@ namespace OsEngine.Market.Servers.Esunny
                 }
             }
         }
-
-        /*private string _placeLostDataSocket = "";
-
-        private string _placeLostTradeSocket = "";
-
-        private string _lastMessageToDataServer = "";
-
-        private string _lastMessageToTradeServer = "";*/
-
+               
         private void SendFrame(Socket socket, string payload)
         {
             if (socket == null)
@@ -1106,79 +1096,7 @@ namespace OsEngine.Market.Servers.Esunny
             }
 
             SendFrame(socket, message);
-
-            /*if (_fullLogMarketData && socket == _socketMarketData)
-            {
-                _lastMessageToDataServer = message;
-            }
-
-            if (_fullLogTradeData && socket == _socketToTrade)
-            {
-                _lastMessageToTradeServer = message;
-            }*/
         }
-
-        /*private string SendMessage(string message, Socket socket, string socketName)
-        {            
-            if (socketName == "MarketServer")
-            {               
-                _placeLostDataSocket = "Sending";
-                _lastMessageToDataServer = message;
-            }
-            else
-            {
-                _placeLostTradeSocket = "Sending";
-                _lastMessageToTradeServer = message;
-            }
-
-            // send data through socket
-
-            if (socketName == "MarketServer")
-            {
-                SendFrame(socket, message);
-            }
-            else
-            {
-                SendFrame(socket, message);
-            }            
-
-            if (message.StartsWith("Process") == false)
-            {
-                return message;
-            }
-
-            if (socketName == "MarketServer")
-            {
-                _placeLostDataSocket = "Receive";
-            }
-            else
-            {
-                _placeLostTradeSocket = "Receive";
-            }
-
-            // get response from the server
-
-            string request;
-            if (socketName == "MarketServer")
-            {
-                request = ReceiveFrame(socket);
-            }
-            else
-            {
-                request = ReceiveFrame(socket);
-            }
-
-            for (int i = 0; i < request.Length; i++)
-            {
-                if (request[i] == '%')
-                {
-                    request = request.Substring(0, i);
-                    break;
-                }
-            }
-
-            return request;
-        }*/
 
         // common connect
 
