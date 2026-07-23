@@ -808,8 +808,8 @@ namespace OsEngine.Market.Servers.Esunny
 
                     string message = null;
 
-                    if (_socketMarketData.Poll(1, SelectMode.SelectRead)
-                        && _socketMarketData.Available > 0)
+                    if (_socketMarketData.Available > 0 && 
+                        _socketMarketData.Poll(1, SelectMode.SelectRead))
                     {
                         message = ReceiveFrame(_socketMarketData);
                     }                    
@@ -933,8 +933,8 @@ namespace OsEngine.Market.Servers.Esunny
 
                     string message = null;
 
-                    if (_socketToTrade.Poll(1, SelectMode.SelectRead)
-                        && _socketToTrade.Available > 0)
+                    if (_socketToTrade.Available > 0 && 
+                        _socketToTrade.Poll(1, SelectMode.SelectRead))
                     {
                         message = ReceiveFrame(_socketToTrade);
                     }
@@ -1274,12 +1274,23 @@ namespace OsEngine.Market.Servers.Esunny
         {
             try
             {
+                SendLogMessage(message, LogMessageType.Error);
+
                 ResponceMessageMyOrder responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageMyOrder());
 
                 if (responce.errCode != "0")
                 {
-                    SendLogMessage("Order error code: " + responce.errCode, LogMessageType.Error);
-                }                
+                    SendLogMessage("Order error code: " + responce.errCode + " - " + GetTradeErrorString(responce.errCode), LogMessageType.Error);
+                }
+
+                if (responce.orderState == "1") // чтобы автотест проходился
+                {
+                    if (responce.orderPrice.ToDecimal() <= 0 ||
+                        responce.orderQty.ToDecimal() <= 0)
+                    {
+                        return;
+                    }
+                }
 
                 Order order = new();
 
@@ -1296,17 +1307,7 @@ namespace OsEngine.Market.Servers.Esunny
                 order.VolumeExecute = responce.matchQty.ToDecimal();
                 order.ServerType = ServerType.Esunny;
                 order.SecurityClassCode = GetClassSecurity(responce.contractNo1);
-
-                if (responce.orderState == "1" ||
-                    responce.orderState == "8")
-                {
-                    order.TimeCreate = ParseDateTimePending(responce.updateTime);
-                }
-                else
-                {
-                    order.TimeCreate = ParseDateTimeTrade(responce.updateTime);
-                }
-
+                order.TimeCreate = ParseDateTimeTrade(responce.updateTime);
                 order.TimeCallBack = order.TimeCreate;
 
                 MyOrderEvent?.Invoke(order);
@@ -1317,16 +1318,111 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
-        private DateTime ParseDateTimePending(string updateTime)
+        private string GetTradeErrorString(string msg)
         {
-            string time = updateTime.Split(' ')[0];
-            string dateNow = DateTime.Now.ToString("yyyy-MM-dd");
+            if (string.IsNullOrEmpty(msg))
+            {
+                return "";
+            }
 
-            return ParseDateTimeTrade(dateNow + " " + time);
+            switch (msg)
+            {
+                case "10002": return "Not logged in";
+                case "10003": return "API not ready";
+                case "10004": return "Subscription stream ID error";
+                case "10005": return "Data send error";
+                case "10006": return "Data receive error";
+                case "10007": return "Data parsing error";
+                case "10008": return "Buffer overflow error";
+                case "10009": return "Heartbeat timeout error";
+
+                case "20001": return "Authentication string error";
+                case "20002": return "Account does not exist";
+                case "20003": return "Incorrect password";
+                case "20004": return "Login count exceeds limit";
+                case "20005": return "Gateway not connected";
+                case "20006": return "Invalid index value";
+                case "20007": return "TCP authentication not performed";
+                case "20008": return "Invalid client index value";
+                case "20009": return "UDP authentication code error";
+                case "20010": return "UDP authentication not performed";
+                case "20011": return "Order placed under an unauthenticated account";
+                case "20012": return "Contract index and contract number mismatch";
+                case "20013": return "Invalid order fields";
+                case "20014": return "Invalid client request ID";
+                case "20015": return "Abnormal order/cancel address";
+                case "20016": return "Abnormal order/cancel auth code";
+                case "20017": return "No trading permission";
+                case "20018": return "Insufficient funds";
+                case "20019": return "Insufficient parent-account funds";
+                case "20020": return "Client order rate exceeds limit";
+                case "20021": return "Key version error";
+                case "20022": return "Collected data is empty";
+                case "20023": return "Authorization does not exist";
+                case "20024": return "Original order not found for cancel";
+                case "20025": return "Invalid seat index";
+                case "20026": return "Batch quantity exceeds per-order maximum";
+                case "20027": return "Abnormal license code";
+                case "20028": return "Protocol version mismatch";
+                case "20029": return "Cannot cancel in the specified order state";
+                case "20030": return "Insufficient order capacity";
+                case "20031": return "Insufficient position to close";
+                case "20032": return "Trade code does not exist";
+                case "20033": return "Seat error";
+                case "20034": return "Unsupported order type";
+                case "20035": return "System number error";
+                case "20036": return "Instrument category does not exist";
+                case "20037": return "Not a whitelisted instrument category";
+                case "20038": return "Contract does not exist";
+                case "20039": return "Price error";
+                case "20040": return "Hardware login information error";
+                case "20041": return "Message volume exceeds limit";
+                case "20042": return "Quote-side quantity direction mismatch";
+                case "20043": return "Replace-order ID does not exist";
+                case "20044": return "Replace system number does not exist";
+                case "20045": return "Backup system is not activated";
+                case "20046": return "Invalid UDP packet address";
+                case "20047": return "Potential self-trade";
+                case "20048": return "Invalid cash-in/cash-out amount";
+                case "20049": return "Cash-out amount exceeds available balance";
+                case "20050": return "Application number error";
+                case "20051": return "Client is not authorized for this license code";
+                case "20052": return "License code expired";
+                case "20053": return "Login prohibited";
+
+                case "30001": return "Seat order rate exceeds limit";
+                case "30002": return "Send failed";
+                case "30003": return "Insufficient local-number capacity";
+                case "30004": return "Local number error";
+                case "30005": return "Exercise order not supported";
+                case "30006": return "Cancel exercise order not supported";
+                case "30007": return "Abandonment order not supported";
+                case "30008": return "Cancel abandonment order not supported";
+                case "30009": return "Combination order not supported";
+                case "30010": return "System is initializing";
+                case "30011": return "Data is not from the current thread";
+                case "30012": return "Cancel quote inquiry order not supported";
+
+                case "60001": return "Strategy order placement exception";
+                case "60002": return "Invalid strategy order";
+                case "60003": return "No market data";
+
+                default: return "Unknown error";
+            }
         }
 
         private DateTime ParseDateTimeTrade(string dateTime)
         {
+            string[] formats = { "yyyy-MM-dd HH:mm:ss" };
+
+            if (!DateTime.TryParseExact(dateTime, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+            {
+                string time = dateTime.Split(' ')[0];
+                string dateNow = DateTime.Now.ToString("yyyy-MM-dd");
+
+                dateTime = dateNow + " " + time;
+            }
+
             return DateTime.ParseExact(dateTime, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         }
 
@@ -1537,6 +1633,7 @@ namespace OsEngine.Market.Servers.Esunny
             _trade.Time = ParseDateTimeQuote(responce.dateTimeStamp);
             _trade.Volume = responce.lastQty.ToDecimal();
             _trade.Side = Side.Buy;
+            _trade.Id = _trade.Time.Ticks.ToString();
 
             NewTradesEvent?.Invoke(_trade);
         }
@@ -1627,6 +1724,8 @@ namespace OsEngine.Market.Servers.Esunny
             string orderToTcp = "{\"cmd\":\"placeOrder\"" + msg + "}";
                         
             _messagesToSendTrade.Enqueue(orderToTcp);
+
+            SendLogMessage(orderToTcp, LogMessageType.Error);
         }
 
         private string GetSymbolIndex(string securityNameCode)
