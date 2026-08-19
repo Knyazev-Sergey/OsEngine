@@ -476,7 +476,8 @@ namespace OsEngine.OsTrader.Panels.Tab
                 {
                     var selectedUaName = _uaGrid.SelectedRows[0].Cells["Name"].Value.ToString();
                     var uaData = _uaData.FirstOrDefault(ud => ud.Security.Name == selectedUaName);
-                    var uaPrice = uaData?.LastPrice ?? 0;
+                    //var uaPrice = uaData?.LastPrice ?? 0;
+                    double uaPrice = 0;
 
                     if (uaPrice == 0 && uaData != null && uaData.Bid != 0 && uaData.Ask != 0)
                     {
@@ -490,6 +491,9 @@ namespace OsEngine.OsTrader.Panels.Tab
 
                         var strikes = _strikeGridRows.Keys.OrderBy(s => s).ToList();
 
+                        int minStrike = -1;
+                        int maxStrike = 0;
+
                         foreach (var strike in strikes)
                         {
                             var diff = Math.Abs(strike - uaPrice);
@@ -497,11 +501,22 @@ namespace OsEngine.OsTrader.Panels.Tab
                             {
                                 minDiff = diff;
                                 centralStrike = strike;
+
+                                minStrike++;
+                            }
+                            else
+                            {
+                                maxStrike++;
                             }
                         }
 
-                        if (centralStrike != 0)
+                        if (minStrike != maxStrike)
                         {
+                            RefreshOptionsGrid();
+                        }
+
+                        if (centralStrike != 0)
+                        {                            
                             foreach (var entry in _strikeGridRows)
                             {
                                 entry.Value.DefaultCellStyle.BackColor = entry.Key == centralStrike
@@ -809,6 +824,7 @@ namespace OsEngine.OsTrader.Panels.Tab
                 ReadOnly = true,
                 AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells
             });
+            
             _uaGrid.Columns.Add(new DataGridViewButtonColumn
             { HeaderText = "Chart", Name = "UaChart", UseColumnTextForButtonValue = true, Text = "Open" });
             _uaGrid.Columns.Add(new DataGridViewTextBoxColumn
@@ -819,10 +835,11 @@ namespace OsEngine.OsTrader.Panels.Tab
             _uaGrid.DataError += _uaGrid_DataError;
 
             var filterPanel = new FlowLayoutPanel() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(21, 26, 30) };
+
             filterPanel.Controls.Add(new Label()
             {
                 Text = "Expiration:",
-                Margin = new Padding(5, 6, 0, 0),
+                Margin = new Padding(5, 3, 0, 0),
                 ForeColor = Color.FromArgb(154, 156, 158),
                 AutoSize = true
             });
@@ -838,7 +855,7 @@ namespace OsEngine.OsTrader.Panels.Tab
             filterPanel.Controls.Add(new Label()
             {
                 Text = "Strikes:",
-                Margin = new Padding(15, 6, 0, 0),
+                Margin = new Padding(15, 3, 0, 0),
                 ForeColor = Color.FromArgb(154, 156, 158),
                 AutoSize = true
             });
@@ -868,11 +885,26 @@ namespace OsEngine.OsTrader.Panels.Tab
             buildChartButton.Click += BuildChartButton_Click;
             filterPanel.Controls.Add(buildChartButton);
 
+            var buildSkewButton = new Button()
+            {
+                Text = "IV Skew",
+                Margin = new Padding(25, 3, 0, 0),
+                ForeColor = Color.FromArgb(154, 156, 158),
+            };
+            buildSkewButton.Click += BuildSkewButton_Click;
+            filterPanel.Controls.Add(buildSkewButton);
+
             _optionsGrid = CreateNewGrid();
 
             // Call side
             _optionsGrid.Columns.Add(new DataGridViewTextBoxColumn
             { HeaderText = "Qty", Name = "CallQty", ReadOnly = false, Width = 40 });
+
+            _optionsGrid.Columns.Add(new DataGridViewButtonColumn
+            { HeaderText = "Chart", Name = "CallChart", UseColumnTextForButtonValue = true, Text = "Open", Width = 50 });
+            //_optionsGrid.Columns.Add(new DataGridViewButtonColumn
+            //{ HeaderText = "PNL", Name = "CallPnl", UseColumnTextForButtonValue = true, Text = "Profile" });
+
             string[] callHeaders = { "Theta", "Vega", "Gamma", "Delta", "Last", "Ask", "Bid", "Name" };
             foreach (var header in callHeaders)
             {
@@ -884,11 +916,6 @@ namespace OsEngine.OsTrader.Panels.Tab
                     AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells
                 });
             }
-
-            _optionsGrid.Columns.Add(new DataGridViewButtonColumn
-            { HeaderText = "Chart", Name = "CallChart", UseColumnTextForButtonValue = true, Text = "Open" });
-            _optionsGrid.Columns.Add(new DataGridViewButtonColumn
-            { HeaderText = "PNL", Name = "CallPnl", UseColumnTextForButtonValue = true, Text = "Profile" });
 
             // Center
             _optionsGrid.Columns.Add(new DataGridViewTextBoxColumn
@@ -920,9 +947,9 @@ namespace OsEngine.OsTrader.Panels.Tab
             }
 
             _optionsGrid.Columns.Add(new DataGridViewButtonColumn
-            { HeaderText = "Chart", Name = "PutChart", UseColumnTextForButtonValue = true, Text = "Open" });
-            _optionsGrid.Columns.Add(new DataGridViewButtonColumn
-            { HeaderText = "PNL", Name = "PutPnl", UseColumnTextForButtonValue = true, Text = "Profile" });
+            { HeaderText = "Chart", Name = "PutChart", UseColumnTextForButtonValue = true, Text = "Open", Width = 50 });
+            //_optionsGrid.Columns.Add(new DataGridViewButtonColumn
+            //{ HeaderText = "PNL", Name = "PutPnl", UseColumnTextForButtonValue = true, Text = "Profile" });
             _optionsGrid.Columns.Add(new DataGridViewTextBoxColumn
             { HeaderText = "Qty", Name = "PutQty", ReadOnly = false, Width = 40 });
             _optionsGrid.Columns["CallName"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
@@ -935,6 +962,11 @@ namespace OsEngine.OsTrader.Panels.Tab
             _mainControl.Controls.Add(_uaGrid, 0, 0);
             _mainControl.Controls.Add(filterPanel, 0, 1);
             _mainControl.Controls.Add(_optionsGrid, 0, 2);
+        }
+
+        private void BuildSkewButton_Click(object sender, EventArgs e)
+        {
+            
         }
 
         private void _uaGrid_DataError(object sender, DataGridViewDataErrorEventArgs e)
@@ -1158,6 +1190,7 @@ namespace OsEngine.OsTrader.Panels.Tab
             var selectedUaName = _uaGrid.SelectedRows[0].Cells["Name"].Value.ToString();
             DateTime? selectedDate = null;
             string selectedExpirationStr = null;
+
             if (_expirationComboBox.IsHandleCreated)
             {
                 if (_expirationComboBox.InvokeRequired)
@@ -1178,6 +1211,7 @@ namespace OsEngine.OsTrader.Panels.Tab
 
             // Step 1: Filter master list
             List<OptionDataRow> optionsForDisplay;
+
             lock (_locker)
             {
                 optionsForDisplay = _allOptionsData.Where(o => o.Security.UnderlyingAsset == selectedUaName &&
@@ -1208,12 +1242,14 @@ namespace OsEngine.OsTrader.Panels.Tab
             // Step 3: Filter by Strike Count
             var uaData = _uaData.FirstOrDefault(ud => ud.Security.Name == selectedUaName);
             var uaPrice = uaData?.LastPrice ?? 0;
+
             if (uaPrice == 0 && uaData != null && uaData.Bid != 0 && uaData.Ask != 0)
             {
                 uaPrice = (uaData.Bid + uaData.Ask) / 2;
             }
 
             var strikes = strikesToDisplay.Select(s => s.Strike).Distinct().OrderBy(s => s).ToList();
+
             if (strikes.Count == 0)
             {
                 PopulateOptionsGrid(new List<StrikeDataRow>());
@@ -1221,6 +1257,7 @@ namespace OsEngine.OsTrader.Panels.Tab
             }
 
             double atmStrike;
+
             if (uaPrice != 0)
             {
                 atmStrike = strikes.Aggregate((x, y) => Math.Abs(x - uaPrice) < Math.Abs(y - uaPrice) ? x : y);
@@ -1259,6 +1296,7 @@ namespace OsEngine.OsTrader.Panels.Tab
                 var row = new DataGridViewRow();
                 row.CreateCells(_optionsGrid,
                     data.CallData?.Quantity, // Call Qty
+                    "Open", // CallChart
                     data.CallData?.Theta,
                     data.CallData?.Vega,
                     data.CallData?.Gamma,
@@ -1267,8 +1305,8 @@ namespace OsEngine.OsTrader.Panels.Tab
                     data.CallData?.Ask,
                     data.CallData?.Bid,
                     data.CallData?.Security.Name,
-                    "Open", // CallChart
-                    "Profile", // CallPnl
+                    
+                    //"Profile", // CallPnl
                     data.Strike,
                     data.CallData?.IV ?? data.PutData?.IV,
                     data.PutData?.Bid,
@@ -1280,7 +1318,7 @@ namespace OsEngine.OsTrader.Panels.Tab
                     data.PutData?.Theta,
                     data.PutData?.Security.Name,
                     "Open", // PutChart
-                    "Profile", // PutPnl
+                    //"Profile", // PutPnl
                     data.PutData?.Quantity // Put Qty
                 );
                 _strikeGridRows.Add(data.Strike, row);
@@ -1294,15 +1332,15 @@ namespace OsEngine.OsTrader.Panels.Tab
 
             var isCallChart = e.ColumnIndex == _optionsGrid.Columns["CallChart"].Index;
             var isPutChart = e.ColumnIndex == _optionsGrid.Columns["PutChart"].Index;
-            var isCallPnl = e.ColumnIndex == _optionsGrid.Columns["CallPnl"].Index;
-            var isPutPnl = e.ColumnIndex == _optionsGrid.Columns["PutPnl"].Index;
+            //var isCallPnl = e.ColumnIndex == _optionsGrid.Columns["CallPnl"].Index;
+            //var isPutPnl = e.ColumnIndex == _optionsGrid.Columns["PutPnl"].Index;
 
-            if (!isCallChart && !isPutChart && !isCallPnl && !isPutPnl) return;
+            if (!isCallChart && !isPutChart) return;// && !isCallPnl && !isPutPnl) return;
 
             var strike = (double)_optionsGrid.Rows[e.RowIndex].Cells["Strike"].Value;
             var strikeData = _allOptionsData.Where(o => o != null && o.Security != null && (double)o.Security.Strike == strike).ToList();
 
-            if (isCallPnl || isPutPnl)
+            /*if (isCallPnl || isPutPnl)
             {
                 var optionData = isCallPnl
                     ? strikeData.FirstOrDefault(o => o.Security.OptionType == OptionType.Call)
@@ -1316,7 +1354,7 @@ namespace OsEngine.OsTrader.Panels.Tab
                 }
 
                 return; // Prevent falling through to ShowChart logic
-            }
+            }*/
 
             var optionDataChart = isCallChart
                 ? strikeData.FirstOrDefault(o => o.Security.OptionType == OptionType.Call)
