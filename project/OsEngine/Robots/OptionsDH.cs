@@ -175,11 +175,14 @@ namespace OsEngine.Robots
             _deltaOption = GetDeltaOption();
             _deltaFutures = GetDeltaFutures();
 
-            if (_regime.ValueString == "Off") return;
+            if (_regime.ValueString == "Off")
+            {
+                _priceActivationState = false;
+                return;
+            }
 
             if (!CheckPriceActivation())
-            {
-                
+            {                
                 return;
             }
 
