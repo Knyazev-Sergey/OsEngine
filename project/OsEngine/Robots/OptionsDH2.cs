@@ -12,12 +12,13 @@ using System.Windows.Forms.Integration;
 
 namespace OsEngine.Robots
 {
-    [Bot("OptionsDH")]
-    public class OptionsDH : BotPanel
+    [Bot("OptionsDH2")]
+    public class OptionsDH2 : BotPanel
     {
         #region Constructor
 
-        private BotTabSimple _tabOption;
+        private BotTabSimple _tabOptionFirst;
+        private BotTabSimple _tabOptionSecond;
         private BotTabSimple _tabFutures;
         private StrategyParameterString _regime;
         private StrategyParameterDecimal _deviationDelta;
@@ -27,9 +28,10 @@ namespace OsEngine.Robots
 
         private Logging.LogMessageType _logType = Logging.LogMessageType.User;
 
-        public OptionsDH(string name, StartProgram startProgram) : base(name, startProgram)
+        public OptionsDH2(string name, StartProgram startProgram) : base(name, startProgram)
         {
-            _tabOption = (BotTabSimple)TabCreate(BotTabType.Simple);
+            _tabOptionFirst = (BotTabSimple)TabCreate(BotTabType.Simple);
+            _tabOptionSecond = (BotTabSimple)TabCreate(BotTabType.Simple);
             _tabFutures = (BotTabSimple)TabCreate(BotTabType.Simple);
 
             this.ParamGuiSettings.Title = "Options Delta Hedge";
@@ -81,7 +83,7 @@ namespace OsEngine.Robots
             dgv.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
 
             dgv.ColumnCount = 2;
-            dgv.RowCount = 5;
+            dgv.RowCount = 6;
 
             foreach (DataGridViewColumn column in dgv.Columns)
             {
@@ -94,9 +96,10 @@ namespace OsEngine.Robots
             dgv.Columns[1].HeaderText = "Значение";
 
             dgv[0, 0].Value = "Цена фьючерса";
-            dgv[0, 1].Value = "Дельта Опциона в позиции";
-            dgv[0, 2].Value = "Дельта фьючерса в позиции";
-            dgv[0, 3].Value = "Общая дельта";
+            dgv[0, 1].Value = "Дельта первого опциона в позиции";
+            dgv[0, 2].Value = "Дельта второго опциона в позиции";
+            dgv[0, 3].Value = "Дельта фьючерса в позиции";
+            dgv[0, 4].Value = "Общая дельта";
             //dgv[0, 4].Value = "5";
 
             _hostMonitoring.Child = dgv;
@@ -128,19 +131,21 @@ namespace OsEngine.Robots
             if (_tabFutures.CandlesAll.Count == 0) return;
 
             _dgvMonitoring[1, 0].Value = _tabFutures.CandlesAll[^1].Close;
-            _dgvMonitoring[1, 1].Value = _deltaOption;
-            _dgvMonitoring[1, 2].Value = _deltaFutures;
-            _dgvMonitoring[1, 3].Value = _deltaOption + _deltaFutures;
+            _dgvMonitoring[1, 1].Value = _deltaOptionFirst;
+            _dgvMonitoring[1, 2].Value = _deltaOptionSecond;
+            _dgvMonitoring[1, 3].Value = _deltaFutures;
+            _dgvMonitoring[1, 4].Value = _deltaOptionFirst + _deltaFutures + _deltaOptionSecond;
 
-            _dgvMonitoring[0, 4].Value = "_priceActivationState";
-            _dgvMonitoring[1, 4].Value = _priceActivationState;
+            _dgvMonitoring[0, 5].Value = "_priceActivationState";
+            _dgvMonitoring[1, 5].Value = _priceActivationState;
         }
 
         #endregion
 
         #region Trade Logic
 
-        private decimal _deltaOption;
+        private decimal _deltaOptionFirst;
+        private decimal _deltaOptionSecond;
         private decimal _deltaFutures;
 
         private void ThreadTradeLogic()
@@ -151,9 +156,9 @@ namespace OsEngine.Robots
                 {
                     Thread.Sleep(100);
 
-                    if (_tabOption == null || _tabFutures == null) continue;
-                    if (_tabOption.Security == null || _tabFutures.Security == null) continue;
-                    if (_tabOption.Security.Name == null || _tabFutures.Security.Name == null) continue;
+                    if (_tabOptionFirst == null || _tabFutures == null) continue;
+                    if (_tabOptionFirst.Security == null || _tabFutures.Security == null) continue;
+                    if (_tabOptionFirst.Security.Name == null || _tabFutures.Security.Name == null) continue;
                     if (_tabFutures.CandlesAll == null) continue;
                     if (_tabFutures.CandlesAll.Count == 0) continue;
 
@@ -172,7 +177,8 @@ namespace OsEngine.Robots
 
         private void TradeLogic()
         {
-            _deltaOption = GetDeltaOption();
+            _deltaOptionFirst = GetDeltaOption(_tabOptionFirst);
+            _deltaOptionSecond = GetDeltaOption(_tabOptionSecond);
             _deltaFutures = GetDeltaFutures();
 
             if (_regime.ValueString == "Off")
@@ -198,15 +204,15 @@ namespace OsEngine.Robots
                 return;
             }
 
-            if (Math.Abs(_deltaOption + _deltaFutures) >= _deviationDelta)
+            if (Math.Abs(_deltaOptionFirst + _deltaOptionSecond + _deltaFutures) >= _deviationDelta)
             {
-                decimal volume = Math.Round(Math.Abs(_deltaOption + _deltaFutures), _tabFutures.Security.DecimalsVolume, MidpointRounding.ToNegativeInfinity);
+                decimal volume = Math.Round(Math.Abs(_deltaOptionFirst + _deltaOptionSecond + _deltaFutures), _tabFutures.Security.DecimalsVolume, MidpointRounding.ToNegativeInfinity);
 
-                if (_deltaOption + _deltaFutures > 0)
+                if (_deltaOptionFirst + _deltaOptionSecond + _deltaFutures > 0)
                 {
                     SellFutures(volume);                    
                 }
-                else if (_deltaOption + _deltaFutures < 0)
+                else if (_deltaOptionFirst + _deltaOptionSecond + _deltaFutures < 0)
                 {
                     BuyFutures(volume);
                 }
@@ -385,22 +391,23 @@ namespace OsEngine.Robots
             }
         }
 
-        private decimal GetDeltaOption()
+        private decimal GetDeltaOption(BotTabSimple tab)
         {
-            if (_tabOption.PositionsOpenAll.Count == 0)
-            {
-                return 0;
-            }
+            if (tab == null) return 0;
+            if (tab.Security == null) return 0;
+            if (tab.Security.Name == null) return 0;
 
-            decimal volume = _tabOption.PositionsOpenAll[0].OpenVolume;
+            if (tab.PositionsOpenAll.Count == 0) return 0;
 
-            if (_tabOption.PositionsOpenAll[0].Direction == Side.Buy)
+            decimal volume = tab.PositionsOpenAll[0].OpenVolume;
+
+            if (tab.PositionsOpenAll[0].Direction == Side.Buy)
             {
-                return volume * (decimal)_tabOption.Connector.OptionMarketData.Delta;
+                return volume * (decimal)tab.Connector.OptionMarketData.Delta;
             }
             else
             {
-                return -volume * (decimal)_tabOption.Connector.OptionMarketData.Delta;
+                return -volume * (decimal)tab.Connector.OptionMarketData.Delta;
             }
         }
 
