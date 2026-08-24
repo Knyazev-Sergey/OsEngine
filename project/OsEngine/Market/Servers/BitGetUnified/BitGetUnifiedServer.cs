@@ -36,6 +36,7 @@ namespace OsEngine.Market.Servers.BitGetUnified
             CreateParameterPassword(OsLocalization.Market.ServerParameterPassphrase, "");
             CreateParameterBoolean("Hedge Mode", true);
             CreateParameterBoolean("Extended Data", false);
+            CreateParameterBoolean("Demo", false);
 
             ServerParameters[0].Comment = OsLocalization.Market.Label246;
             ServerParameters[1].Comment = OsLocalization.Market.Label247;
