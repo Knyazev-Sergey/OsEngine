@@ -297,6 +297,11 @@ namespace OsEngine.Market.Servers.Esunny
             }
         }
 
+        public bool StopOrdersIsSupport
+        {
+            get { return false; }
+        }
+
         #endregion
     }
 }
