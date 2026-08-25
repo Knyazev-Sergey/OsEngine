@@ -1,0 +1,1833 @@
+/*
+ *Your rights to use the code are governed by this license https://github.com/AlexWan/OsEngine/blob/master/LICENSE
+ *Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
+*/
+using Newtonsoft.Json;
+using OsEngine.Entity;
+using OsEngine.Logging;
+using OsEngine.Market.Servers.Entity;
+using OsEngine.Market.Servers.Esunny.Entity;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading;
+
+namespace OsEngine.Market.Servers.Esunny
+{
+    public class EsunnyServer : AServer
+    {
+        public EsunnyServer()
+        {
+            EsunnyServerRealization realization = new EsunnyServerRealization();
+            ServerRealization = realization;                       
+
+            CreateParameterString("Account ID", "");
+            CreateParameterPassword("Password", "");
+            CreateParameterString("AuthCode", "");
+            CreateParameterString("APPID", "");
+            CreateParameterString("Data server url", "");
+            CreateParameterString("Trade server url", "");
+            CreateParameterBoolean("Enable full log Data server", false);
+            CreateParameterBoolean("Enable full log Trade server", false);        
+        }
+    }
+
+    public class EsunnyServerRealization : IServerRealization
+    {
+        #region 1 Constructor, Status, Connection
+
+        public EsunnyServerRealization()
+        {
+            ServerStatus = ServerConnectStatus.Disconnect;
+
+            Thread worker = new Thread(ThreadPortfolio);
+            worker.Start();
+
+            Thread worker2 = new Thread(ThreadReceiveMarketData);
+            worker2.IsBackground = true;
+            worker2.Start();
+
+            Thread parseMarketData = new Thread(ThreadParseMarketData);
+            parseMarketData.IsBackground = true;
+            parseMarketData.Start();
+
+            Thread sendMarketData = new Thread(ThreadSendMarketData);
+            sendMarketData.IsBackground = true;
+            sendMarketData.Start();
+
+            Thread receiveTradeData = new Thread(ThreadReceiveTradeData);
+            receiveTradeData.IsBackground = true;
+            receiveTradeData.Start();
+
+            Thread parseTradeData = new Thread(ThreadParseTradeData);
+            parseTradeData.IsBackground = true;
+            parseTradeData.Start();
+
+            Thread sendTradeData = new Thread(ThreadSendTradeData);
+            sendTradeData.IsBackground = true;
+            sendTradeData.Start();
+
+            Thread worker4 = new Thread(CheckSocketThreadsStatus);
+            worker4.Start();
+        }
+
+        public DateTime ServerTime { get; set; }
+
+        public void Connect(WebProxy proxy = null)
+        {
+            _accountId = ((ServerParameterString)ServerParameters[0]).Value;
+            _userPassword = ((ServerParameterPassword)ServerParameters[1]).Value;            
+            _authCode = ((ServerParameterString)ServerParameters[2]).Value;
+            _appId = ((ServerParameterString)ServerParameters[3]).Value;
+            _dataServerUrl = ((ServerParameterString)ServerParameters[4]).Value;
+            _tradeServerUrl = ((ServerParameterString)ServerParameters[5]).Value;
+            _fullLogMarketData = ((ServerParameterBool)ServerParameters[6]).Value;
+            _fullLogTradeData = ((ServerParameterBool)ServerParameters[7]).Value;
+
+            if (string.IsNullOrEmpty(_accountId))
+            {
+                SendLogMessage("No BrokerId!!! No connection!!!", LogMessageType.Error);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(_userPassword))
+            {
+                SendLogMessage("No UserPassword!!! No connection!!!", LogMessageType.Error);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(_authCode))
+            {
+                SendLogMessage("No AuthCode!!! No connection!!!", LogMessageType.Error);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(_appId))
+            {
+                SendLogMessage("No AppId!!! No connection!!!", LogMessageType.Error);
+                return;
+            }
+
+            if (DataRouterIsActivate == true &&
+                string.IsNullOrEmpty(_dataServerUrl))
+            {
+                SendLogMessage("No Data server url!!! No connection!!!", LogMessageType.Error);
+                return;
+            }
+
+            if (TradeRouterIsActivate == true &&
+                string.IsNullOrEmpty(_tradeServerUrl))
+            {
+                SendLogMessage("No Trade server url!!! No connection!!!", LogMessageType.Error);
+                return;
+            }
+
+            _tradeSocketConnect = false;
+            _marketSocketConnect = false;
+
+            _subscribeSecurities = new List<Security>();
+
+            CloseRouters();
+
+            Thread.Sleep(5000);
+
+            LoadRouters();
+
+            Thread.Sleep(5000);
+
+            _messagesToSendMarketData = new ConcurrentQueue<string>();
+            _messagesToSendTrade = new ConcurrentQueue<string>();
+
+            string connectionMarketData = "{\"cmd\":\"connect\"";
+
+            if (_fullLogMarketData)
+            {
+                connectionMarketData += ",\"fullLog\":\"true\"";
+            }
+            else
+            {
+                connectionMarketData += ",\"fullLog\":\"false\"";
+            }
+
+            connectionMarketData += ",\"dataServerUrl\":\"" + _dataServerUrl.Split(':')[0] + "\"";
+            connectionMarketData += ",\"dataServerPort\":\"" + _dataServerUrl.Split(':')[1] + "\"}";
+
+            string connectionTrade = "{\"cmd\":\"connect\"";
+
+            if (_fullLogTradeData)
+            {
+                connectionTrade += ",\"fullLog\":\"true\"";
+            }
+            else
+            {
+                connectionTrade += ",\"fullLog\":\"false\"";
+            }
+
+            connectionTrade += ",\"accountId\":\"" + _accountId + "\"";
+            connectionTrade += ",\"password\":\"" + _userPassword + "\"";
+            connectionTrade += ",\"appId\":\"" + _appId + "\"";
+            connectionTrade += ",\"authCode\":\"" + _authCode + "\"";
+            connectionTrade += ",\"tradeServerUrl\":\"" + _tradeServerUrl.Split(':')[0] + "\"";
+            connectionTrade += ",\"tradeServerPort\":\"" + _tradeServerUrl.Split(':')[1] + "\"}";
+
+            _messagesToSendMarketData.Enqueue(connectionMarketData);
+            _messagesToSendTrade.Enqueue(connectionTrade);
+
+            if (DataRouterIsActivate == true)
+            {// Сокет для данных
+                if (_socketMarketData == null)
+                {
+                    IPHostEntry ipHost = Dns.GetHostEntry("localhost");
+
+                    IPAddress ipAddr = null;
+
+                    for (int i = 0; i < ipHost.AddressList.Length; i++)
+                    {
+                        IPAddress ipAddrCurrent = ipHost.AddressList[i];
+
+                        string adr = ipAddrCurrent.ToString();
+
+                        if (adr == "127.0.0.1")
+                        {
+                            ipAddr = ipHost.AddressList[i];
+                            break;
+                        }
+                    }
+
+                    if (ipAddr == null)
+                    {
+                        SendLogMessage("No localhost address", LogMessageType.Error);
+                        return;
+                    }
+
+                    IPEndPoint ipEndPoint = new IPEndPoint(ipAddr, 5555);
+
+                    _socketMarketData = new Socket(ipAddr.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+                    try
+                    {
+                        _socketMarketData.Connect(ipEndPoint);
+                    }
+                    catch (Exception ex)
+                    {
+                        SendLogMessage("Esunny market server is not responding" + ex.ToString(),
+
+                            LogMessageType.Error);
+                        return;
+                    }
+                }
+            }                      
+
+            if (TradeRouterIsActivate == true)
+            {// Сокет для торговли
+                if (_socketToTrade == null)
+                {
+                    IPHostEntry ipHost = Dns.GetHostEntry("localhost");
+
+                    IPAddress ipAddr = null;
+
+                    for (int i = 0; i < ipHost.AddressList.Length; i++)
+                    {
+                        IPAddress ipAddrCurrent = ipHost.AddressList[i];
+
+                        string adr = ipAddrCurrent.ToString();
+
+                        if (adr == "127.0.0.1")
+                        {
+                            ipAddr = ipHost.AddressList[i];
+                            break;
+                        }
+                    }
+
+                    IPEndPoint ipEndPoint = new IPEndPoint(ipAddr, 5556);
+
+                    _socketToTrade = new Socket(ipAddr.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+                    try
+                    {
+                        _socketToTrade.Connect(ipEndPoint);
+                    }
+                    catch (Exception ex)
+                    {
+                        SendLogMessage("Esunny trade server is not responding" + ex.ToString(),
+
+                            LogMessageType.Error);
+                        return;
+                    }
+                }
+            }
+
+            Thread.Sleep(5000);
+
+            _canSendMessagesMarketData = true;
+            _canSendMessagesTradeRouter = true;
+        }
+
+        public void Dispose()
+        {
+            _canSendMessagesMarketData = false;
+            _canSendMessagesTradeRouter = false;
+            _tradeSocketConnect = false;
+            _marketSocketConnect = false;
+
+            try
+            {
+                if (_socketMarketData != null)
+                {
+                    try
+                    {
+                        _socketMarketData.Shutdown(SocketShutdown.Send);
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+
+                    _socketMarketData.Close();
+                    _socketMarketData.Dispose();
+                    _socketMarketData = null;
+                }
+            }
+            catch (Exception exeption)
+            {
+                HandlerException(exeption);
+            }
+            
+            try
+            {
+                if (_socketToTrade != null)
+                {
+                    try
+                    {
+                        _socketToTrade.Shutdown(SocketShutdown.Send);
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+
+                    _socketToTrade.Close();
+                    _socketToTrade.Dispose();
+                    _socketToTrade = null;
+                }
+            }
+            catch (Exception exeption)
+            {
+                HandlerException(exeption);
+            }
+
+            try
+            {
+                CloseRouters();
+            }
+            catch (Exception exeption)
+            {
+                HandlerException(exeption);
+            }
+
+            if (ServerStatus != ServerConnectStatus.Disconnect)
+            {
+                ServerStatus = ServerConnectStatus.Disconnect;
+                DisconnectEvent();
+            }
+        }
+
+        public ServerType ServerType
+        {
+            get { return ServerType.Esunny; }
+        }
+
+        public ServerConnectStatus ServerStatus { get; set; }
+
+        public event Action ConnectEvent;
+
+        public event Action DisconnectEvent;
+
+        public event Action ForceCheckOrdersAfterReconnectEvent { add { } remove { } }
+
+        public bool TradeRouterIsActivate
+        {
+            get
+            {
+                return true;
+            }
+        }
+
+        public bool DataRouterIsActivate
+        {
+            get
+            {
+                return true;
+            }
+        }
+
+        public void CloseRouters()
+        {
+            Process[] ps1 = System.Diagnostics.Process.GetProcesses();
+
+            List<Process> process = new List<Process>();
+
+            for (int i = 0; i < ps1.Length; i++)
+            {
+                Process p = ps1[i];
+
+                try
+                {
+                    if (p.MainModule.FileName != ""
+                        && p.Modules != null)
+                    {
+                        process.Add(p);
+                    }
+                }
+                catch
+                {
+
+                }
+            }
+
+            for (int i = 0; i < process.Count; i++)
+            {
+                Process p = process[i];
+
+                for (int j = 0; p.Modules != null && j < p.Modules.Count; j++)
+                {
+                    if (p.Modules[j].FileName == null)
+                    {
+                        continue;
+                    }
+
+                    if (p.Modules[j].FileName.EndsWith("EsunnyMarketData.exe"))
+                    {
+                        p.Kill();
+                        p.Dispose();
+                        break;
+                    }
+                    else if (p.Modules[j].FileName.EndsWith("cmd.exe"))
+                    {
+                        p.Kill();
+                        p.Dispose();
+                        break;
+                    }
+                    else if (p.Modules[j].FileName.EndsWith("EsunnyTradeData.exe"))
+                    {
+                        p.Kill();
+                        p.Dispose();
+                        break;
+                    }
+
+                }
+            }
+        }
+
+        public void LoadRouters()
+        {
+            string curDir = Environment.CurrentDirectory;
+
+            string dirMarketData = curDir + "\\Esunny_Router\\MarketData\\x64\\Release\\EsunnyMarketData.exe";
+            string dirTrader = curDir + "\\Esunny_Router\\TradeData\\x64\\Release\\EsunnyTradeData.exe";
+
+            try
+            {
+                if (TradeRouterIsActivate)
+                {
+                    Process.Start(dirTrader);
+                }
+
+                if (DataRouterIsActivate)
+                {
+                    Process.Start(dirMarketData);
+                }
+
+                Thread.Sleep(3000);
+            }
+            catch (Exception e)
+            {
+                SendLogMessage(e.ToString(), LogMessageType.Error);
+            }
+        }
+        
+        #endregion
+
+        #region 2 Properties
+
+        public List<IServerParameter> ServerParameters { get; set; }
+
+        public bool IsCompletelyDeleted { get; set; }
+
+        private string _accountId;
+
+        private string _userPassword;
+
+        private string _appId;
+
+        private string _authCode;
+
+        private string _dataServerUrl;
+
+        private string _tradeServerUrl;
+
+        private bool _fullLogMarketData;
+
+        private bool _fullLogTradeData;
+
+        #endregion
+
+        #region 3 Securities
+
+        public void GetSecurities()
+        {
+            string str = "getSecurities";
+
+            _messagesToSendTrade.Enqueue(str);
+
+            while (true)
+            {
+                if (_securities != null && _securities.Count > 0)
+                {
+                    break;
+                }
+
+                Thread.Sleep(1000);
+            }
+
+            SecurityEvent(_securities);
+        }
+
+        private void GetSecurityList(string message)
+        {
+            try
+            {
+                ResponceMessageSecurity responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageSecurity());
+
+                List<Security> loadSecurities = new();
+
+                for (int i = 0; i < responce.list.Count; i++)
+                {
+                    Security sec = new();
+
+                    sec.Name = responce.list[i].contractNo;
+                    sec.NameId = responce.list[i].contractIndex;                    
+                    sec.Exchange = GetNameExchange(responce.list[i].exchangeId);
+                    sec.NameClass = GetNameClass(responce.list[i].commodityType);
+                    sec.Lot = 1;
+                    sec.VolumeStep = responce.list[i].contractSize.ToDecimal();
+                    sec.MinTradeAmount = responce.list[i].contractSize.ToDecimal();
+                    sec.MinTradeAmountType = MinTradeAmountType.Contract;
+                    sec.DecimalsVolume = GetDecimals(responce.list[i].contractSize);
+                    sec.PriceStep = responce.list[i].contractTickSize.ToDecimal();
+                    sec.PriceStepCost = responce.list[i].contractTickSize.ToDecimal();
+                    sec.Decimals = GetDecimals(responce.list[i].contractTickSize);
+                    sec.NameFull = GetFullNameSecurity(responce.list[i], sec);
+                    sec.State = SecurityStateType.Activ;
+                    
+                    loadSecurities.Add(sec);
+                }
+                _securities.Clear();
+                _securities = loadSecurities;
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private string GetFullNameSecurity(Data data, Security sec)
+        {
+            string prefix = new string(data.contractNo.TakeWhile(char.IsLetter).ToArray());
+            string suffix = new string(data.contractNo.SkipWhile(char.IsLetter).ToArray());
+
+            return sec.Exchange + "|" + data.commodityType + "|" + prefix + "|" + suffix;
+        }
+
+        private string GetNameExchange(string exchangeId)
+        {
+            switch (exchangeId)
+            {
+                case "Z":
+                    return "ZCE";
+                case "S":
+                    return "SHFE";
+                case "I":
+                    return "INE";
+                case "C":
+                    return "CFFEX";
+                case "D":
+                    return "DCE";
+                case "F":
+                    return "GFEX";
+                case "G":
+                    return "SGE";
+                default:
+                    return "";
+            }          
+        }
+
+        private string GetNameClass(string type)
+        {
+            switch (type)
+            {
+                case "F":
+                    return "Futures";
+                case "O":
+                    return "Options";
+                case "M":
+                    return "Inter-commodity spread";
+                case "S":
+                    return "Calendar spread";
+                case "D":
+                    return "Straddle";
+                case "G":
+                    return "Strip spread";
+                case "R":
+                    return "Covered option";
+                default:
+                    return "None";
+            }
+        }
+
+        private int GetDecimals(string str)
+        {
+            string[] s = str.Split('.');
+
+            if (s.Length > 1)
+            {
+                return s[1].Length;
+            }
+            else
+            {
+                return 0;
+            }
+        }
+
+        public List<Security> _securities = new List<Security>();
+
+        public event Action<List<Security>> SecurityEvent;
+
+        #endregion
+
+        #region 4 Portfolios
+
+        private Portfolio _portfolio = new Portfolio();
+
+        private bool _portfoliosLoaded = false;
+        private bool _positionsLoaded = false;
+
+        public void GetPortfolios()
+        {
+        }
+
+        private void ThreadPortfolio()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (ServerStatus == ServerConnectStatus.Disconnect)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
+                    _messagesToSendTrade.Enqueue("getPortfolio");
+                    _messagesToSendTrade.Enqueue("getPositions");
+
+                    Thread.Sleep(10000);
+                }
+                catch (Exception ex)
+                {
+                    SendLogMessage(ex.ToString(), LogMessageType.Error);
+                }
+            }
+        }
+
+        private void GetPortfolioData(string message)
+        {
+            try
+            {
+                ResponceMessageAccount responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageAccount());
+
+                Portfolio portfolio = new Portfolio();
+
+                portfolio.Number = responce.accountNo;
+
+                if (!_portfoliosLoaded)
+                {
+                    portfolio.ValueBegin = responce.equity.ToDecimal();
+                    _portfoliosLoaded = true;
+                }
+                else
+                {
+                    if(_portfolio != null && _portfolio.ValueBegin != 0)
+                    {
+                        portfolio.ValueBegin = _portfolio.ValueBegin;
+                    }
+                }
+                
+                portfolio.ValueCurrent = responce.equity.ToDecimal();
+                portfolio.ValueBlocked = responce.margin.ToDecimal();
+                portfolio.UnrealizedPnl = responce.positionProfit.ToDecimal();
+
+                _portfolio = portfolio;
+
+                PortfolioEvent(new List<Portfolio> { portfolio });
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void GetPositionsData(string message)
+        {
+            try
+            {
+                ResponceMessagePositions responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessagePositions());
+
+                Portfolio portfolio = new Portfolio();
+
+                portfolio.Number = _portfolio.Number;
+                portfolio.ValueBegin = _portfolio.ValueBegin;
+                portfolio.ValueCurrent = _portfolio.ValueCurrent;
+                portfolio.ValueBlocked = _portfolio.ValueBlocked;
+                portfolio.UnrealizedPnl = _portfolio.UnrealizedPnl;
+
+                for (int i = 0; i < responce.list.Count; i++)
+                {
+                    ListPositions item = responce.list[i];
+
+                    PositionOnBoard pos = new PositionOnBoard();
+
+                    pos.PortfolioName = item.accountNo;
+                    pos.SecurityNameCode = item.contractNo;
+                    pos.ValueBlocked = 0;
+                    pos.ValueCurrent = item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal() - item.preSellQty.ToDecimal() - item.todaySellQty.ToDecimal();
+
+                    if (!_positionsLoaded)
+                    {
+                        pos.ValueBegin = item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal() - item.preSellQty.ToDecimal() - item.todaySellQty.ToDecimal();
+                    }
+
+                    portfolio.SetNewPosition(pos);
+
+                    /*PositionOnBoard posLong = new PositionOnBoard();
+
+                    posLong.PortfolioName = item.accountNo;
+                    posLong.SecurityNameCode = item.contractNo + "_LONG";
+                    posLong.ValueBlocked = 0;
+                    posLong.ValueCurrent = item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal();
+
+                    if (!_positionsLoaded)
+                    {
+                        posLong.ValueBegin = item.preBuyQty.ToDecimal() + item.todayBuyQty.ToDecimal();
+                    }
+
+                    portfolio.SetNewPosition(posLong);
+
+                    PositionOnBoard posShort = new PositionOnBoard();
+
+                    posShort.PortfolioName = item.accountNo;
+                    posShort.SecurityNameCode = item.contractNo + "_SHORT";
+                    posShort.ValueBlocked = 0;
+                    posShort.ValueCurrent = item.preSellQty.ToDecimal() + item.todaySellQty.ToDecimal();
+
+                    if (!_positionsLoaded)
+                    {
+                        posShort.ValueBegin = item.preSellQty.ToDecimal() + item.todaySellQty.ToDecimal();
+                    }
+
+                    portfolio.SetNewPosition(posShort);*/
+                }
+
+                _positionsLoaded = true;
+
+                PortfolioEvent(new List<Portfolio> { portfolio });
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        public event Action<List<Portfolio>> PortfolioEvent;
+
+        #endregion
+
+        #region 5 Data
+
+        public List<Trade> GetTickDataToSecurity(Security security, DateTime startTime, DateTime endTime, DateTime actualTime)
+        {
+            return null;
+        }
+
+        public List<Candle> GetCandleDataToSecurity(Security security, TimeFrameBuilder timeFrameBuilder, DateTime startTime, DateTime endTime, DateTime actualTime)
+        {
+            return null;
+        }
+
+        public List<Candle> GetCandleHistory(string nameSec, TimeSpan tf, bool IsOsData, int CountToLoad, DateTime timeEnd)
+        {
+            return null;
+        }
+
+        public List<Candle> GetLastCandleHistory(Security security, TimeFrameBuilder timeFrameBuilder, int candleCount)
+        {
+            return null;
+        }
+
+        #endregion
+
+        #region 6 Tcp router
+
+        // data socket
+
+        private bool _canSendMessagesMarketData;
+
+        private Socket _socketMarketData;
+
+        private ConcurrentQueue<string> _messagesToSendMarketData = new ConcurrentQueue<string>();
+
+        private ConcurrentQueue<string> _incomingMarketDataMessages = new ConcurrentQueue<string>();
+
+        private void ThreadReceiveMarketData()
+        {
+            while (true)
+            {
+                try
+                {  
+                    if (_socketMarketData == null || _canSendMessagesMarketData == false)
+                    {
+                        Thread.Sleep(1);
+                        continue;
+                    }
+
+                    string message = null;
+
+                    if (_socketMarketData.Available > 0 && 
+                        _socketMarketData.Poll(1, SelectMode.SelectRead))
+                    {
+                        message = ReceiveFrame(_socketMarketData);
+                    }                    
+
+                    if (string.IsNullOrEmpty(message))
+                    {
+                        Thread.Sleep(1);
+                        continue;
+                    }
+
+                    _incomingMarketDataMessages.Enqueue(message);
+                }
+                catch (Exception error)
+                {
+                    _canSendMessagesMarketData = false;
+
+                    if (ServerStatus != ServerConnectStatus.Disconnect)
+                    {
+                        ServerStatus = ServerConnectStatus.Disconnect;
+                        if (DisconnectEvent != null)
+                        {
+                            DisconnectEvent();
+                        }
+                    }
+
+                    Thread.Sleep(10000);
+                    SendLogMessage(error.ToString(), LogMessageType.Error);
+                }
+            }
+        }
+
+        private void ThreadParseMarketData()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (_canSendMessagesMarketData == false)
+                    {
+                        Thread.Sleep(1);
+                        _lastTimeSendMessageInSocketData = DateTime.Now;
+                        continue;
+                    }
+
+                    if (_incomingMarketDataMessages.IsEmpty)
+                    {
+                        Thread.Sleep(1);
+                        continue;
+                    }
+
+                    while (_incomingMarketDataMessages.TryDequeue(out string message))
+                    {
+                        _lastTimeSendMessageInSocketData = DateTime.Now;
+                        IncomeMessageFromDataRouter(message);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SendLogMessage("Market parse worker error: " + ex, LogMessageType.Error);
+                    Thread.Sleep(1000);
+                }
+            }
+        }
+
+        private void ThreadSendMarketData()
+        {
+            while (true)
+            {
+                Thread.Sleep(1);
+
+                try
+                {
+                    if (_socketMarketData == null || _canSendMessagesMarketData == false)
+                    {                        
+                        continue;
+                    }
+
+                    if (_messagesToSendMarketData.TryDequeue(out string message))
+                    {                       
+                        SendMessage(message, _socketMarketData);
+                    }
+                }
+                catch (Exception error)
+                {
+                    _canSendMessagesMarketData = false;
+                    if (ServerStatus != ServerConnectStatus.Disconnect)
+                    {
+                        ServerStatus = ServerConnectStatus.Disconnect;
+                        DisconnectEvent?.Invoke();
+                    }
+
+                    SendLogMessage(error.ToString(), LogMessageType.Error);
+                    Thread.Sleep(10000);
+                }
+            }
+        }
+
+        // trade socket
+
+        private bool _canSendMessagesTradeRouter;
+
+        private Socket _socketToTrade;
+
+        private ConcurrentQueue<string> _messagesToSendTrade = new ConcurrentQueue<string>();
+
+        private ConcurrentQueue<string> _incomingTradeDataMessages = new ConcurrentQueue<string>();
+
+        //private DateTime _lastTimeSendPing;
+
+        private void ThreadReceiveTradeData()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (_socketToTrade == null || _canSendMessagesTradeRouter == false)
+                    {
+                        Thread.Sleep(1);
+                        continue;
+                    }
+
+                    string message = null;
+
+                    if (_socketToTrade.Available > 0 && 
+                        _socketToTrade.Poll(1, SelectMode.SelectRead))
+                    {
+                        message = ReceiveFrame(_socketToTrade);
+                    }
+
+                    if (string.IsNullOrEmpty(message))
+                    {
+                        Thread.Sleep(1);
+                        continue;
+                    }
+
+                    _incomingTradeDataMessages.Enqueue(message);
+                }
+                catch (Exception error)
+                {
+                    _canSendMessagesMarketData = false;
+
+                    if (ServerStatus != ServerConnectStatus.Disconnect)
+                    {
+                        ServerStatus = ServerConnectStatus.Disconnect;
+                        if (DisconnectEvent != null)
+                        {
+                            DisconnectEvent();
+                        }
+                    }
+
+                    Thread.Sleep(10000);
+                    SendLogMessage(error.ToString(), LogMessageType.Error);
+                }
+            }
+        }
+
+        private void ThreadSendTradeData()
+        {
+            while (true)
+            {
+                Thread.Sleep(1);
+
+                try
+                {
+                    if (_socketToTrade == null || _canSendMessagesTradeRouter == false)
+                    {
+                        continue;
+                    }
+
+                    if (_messagesToSendTrade.TryDequeue(out string message))
+                    {
+                        SendMessage(message, _socketToTrade);
+                    }
+                }
+                catch (Exception error)
+                {
+                    _canSendMessagesTradeRouter = false;
+                    if (ServerStatus != ServerConnectStatus.Disconnect)
+                    {
+                        ServerStatus = ServerConnectStatus.Disconnect;
+                        DisconnectEvent?.Invoke();
+                    }
+
+                    SendLogMessage(error.ToString(), LogMessageType.Error);
+                    Thread.Sleep(10000);
+                }
+            }
+        }
+
+        private void ThreadParseTradeData()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (_canSendMessagesTradeRouter == false)
+                    {
+                        Thread.Sleep(1);
+                        _lastTimeSendMessageInSocketTrade = DateTime.Now;
+                        continue;
+                    }
+
+                    if (_incomingTradeDataMessages.IsEmpty)
+                    {
+                        Thread.Sleep(1);
+                        continue;
+                    }
+
+                    while (_incomingTradeDataMessages.TryDequeue(out string message))
+                    {
+                        _lastTimeSendMessageInSocketTrade = DateTime.Now;
+                        IncomeMessageFromTradeRouter(message);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SendLogMessage("Market parse worker error: " + ex, LogMessageType.Error);
+                    Thread.Sleep(1000);
+                }
+            }
+        }
+               
+        private void SendFrame(Socket socket, string payload)
+        {
+            if (socket == null)
+            {
+                return;
+            }
+
+            byte[] body = Encoding.UTF8.GetBytes(payload);
+            int len = body.Length;
+            byte[] header = new byte[4];
+            header[0] = (byte)((len >> 24) & 0xFF);
+            header[1] = (byte)((len >> 16) & 0xFF);
+            header[2] = (byte)((len >> 8) & 0xFF);
+            header[3] = (byte)(len & 0xFF);
+
+            socket.Send(header);
+
+            int sent = 0;
+            while (sent < body.Length)
+            {
+                sent += socket.Send(body, sent, body.Length - sent, SocketFlags.None);
+            }
+        }
+
+        private string ReceiveFrame(Socket socket)
+        {
+            byte[] header = ReceiveExact(socket, 4);
+            int len = (header[0] << 24) | (header[1] << 16) | (header[2] << 8) | header[3];
+
+            if (len < 0 || len > 10 * 1024 * 1024)
+            {
+                throw new Exception("Invalid frame length from market server: " + len);
+            }
+
+            byte[] body = ReceiveExact(socket, len);
+            return Encoding.UTF8.GetString(body);
+        }
+
+        private byte[] ReceiveExact(Socket socket, int length)
+        {
+            byte[] buffer = new byte[length];
+            int offset = 0;
+
+            while (offset < length)
+            {
+                int read = socket.Receive(buffer, offset, length - offset, SocketFlags.None);
+                if (read <= 0)
+                {
+                    throw new Exception("Socket closed while receiving data");
+                }
+                offset += read;
+            }
+
+            return buffer;
+        }
+
+        private void SendMessage(string message, Socket socket)
+        {
+            if (socket == null)
+            {
+                return;
+            }
+
+            SendFrame(socket, message);
+        }
+
+        // common connect
+
+        private bool _tradeSocketConnect = false;
+
+        private bool _marketSocketConnect = false;
+
+        private void CheckConnectStatus()
+        {
+            if (TradeRouterIsActivate == true &&
+                _tradeSocketConnect == false)
+            {
+                return;
+            }
+            if (DataRouterIsActivate == true
+                && _marketSocketConnect == false)
+            {
+                return;
+            }
+
+            ServerStatus = ServerConnectStatus.Connect;
+
+            if (ConnectEvent != null)
+            {
+                ConnectEvent();
+            }
+
+            if (_securities != null && _securities.Count > 0)// запрашиваем обновление списка бумаг после переподключения
+            {
+                _messagesToSendTrade.Enqueue("getSecurities");
+            }
+        }
+
+        private DateTime _lastTimeSendMessageInSocketTrade;
+
+        private DateTime _lastTimeSendMessageInSocketData;
+
+        private void CheckSocketThreadsStatus()
+        {
+            while (true)
+            {
+                Thread.Sleep(2000);
+
+                if (_tradeSocketConnect == true &&
+                    _lastTimeSendMessageInSocketTrade.AddSeconds(10) < DateTime.Now
+                    && _lastTimeSendMessageInSocketTrade.AddSeconds(30) > DateTime.Now)
+                {
+                    string msg = "Sockets thread is lost. Trade router. Reconnect";
+                    
+                    SendLogMessage(msg, LogMessageType.Error);
+
+                    ServerStatus = ServerConnectStatus.Disconnect;
+                    DisconnectEvent();
+
+                    Dispose();
+                }
+
+                if (_marketSocketConnect == true &&
+                    _lastTimeSendMessageInSocketData.AddSeconds(10) < DateTime.Now
+                     && _lastTimeSendMessageInSocketData.AddSeconds(30) > DateTime.Now)
+                {
+                    string msg = "Sockets thread is lost. Data router. Reconnect";
+
+                    SendLogMessage(msg, LogMessageType.Error);
+
+                    ServerStatus = ServerConnectStatus.Disconnect;
+                    DisconnectEvent();
+
+                    Dispose();
+                }
+            }
+        }
+
+        #endregion             
+
+        #region 8 WebSocket security subscribe
+
+        private RateGate rateGateSubscribe = new RateGate(1, TimeSpan.FromMilliseconds(300));
+
+        private List<Security> _subscribeSecurities = new List<Security>();
+
+        public void Subscribe(Security security)
+        {
+            try
+            {
+                rateGateSubscribe.WaitToProceed();
+
+                for (int i = 0; i < _subscribeSecurities.Count; i++)
+                {
+                    if (_subscribeSecurities[i].Name == security.Name)
+                    {
+                        return;
+                    }
+                }
+
+                _messagesToSendMarketData.Enqueue("{\"cmd\":\"subscribeQuote\",\"symbol\":\"" + security.NameFull + "\"}");
+                
+                _subscribeSecurities.Add(security);
+            }
+            catch (Exception exeption)
+            {
+                HandlerException(exeption);
+            }
+        }
+
+        public bool SubscribeNews()
+        {
+            return false;
+        }
+
+        public event Action<News> NewsEvent { add { } remove { } }
+
+        #endregion
+
+        #region 9 WebSocket parsing the messages
+
+        private void IncomeMessageFromTradeRouter(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                return;
+            }
+
+            if (message.StartsWith("{\"type\":\"connect\"") &&
+                ServerStatus == ServerConnectStatus.Disconnect)
+            {
+                SendLogMessage("Trade router is connected", LogMessageType.System);
+                _tradeSocketConnect = true;
+                CheckConnectStatus();
+            }
+            else if (message.StartsWith("{\"type\":\"disconnect\""))
+            {
+                SendLogMessage("Trade router is disconnected", LogMessageType.System);
+                ServerStatus = ServerConnectStatus.Disconnect;
+                DisconnectEvent?.Invoke();
+            }
+            else if (message.Contains("{\"type\":\"account\""))
+            {
+                GetPortfolioData(message);
+            }
+            else if (message.Contains("{\"type\":\"positions\""))
+            {
+                GetPositionsData(message);
+            }
+            else if (message.Contains("{\"type\":\"security\""))
+            {
+                GetSecurityList(message);
+            }
+            else if (message.Contains("{\"type\":\"rtnOrder\""))
+            {
+                SendLogMessage("Trade router message: " + message, LogMessageType.System);
+                GetMyOrder(message);                
+            }
+            else if (message.Contains("{\"type\":\"rtnMatch\""))
+            {
+                SendLogMessage("Trade router message: " + message, LogMessageType.System);
+                GetMyTrade(message);
+            }
+            else if (message.StartsWith("{\"type\":\"ping\""))
+            {
+                //SendLogMessage("Trade router message: " + message, LogMessageType.Error);
+            }
+            else
+            {
+                SendLogMessage(message, LogMessageType.System);
+            }
+
+            if (_fullLogTradeData)
+            {
+                SendLogMessage("Trade router message: " + message, LogMessageType.System);
+            }
+        }
+
+        private void GetMyOrder(string message)
+        {
+            try
+            {
+                SendLogMessage(message, LogMessageType.Error);
+
+                ResponceMessageMyOrder responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageMyOrder());
+
+                if (responce.errCode != "0")
+                {
+                    SendLogMessage("Order error code: " + responce.errCode + " - " + GetTradeErrorString(responce.errCode), LogMessageType.Error);
+                }
+
+                if (responce.orderState == "1") // чтобы автотест проходился
+                {
+                    if (responce.orderPrice.ToDecimal() <= 0 ||
+                        responce.orderQty.ToDecimal() <= 0)
+                    {
+                        return;
+                    }
+                }
+
+                Order order = new();
+
+                order.SecurityNameCode = responce.contractNo1;                
+                order.NumberUser = int.Parse(responce.reference);
+                order.NumberMarket = responce.orderId;
+                order.TypeOrder = GetOrderPriceType(responce.orderType);
+                order.State = GetOrderState(responce.orderState);
+                order.Price = responce.orderPrice.ToDecimal();
+                order.Volume = responce.orderQty.ToDecimal();
+                order.Side = GetDirectionOrder(responce.direct);
+                order.PositionConditionType = GetPositionConditionType(responce.offset);
+                order.PortfolioNumber = responce.accountNo;
+                order.VolumeExecute = responce.matchQty.ToDecimal();
+                order.ServerType = ServerType.Esunny;
+                order.SecurityClassCode = GetClassSecurity(responce.contractNo1);
+                order.TimeCreate = ParseDateTimeTrade(responce.updateTime);
+                order.TimeCallBack = order.TimeCreate;
+
+                MyOrderEvent?.Invoke(order);
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private string GetTradeErrorString(string msg)
+        {
+            if (string.IsNullOrEmpty(msg))
+            {
+                return "";
+            }
+
+            switch (msg)
+            {
+                case "10002": return "Not logged in";
+                case "10003": return "API not ready";
+                case "10004": return "Subscription stream ID error";
+                case "10005": return "Data send error";
+                case "10006": return "Data receive error";
+                case "10007": return "Data parsing error";
+                case "10008": return "Buffer overflow error";
+                case "10009": return "Heartbeat timeout error";
+
+                case "20001": return "Authentication string error";
+                case "20002": return "Account does not exist";
+                case "20003": return "Incorrect password";
+                case "20004": return "Login count exceeds limit";
+                case "20005": return "Gateway not connected";
+                case "20006": return "Invalid index value";
+                case "20007": return "TCP authentication not performed";
+                case "20008": return "Invalid client index value";
+                case "20009": return "UDP authentication code error";
+                case "20010": return "UDP authentication not performed";
+                case "20011": return "Order placed under an unauthenticated account";
+                case "20012": return "Contract index and contract number mismatch";
+                case "20013": return "Invalid order fields";
+                case "20014": return "Invalid client request ID";
+                case "20015": return "Abnormal order/cancel address";
+                case "20016": return "Abnormal order/cancel auth code";
+                case "20017": return "No trading permission";
+                case "20018": return "Insufficient funds";
+                case "20019": return "Insufficient parent-account funds";
+                case "20020": return "Client order rate exceeds limit";
+                case "20021": return "Key version error";
+                case "20022": return "Collected data is empty";
+                case "20023": return "Authorization does not exist";
+                case "20024": return "Original order not found for cancel";
+                case "20025": return "Invalid seat index";
+                case "20026": return "Batch quantity exceeds per-order maximum";
+                case "20027": return "Abnormal license code";
+                case "20028": return "Protocol version mismatch";
+                case "20029": return "Cannot cancel in the specified order state";
+                case "20030": return "Insufficient order capacity";
+                case "20031": return "Insufficient position to close";
+                case "20032": return "Trade code does not exist";
+                case "20033": return "Seat error";
+                case "20034": return "Unsupported order type";
+                case "20035": return "System number error";
+                case "20036": return "Instrument category does not exist";
+                case "20037": return "Not a whitelisted instrument category";
+                case "20038": return "Contract does not exist";
+                case "20039": return "Price error";
+                case "20040": return "Hardware login information error";
+                case "20041": return "Message volume exceeds limit";
+                case "20042": return "Quote-side quantity direction mismatch";
+                case "20043": return "Replace-order ID does not exist";
+                case "20044": return "Replace system number does not exist";
+                case "20045": return "Backup system is not activated";
+                case "20046": return "Invalid UDP packet address";
+                case "20047": return "Potential self-trade";
+                case "20048": return "Invalid cash-in/cash-out amount";
+                case "20049": return "Cash-out amount exceeds available balance";
+                case "20050": return "Application number error";
+                case "20051": return "Client is not authorized for this license code";
+                case "20052": return "License code expired";
+                case "20053": return "Login prohibited";
+
+                case "30001": return "Seat order rate exceeds limit";
+                case "30002": return "Send failed";
+                case "30003": return "Insufficient local-number capacity";
+                case "30004": return "Local number error";
+                case "30005": return "Exercise order not supported";
+                case "30006": return "Cancel exercise order not supported";
+                case "30007": return "Abandonment order not supported";
+                case "30008": return "Cancel abandonment order not supported";
+                case "30009": return "Combination order not supported";
+                case "30010": return "System is initializing";
+                case "30011": return "Data is not from the current thread";
+                case "30012": return "Cancel quote inquiry order not supported";
+
+                case "60001": return "Strategy order placement exception";
+                case "60002": return "Invalid strategy order";
+                case "60003": return "No market data";
+
+                default: return "Unknown error";
+            }
+        }
+
+        private DateTime ParseDateTimeTrade(string dateTime)
+        {
+            string[] formats = { "yyyy-MM-dd HH:mm:ss" };
+
+            if (!DateTime.TryParseExact(dateTime, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+            {
+                string time = dateTime.Split(' ')[0];
+                string dateNow = DateTime.Now.ToString("yyyy-MM-dd");
+
+                dateTime = dateNow + " " + time;
+            }
+
+            return DateTime.ParseExact(dateTime, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        }
+
+        private string GetClassSecurity(string name)
+        {            
+            for(int i = 0; i < _securities.Count; i++)
+            {
+                if (name == _securities[i].Name)
+                {
+                    return _securities[i].NameClass;
+                }
+            }
+
+            return "";
+        }
+
+        private OrderPositionConditionType GetPositionConditionType(string offset)
+        {
+            // 'O' Open
+            // 'C' Close
+            // 'T' Close today
+
+            switch (offset)
+            {
+                case "O": return OrderPositionConditionType.Open;
+                case "C": return OrderPositionConditionType.Close;
+                default: return OrderPositionConditionType.None;
+            }            
+        }
+
+        private Side GetDirectionOrder(string direct)
+        {
+            // 'B' Buy
+            // 'S' Sell
+            // 'N' All
+
+            switch (direct)
+            {
+                case "B": return Side.Buy;
+                case "S": return Side.Sell;
+                default: return Side.None;
+            }
+        }
+
+        private OrderStateType GetOrderState(string orderState)
+        {
+            // '1' Accepted
+            // '2' Queued
+            // '3' Applied (exercise/abandon/spread application succeeded)
+            // '4' Suspended
+            // '5' Triggered
+            // '6' Partially filled
+            // '7' Fully filled
+            // '8' Command failed
+            // 'B' Canceled
+            // 'C' Remaining quantity canceled
+            // 'D' Deleted
+            // 'E' Strategy pending trigger*/
+
+            switch (orderState)
+            {
+                case "1": return OrderStateType.Pending;
+                case "2": return OrderStateType.Active;
+                case "6": return OrderStateType.Partial;
+                case "7": return OrderStateType.Done;
+                case "8": return OrderStateType.Fail;
+                case "B": return OrderStateType.Cancel;
+                case "C": return OrderStateType.Cancel;
+                case "D": return OrderStateType.Cancel;
+                default: return OrderStateType.Fail;
+            }
+        }
+
+        private OrderPriceType GetOrderPriceType(string orderType)
+        {
+            // '0' None
+            // '1' Market order
+            // '2' Limit order
+            // '3' Exercise
+            // '4' Abandon
+            // '5' Inquiry
+            // '6' Quote
+            // '7' Swap
+            // '8' EFP
+
+            switch (orderType)
+            {
+                case "1": return OrderPriceType.Market;
+                case "2": return OrderPriceType.Limit;
+
+                default: return OrderPriceType.Market;
+            }
+        }
+
+        private void GetMyTrade(string message)
+        {
+            try
+            {
+                ResponceMessageMyTrade responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageMyTrade());
+
+                MyTrade trade = new();
+
+                trade.SecurityNameCode = responce.contractNo;
+                trade.NumberOrderParent = responce.orderId;
+                trade.Price = responce.matchPrice.ToDecimal();
+                trade.Volume = responce.matchQty.ToDecimal();
+                trade.Side = GetDirectionOrder(responce.direct);
+                trade.Time = ParseDateTimeTrade(responce.updateTime);
+                trade.NumberTrade = responce.matchId;
+                
+                MyTradeEvent?.Invoke(trade);
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private DateTime nextLog = DateTime.Now;
+
+        private bool IncomeMessageFromDataRouter(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                return true;
+            }
+
+            if (message.Contains("{\"type\":\"connect\"") &&
+                ServerStatus != ServerConnectStatus.Connect)
+            {
+                SendLogMessage("Data router is connected", LogMessageType.System);
+                _marketSocketConnect = true;
+                CheckConnectStatus();
+                SendLogMessage(message, LogMessageType.System);
+            }
+            else if (message.Contains("{\"type\":\"disconnect\""))
+            {
+                ServerStatus = ServerConnectStatus.Disconnect;
+
+                if (DisconnectEvent != null)
+                {
+                    DisconnectEvent();
+                }
+
+                ResponceMessageMarketDataError responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageMarketDataError());
+
+                SendLogMessage("Data router is disconnected", LogMessageType.System);
+                SendLogMessage("MarketData. Code: " + responce.code + ", Message: " + responce.message, LogMessageType.System);
+            }
+            else if (message.Contains("\"type\":\"quote\""))
+            {
+                // посмотреть задержку между временем котировки и временем когда котировка пришла в Осу
+
+                /*var now = DateTime.Now;
+
+                if (now >= nextLog)
+                {
+                    SendLogMessage(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + message, LogMessageType.Error);
+                    nextLog = nextLog.AddSeconds(20);
+                }*/
+
+                ParseQuote(message);
+            }
+            else if (message.Contains("{\"type\":\"ping\""))
+            {
+                //SendLogMessage("MarketData Router: " + message, LogMessageType.Error);
+            }
+            else
+            {
+                SendLogMessage(message, LogMessageType.System);
+            }
+
+            if (_fullLogMarketData)
+            {
+                SendLogMessage("MarketDateRouter: " + message, LogMessageType.System);
+            }
+
+            return false;
+        }
+
+        private void ParseQuote(string message)
+        {
+            try
+            {
+                ResponceMessageQuote responce = JsonConvert.DeserializeAnonymousType(message, new ResponceMessageQuote());
+
+                GetLastPrice(responce);
+                GetMarketDepth(responce);
+            }
+            catch(Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private Trade _trade = new Trade();
+
+        private void GetLastPrice(ResponceMessageQuote responce)
+        {
+            if (_trade.Price == responce.lastPrice.ToDecimal() &&
+                _trade.Volume == responce.lastQty.ToDecimal())
+            {
+                return;
+            }
+
+            _trade.SecurityNameCode = GetSecurityNameForFullName(responce.contractNo);
+            _trade.Price = responce.lastPrice.ToDecimal();
+            _trade.Time = ParseDateTimeQuote(responce.dateTimeStamp);
+            _trade.Volume = responce.lastQty.ToDecimal();
+            _trade.Side = Side.Buy;
+            _trade.Id = _trade.Time.Ticks.ToString();
+
+            NewTradesEvent?.Invoke(_trade);
+        }
+
+        private DateTime ParseDateTimeQuote(string dateTime)
+        {
+            return DateTime.ParseExact(dateTime, "yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
+        }
+
+        private void GetMarketDepth(ResponceMessageQuote responce)
+        {
+            MarketDepth marketDepth = new MarketDepth();
+
+            List<MarketDepthLevel> asks = new List<MarketDepthLevel>();
+            List<MarketDepthLevel> bids = new List<MarketDepthLevel>();
+
+            marketDepth.SecurityNameCode = GetSecurityNameForFullName(responce.contractNo);
+
+            for (int i = 0; i < responce.bids.Count; i++)
+            {
+                MarketDepthLevel bid = new MarketDepthLevel();
+                bid.Price = responce.bids[i][0].ToDouble();
+                bid.Bid = responce.bids[i][1].ToDouble();
+                bids.Add(bid);
+            }
+
+            for (int i = 0; i < responce.asks.Count; i++)
+            {
+                MarketDepthLevel ask = new MarketDepthLevel();
+                ask.Price = responce.asks[i][0].ToDouble();
+                ask.Ask = responce.asks[i][1].ToDouble();
+                asks.Add(ask);
+            }
+
+            marketDepth.Asks = asks;
+            marketDepth.Bids = bids;
+            marketDepth.Time = ParseDateTimeQuote(responce.dateTimeStamp);
+
+            MarketDepthEvent?.Invoke(marketDepth);
+        }
+
+        private string GetSecurityNameForFullName(string contractNo)
+        {
+            for (int i = 0; i < _securities.Count; i++)
+            {
+                if (_securities[i].NameFull == contractNo)
+                {
+                    return _securities[i].Name;
+                }
+            }
+
+            return contractNo;
+        }
+
+        public event Action<Order> MyOrderEvent;
+
+        public event Action<MyTrade> MyTradeEvent;
+
+        public event Action<MarketDepth> MarketDepthEvent;
+
+        public event Action<Trade> NewTradesEvent;
+
+        public event Action<OptionMarketDataForConnector> AdditionalMarketDataEvent { add { } remove { } }
+
+        #endregion
+
+        #region 10 Trade
+
+        private RateGate rateGateSendOrder = new RateGate(1, TimeSpan.FromMilliseconds(200));
+
+        private RateGate rateGateCancelOrder = new RateGate(1, TimeSpan.FromMilliseconds(200));
+
+        public void SendOrder(Order order)
+        {
+            rateGateSendOrder.WaitToProceed();
+
+            string msg = "";
+            msg += ",\"symbol\":\"" + order.SecurityNameCode + "\"";
+            msg += ",\"symbolIndex\":\"" + GetSymbolIndex(order.SecurityNameCode) + "\"";
+            msg += ",\"side\":\"" + order.Side + "\"";
+            msg += ",\"price\":\"" + order.Price + "\"";
+            msg += ",\"volume\":\"" + order.Volume + "\"";
+            msg += ",\"numberUser\":\"" + order.NumberUser + "\"";
+            msg += ",\"offset\":\"" + order.PositionConditionType + "\"";
+            msg += ",\"orderType\":\"" + order.TypeOrder + "\"";
+            msg += ",\"hedge\":\"" + "Speculate" + "\"";
+
+            string orderToTcp = "{\"cmd\":\"placeOrder\"" + msg + "}";
+                        
+            _messagesToSendTrade.Enqueue(orderToTcp);
+
+            SendLogMessage(orderToTcp, LogMessageType.Error);
+        }
+
+        private string GetSymbolIndex(string securityNameCode)
+        {
+            for (int i = 0; i < _securities.Count; i++)
+            {
+                if (_securities[i].Name == securityNameCode)
+                {
+                    return _securities[i].NameId;
+                }
+            }
+
+            return "0";
+        }
+
+        public bool CancelOrder(Order order)
+        {
+            rateGateCancelOrder.WaitToProceed();
+
+            string orderToTcp = "{\"cmd\":\"cancelOrder\",\"orderId\":\"" + order.NumberMarket + "\"}";
+
+            _messagesToSendTrade.Enqueue(orderToTcp);
+            return true;
+        }
+
+        public void CancelAllOrders()
+        {
+
+        }
+
+        public void CancelAllOrdersToSecurity(Security security)
+        {
+
+        }
+
+        public void ChangeOrderPrice(Order order, decimal newPrice)
+        {
+
+        }
+
+        public void GetAllActivOrders()
+        {
+
+        }
+
+        public OrderStateType GetOrderStatus(Order order)
+        {
+            return OrderStateType.None;
+        }
+
+        public List<Order> GetActiveOrders(int startIndex, int count)
+        {
+            return null;
+        }
+
+        public List<Order> GetHistoricalOrders(int startIndex, int count)
+        {
+            return null;
+        }
+
+        public void SetLeverage(Security security, decimal leverage) { }
+
+        #endregion
+
+        #region 11 Log
+
+        public event Action<string, LogMessageType> LogMessageEvent;
+
+        public event Action<Funding> FundingUpdateEvent { add { } remove { } }
+
+        public event Action<SecurityVolumes> Volume24hUpdateEvent { add { } remove { } }
+
+        private void SendLogMessage(string message, LogMessageType messageType)
+        {
+            LogMessageEvent(message, messageType);
+        }
+
+        private void HandlerException(Exception exception)
+        {
+            if (exception is AggregateException)
+            {
+                AggregateException httpError = (AggregateException)exception;
+
+                foreach (var item in httpError.InnerExceptions)
+
+                {
+                    if (item is NullReferenceException == false)
+                    {
+                        SendLogMessage(item.InnerException.Message + $" {exception.StackTrace}", LogMessageType.Error);
+                    }
+
+                }
+            }
+            else
+            {
+                if (exception is NullReferenceException == false)
+                {
+                    SendLogMessage(exception.Message + $" {exception.StackTrace}", LogMessageType.Error);
+                }
+            }
+        }
+
+        #endregion
+    }
+}

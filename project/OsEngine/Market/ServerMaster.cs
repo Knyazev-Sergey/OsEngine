@@ -95,6 +95,7 @@ using OsEngine.Market.Servers.BitGetUnified;
 using OsEngine.Market.Servers.TwelveData;
 using OsEngine.Market.Servers.BCS;
 using OsEngine.Market.ServerEncryption;
+using OsEngine.Market.Servers.Esunny;
 
 namespace OsEngine.Market
 {
@@ -421,6 +422,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.BitGetUnified);
                 serverTypes.Add(ServerType.TwelveData);
                 serverTypes.Add(ServerType.BCS);
+                serverTypes.Add(ServerType.Esunny);
 
                 // а теперь сортируем в зависимости от предпочтений пользователя
 
@@ -953,6 +955,10 @@ namespace OsEngine.Market
                     else if (type == ServerType.BCS)
                     {
                         newServer = new BcsServer(uniqueNum);
+                    }
+                    else if (type == ServerType.Esunny)
+                    {
+                        newServer = new EsunnyServer();
                     }
 
                     if (newServer == null)
@@ -1801,6 +1807,10 @@ namespace OsEngine.Market
                 else if (type == ServerType.BCS)
                 {
                     serverPermission = new BcsServerPermission();
+                }
+                else if (type == ServerType.Esunny)
+                {
+                    serverPermission = new EsunnyServerPermission();
                 }
 
                 if (serverPermission != null)
@@ -2675,6 +2685,11 @@ namespace OsEngine.Market
         /// Bcs OpenAPI & Websocket
         /// подключение к АПИ брокера БКС
         /// </summary>
-        BCS
+        BCS,
+
+        /// <summary>
+        /// Esunny
+        /// </summary>
+        Esunny
     }
 }

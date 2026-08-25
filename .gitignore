@@ -343,3 +343,15 @@ __pycache__/
 
 # Private MCP API development context (work-in-progress, not for other developers)
 project/CONTEXT_MCP_API_DEVELOPMENT.md
+
+# Esunny Router
+project/OsEngine/bin/Debug/Esunny_Router/MarketData/MarketDataLogs/
+project/OsEngine/bin/Debug/Esunny_Router/TradeData/TradeLogs/
+!project/OsEngine/bin/Debug/Esunny_Router/MarketData/x64/
+!project/OsEngine/bin/Debug/Esunny_Router/MarketData/x64/**
+!project/OsEngine/bin/Debug/Esunny_Router/MarketData/x64/Release/
+!project/OsEngine/bin/Debug/Esunny_Router/MarketData/x64/Release/**
+!project/OsEngine/bin/Debug/Esunny_Router/TradeData/x64/
+!project/OsEngine/bin/Debug/Esunny_Router/TradeData/x64/**
+!project/OsEngine/bin/Debug/Esunny_Router/TradeData/x64/Release/
+!project/OsEngine/bin/Debug/Esunny_Router/TradeData/x64/Release/**

@@ -1,0 +1,8 @@
+LIBRARY libdstartradeapi.dll
+EXPORTS
+??_7IDstarTradeApi@@6B@
+??0IDstarTradeApi@@QEAA@AEBV0@@Z
+??0IDstarTradeApi@@QEAA@XZ
+??4IDstarTradeApi@@QEAAAEAV0@AEBV0@@Z
+CreateDstarTradeApi
+FreeDstarTradeApi
