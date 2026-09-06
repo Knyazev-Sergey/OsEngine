@@ -669,6 +669,8 @@ namespace OsEngine.Market.Servers.Tester
                     return;
                 }
 
+                bool resumeFromPause = TesterRegime != TesterRegime.NotActive;
+
                 TesterRegime = TesterRegime.Pause;
                 Thread.Sleep(200);
                 _serverTime = DateTime.MinValue;
@@ -711,6 +713,29 @@ namespace OsEngine.Market.Servers.Tester
 
                 Thread.Sleep(timeToWaitConnect);
 
+                int lastActiveCount = -1;
+                int stableMs = 0;
+                int waitSeriesMs = 0;
+
+                while ((stableMs < 3000 || _candleManager.ActiveSeriesCount < countSeriesInLastTest)
+                       && waitSeriesMs < 120000)
+                {
+                    int currentCount = _candleManager.ActiveSeriesCount;
+
+                    if (currentCount == lastActiveCount)
+                    {
+                        stableMs += 50;
+                    }
+                    else
+                    {
+                        lastActiveCount = currentCount;
+                        stableMs = 0;
+                    }
+
+                    Thread.Sleep(50);
+                    waitSeriesMs += 50;
+                }
+
                 _allTrades = null;
 
                 if (TimeStart == DateTime.MinValue)
@@ -748,7 +773,10 @@ namespace OsEngine.Market.Servers.Tester
 
                 _dataIsActive = false;
 
-                NumberGen.ResetToZeroInTester();
+                if (resumeFromPause == false)
+                {
+                    NumberGen.ResetToZeroInTester();
+                }
 
                 OrdersActive.Clear();
 
@@ -916,6 +944,24 @@ namespace OsEngine.Market.Servers.Tester
         public event Action TestingEndEvent;
 
         public event Action TestingNewSecurityEvent;
+
+        /// <summary>
+        /// notify subscribers about the change of the testing period from outside the UI
+        /// </summary>
+        public void NotifyTestPeriodChanged()
+        {
+            try
+            {
+                if (TestingNewSecurityEvent != null)
+                {
+                    TestingNewSecurityEvent();
+                }
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
 
         #endregion
 
@@ -3699,7 +3745,22 @@ namespace OsEngine.Market.Servers.Tester
             }
         }
 
-        public event Action<List<Security>> SecuritiesChangeEvent { add { } remove { } }
+        public event Action<List<Security>> SecuritiesChangeEvent;
+
+        private void RaiseSecuritiesChangeEvent()
+        {
+            try
+            {
+                if (SecuritiesChangeEvent != null)
+                {
+                    SecuritiesChangeEvent(_securities);
+                }
+            }
+            catch (Exception ex)
+            {
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
+            }
+        }
 
         public void ShowSecuritiesDialog()
         {
@@ -4557,6 +4618,8 @@ namespace OsEngine.Market.Servers.Tester
             {
                 TestingNewSecurityEvent();
             }
+
+            RaiseSecuritiesChangeEvent();
         }
 
         private void LoadTickFromFolder(string folderName)
@@ -4819,6 +4882,8 @@ namespace OsEngine.Market.Servers.Tester
             {
                 TestingNewSecurityEvent();
             }
+
+            RaiseSecuritiesChangeEvent();
         }
 
         private void LoadMarketDepthFromFolder(string folderName)
@@ -5019,6 +5084,8 @@ namespace OsEngine.Market.Servers.Tester
             {
                 TestingNewSecurityEvent();
             }
+
+            RaiseSecuritiesChangeEvent();
         }
 
         private void ReadFile(string file, ref SecurityTester securityTester)
