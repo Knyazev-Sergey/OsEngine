@@ -1094,18 +1094,17 @@ namespace OsEngine.Market.Servers.Deribit
                     return;
                 }
 
-                if (response.@params.data.greeks == null)
-                {
-                    return;
-                }
-
                 OptionMarketDataForConnector data = new OptionMarketDataForConnector();
 
-                data.Delta = response.@params.data.greeks.delta;
-                data.Gamma = response.@params.data.greeks.gamma;
-                data.Vega = response.@params.data.greeks.vega;
-                data.Theta = response.@params.data.greeks.theta;
-                data.Rho = response.@params.data.greeks.rho;
+                if (response.@params.data.greeks != null)
+                {
+                    data.Delta = response.@params.data.greeks.delta;
+                    data.Gamma = response.@params.data.greeks.gamma;
+                    data.Vega = response.@params.data.greeks.vega;
+                    data.Theta = response.@params.data.greeks.theta;
+                    data.Rho = response.@params.data.greeks.rho;
+                }
+                
                 data.MarkIV = response.@params.data.mark_iv;
                 data.SecurityName = response.@params.data.instrument_name;
                 data.TimeCreate = response.@params.data.timestamp;
