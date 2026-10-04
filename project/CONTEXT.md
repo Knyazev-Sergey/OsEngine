@@ -12,9 +12,10 @@
 | **Сборка** | `dotnet build OsEngine/OsEngine.csproj` (всё решение — `dotnet build OsEngine.sln`) |
 | **Исполняемый файл** | `OsEngine/bin/Debug/OsEngine.exe` |
 | **Стартер** | `OsEngine/bin/Debug/osEngineStarter.exe` |
-| **MCP** | `http://localhost:6500/api/v1/mcp` (по умолчанию выключено) |
-| **SSE** | `http://localhost:6500/api/v1/events` |
-| **Тестовый стенд** | `Tests/McpTestStand/OsEngine.McpApi.TestStand/` |
+| **MCP (V2, рекомендуемый)** | `http://localhost:6500/api/v2/mcp` (Streamable HTTP) |
+| **MCP (V1, легаси)** | `http://localhost:6500/api/v1/mcp` |
+| **SSE (V1, легаси)** | `http://localhost:6500/api/v1/events` (в V2 события — через `GET /api/v2/mcp`) |
+| **Тестовые стенды** | `Tests/McpTestStand/` (MCP API) · `Tests/OsDataTestStand/` (OsData) · `Tests/OsTesterTestStand/` (тестер) |
 
 ## Что читать под задачу
 
@@ -22,6 +23,7 @@
 |--------|-------|
 | Архитектура роботов | `CONTEXT_ROBOTS_ARCHITECTURE.md` |
 | Робот / скринер | `CONTEXT_ROBOTS_ARCHITECTURE.md` + `CONTEXT_ROBOTS.md` |
+| Секторальные роботы (SectorsSet) | `CONTEXT_SECTORS_SET.md` |
 | Индикатор | `CONTEXT_ROBOTS_ARCHITECTURE.md` + `CONTEXT_INDICATORS.md` |
 | Индекс / спред | `CONTEXT_ROBOTS_ARCHITECTURE.md` + `CONTEXT_INDEX_AND_SPREAD.md` |
 | Пары / фьючерсы | `CONTEXT_ROBOTS_ARCHITECTURE.md` + `CONTEXT_PAIRS_AND_FUTURES.md` |
@@ -31,11 +33,16 @@
 | Мониторы | `CONTEXT_ROBOTS_ARCHITECTURE.md` + `CONTEXT_MONITORS.md` |
 | Code style | `CONTEXT_CODING_GUIDELINES.md` |
 | Коннекторы | `CONTEXT_CONNECTORS.md` |
-| MCP API | `CONTEXT_MCP.md` |
-| Сценарии MCP | `CONTEXT_MCP_SCENARIO.md` |
+| MCP API (V2, рекомендуемая) | `CONTEXT_MCP_V2.md` |
+| MCP API (V1, легаси) | `CONTEXT_MCP_V1.md` |
+| Сценарии MCP (V2) | `CONTEXT_MCP_SCENARIO_V2.md` |
+| Сценарии MCP (V1, легаси) | `CONTEXT_MCP_SCENARIO_V1.md` |
+| Тестовый стенд MCP API | `Tests/CONTEXT_MCP_TESTSTAND.md` |
+| Тестовый стенд OsData | `Tests/CONTEXT_OSDATA_TESTSTAND.md` |
+| Тестовый стенд тестера | `Tests/CONTEXT_OSTESTER_TESTSTAND.md` |
 | Защита / пароли / блокировка | `CONTEXT_SECURITY.md` |
 | Дорожная карта MCP | `TempContext/CONTEXT_MCP_API_DEVELOPMENT.md` |
-| Дивиденды в роботах | `CONTEXT_DIVIDENDS.md` |
+| Дивиденды в роботах | `Tests/CONTEXT_DIVIDENDS_UPDATER.md` |
 | Синтетические облигации | `CONTEXT_SYNTHETIC_BOND.md` |
 | Ребалансировщик | `CONTEXT_REBALANCER.md` |
 | Темы / цвета / оформление | `CONTEXT_THEMES.md` |
@@ -71,13 +78,16 @@ dotnet build OsEngine.sln
 cd OsEngine/bin/Debug
 ./osEngineStarter.exe -data
 
-# Тестовый стенд
+# Тестовые стенды
 cd Tests/McpTestStand/OsEngine.McpApi.TestStand/bin/Debug/net10.0
 ./OsEngine.McpApi.TestStand.exe
+
+cd Tests/OsTesterTestStand/OsEngine.OsTester.TestStand/bin/Debug/net10.0
+./OsEngine.OsTester.TestStand.exe
 ```
 
 **Важно:** перед `dotnet build` завершить `OsEngine.exe`, иначе файл заблокирован.
 
 ## Ссылки
 
-[CONTEXT_ROBOTS_ARCHITECTURE.md](CONTEXT_ROBOTS_ARCHITECTURE.md) · [CONTEXT_ROBOTS.md](CONTEXT_ROBOTS.md) · [CONTEXT_INDICATORS.md](CONTEXT_INDICATORS.md) · [CONTEXT_DIVIDENDS.md](CONTEXT_DIVIDENDS.md) · [CONTEXT_SYNTHETIC_BOND.md](CONTEXT_SYNTHETIC_BOND.md) · [CONTEXT_REBALANCER.md](CONTEXT_REBALANCER.md) · [CONTEXT_THEMES.md](CONTEXT_THEMES.md) · [CONTEXT_VPS_VDS.md](CONTEXT_VPS_VDS.md) · [CONTEXT_CODING_GUIDELINES.md](CONTEXT_CODING_GUIDELINES.md) · [CONTEXT_CONNECTORS.md](CONTEXT_CONNECTORS.md) · [CONTEXT_MCP.md](CONTEXT_MCP.md) · [CONTEXT_MCP_SCENARIO.md](CONTEXT_MCP_SCENARIO.md) · [TempContext/CONTEXT_MCP_API_DEVELOPMENT.md](TempContext/CONTEXT_MCP_API_DEVELOPMENT.md)
+[CONTEXT_ROBOTS_ARCHITECTURE.md](CONTEXT_ROBOTS_ARCHITECTURE.md) · [CONTEXT_ROBOTS.md](CONTEXT_ROBOTS.md) · [CONTEXT_SECTORS_SET.md](CONTEXT_SECTORS_SET.md) · [CONTEXT_INDICATORS.md](CONTEXT_INDICATORS.md) · [CONTEXT_DIVIDENDS_UPDATER.md](Tests/CONTEXT_DIVIDENDS_UPDATER.md) · [CONTEXT_SYNTHETIC_BOND.md](CONTEXT_SYNTHETIC_BOND.md) · [CONTEXT_REBALANCER.md](CONTEXT_REBALANCER.md) · [CONTEXT_THEMES.md](CONTEXT_THEMES.md) · [CONTEXT_VPS_VDS.md](CONTEXT_VPS_VDS.md) · [CONTEXT_CODING_GUIDELINES.md](CONTEXT_CODING_GUIDELINES.md) · [CONTEXT_CONNECTORS.md](CONTEXT_CONNECTORS.md) · [CONTEXT_MCP_V2.md](CONTEXT_MCP_V2.md) · [CONTEXT_MCP_V1.md](CONTEXT_MCP_V1.md) · [CONTEXT_MCP_SCENARIO_V2.md](CONTEXT_MCP_SCENARIO_V2.md) · [CONTEXT_MCP_SCENARIO_V1.md](CONTEXT_MCP_SCENARIO_V1.md) · [CONTEXT_MCP_TESTSTAND.md](Tests/CONTEXT_MCP_TESTSTAND.md) · [CONTEXT_OSDATA_TESTSTAND.md](Tests/CONTEXT_OSDATA_TESTSTAND.md) · [CONTEXT_OSTESTER_TESTSTAND.md](Tests/CONTEXT_OSTESTER_TESTSTAND.md) · [TempContext/CONTEXT_MCP_API_DEVELOPMENT.md](TempContext/CONTEXT_MCP_API_DEVELOPMENT.md)

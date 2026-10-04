@@ -41,6 +41,7 @@ namespace OsEngine.McpApi.TestStand.Tests
             TestPortfolioConfiguration();
             TestRobotManagement();
             TestRunSimulation();
+            TestGetReport();
             TestJournalData();
             TestScreenerConfiguration();
             TestIndexArbitrage();
@@ -2172,6 +2173,76 @@ namespace OsEngine.McpApi.TestStand.Tests
             }
         }
 
+        private void TestGetReport()
+        {
+            const string method = "tester_get_report";
+            object request = new { };
+
+            try
+            {
+                _context.PrintRequest(Module, method, request);
+                string response = _context.Client.ToolsCall(method, request);
+                _context.PrintResponse(response);
+
+                if (!TryParseConfig(response, method, out JsonElement config))
+                {
+                    return;
+                }
+
+                string[] requiredSections = new[]
+                {
+                    "date", "robots", "data_set", "tester_settings",
+                    "statistics_full", "robot_results", "positions", "cash_flows"
+                };
+
+                foreach (string section in requiredSections)
+                {
+                    if (!config.TryGetProperty(section, out _))
+                    {
+                        _context.RecordFail(Module, method, $"{section} section missing");
+                        return;
+                    }
+                }
+
+                if (!config.TryGetProperty("robots", out JsonElement robots) || robots.ValueKind != JsonValueKind.Array)
+                {
+                    _context.RecordFail(Module, method, "robots is not an array");
+                    return;
+                }
+
+                if (!config.TryGetProperty("robot_results", out JsonElement robotResults) || robotResults.ValueKind != JsonValueKind.Array)
+                {
+                    _context.RecordFail(Module, method, "robot_results is not an array");
+                    return;
+                }
+
+                if (!config.TryGetProperty("positions", out JsonElement positions) || positions.ValueKind != JsonValueKind.Array)
+                {
+                    _context.RecordFail(Module, method, "positions is not an array");
+                    return;
+                }
+
+                if (!config.TryGetProperty("cash_flows", out JsonElement cashFlows) || cashFlows.ValueKind != JsonValueKind.Array)
+                {
+                    _context.RecordFail(Module, method, "cash_flows is not an array");
+                    return;
+                }
+
+                if (!config.TryGetProperty("statistics_full", out JsonElement statisticsFull) || statisticsFull.ValueKind != JsonValueKind.Object)
+                {
+                    _context.RecordFail(Module, method, "statistics_full is not an object");
+                    return;
+                }
+
+                _context.RecordPass(Module, method, $"sections=8, robots={robots.GetArrayLength()}, robot_results={robotResults.GetArrayLength()}, positions={positions.GetArrayLength()}, cash_flows={cashFlows.GetArrayLength()}");
+            }
+            catch (Exception error)
+            {
+                _context.PrintResponse("");
+                _context.RecordFail(Module, method, error.Message);
+            }
+        }
+
         private bool TryParseConfig(string response, string method, out JsonElement config)
         {
             config = default;
@@ -2215,6 +2286,12 @@ namespace OsEngine.McpApi.TestStand.Tests
             const string method = "tester_run_simulation";
             string botName = string.Empty;
             SseCollector? collector = null;
+
+            if (_context.Client.StreamableHttp)
+            {
+                _context.RecordPass(Module, method, "event-driven run — skipped on v2 transport (v1 SSE channel)");
+                return;
+            }
 
             try
             {

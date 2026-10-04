@@ -53,7 +53,7 @@ namespace OsEngine.Market.Servers.BCS
         {
             get { return false; }
         }
-               
+
         public bool DataFeedTf1MinuteCanLoad
         {
             get { return true; }
@@ -159,7 +159,10 @@ namespace OsEngine.Market.Servers.BCS
                 string[] values = new string[]
                 {
                     "RUB",
-                    "CNY"
+                    "CNY",
+                    "USD",
+                    "EUR",
+                    "HKD"
                  };
 
                 return values;
@@ -199,20 +202,20 @@ namespace OsEngine.Market.Servers.BCS
         TimeFrameMin2IsOn = false,
         TimeFrameMin3IsOn = false,
         TimeFrameMin5IsOn = true,
-        TimeFrameMin10IsOn = true,
+        TimeFrameMin10IsOn = false,
         TimeFrameMin15IsOn = true,
         TimeFrameMin20IsOn = false,
         TimeFrameMin30IsOn = true,
         TimeFrameMin45IsOn = false,
         TimeFrameHour1IsOn = true,
-        TimeFrameHour2IsOn = true,
+        TimeFrameHour2IsOn = false,
         TimeFrameHour4IsOn = true,
         TimeFrameDayIsOn = true
     };
 
         public bool HaveOnlyMakerLimitsRealization
         {
-            get { return true; }
+            get { return false; }
         }
 
         #endregion
@@ -303,9 +306,11 @@ namespace OsEngine.Market.Servers.BCS
         {
             get
             {
+                // по спеке API для обычных заявок доступен только Day (timeInForce=1) и FOK(2),
+                // GTD(3) - только для алгоритмических заявок и коннектором не используется
                 return new OrderLifeTimePermission
                 {
-                    GtcIsReady = true,
+                    GtcIsReady = false,
                     SpecifiedIsReady = true,
                     DayIsReady = true
                 };

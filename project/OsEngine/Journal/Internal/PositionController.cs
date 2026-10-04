@@ -156,6 +156,17 @@ namespace OsEngine.Journal.Internal
                 {
                     try
                     {
+                        string[] dealFields = deal.Split('#');
+
+                        // damaged record: too few fields, parsing by indexes is impossible
+                        if (dealFields.Length < 25)
+                        {
+                            SendNewLogMessage(
+                                "Skip damaged position record. Fields count: " + dealFields.Length,
+                                LogMessageType.System);
+                            continue;
+                        }
+
                         positions.Add(new Position());
                         positions[i].SetDealFromString(deal);
                         UpdateOpenPositionArray(positions[i], false);
@@ -2643,7 +2654,7 @@ namespace OsEngine.Journal.Internal
             }
             else if (type == LogMessageType.Error)
             {
-                System.Windows.MessageBox.Show(message);
+                Market.ServerMaster.SendNewLogMessage(message, type);
             }
         }
 

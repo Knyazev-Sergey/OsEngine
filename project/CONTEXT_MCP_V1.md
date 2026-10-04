@@ -1,6 +1,8 @@
-# CONTEXT_MCP — MCP API в OsEngine
+# CONTEXT_MCP_V1 — MCP API V1 в OsEngine (ЛЕГАСИ)
 
-> Этот файл — справочник по MCP API для AI-агентов. Здесь описано, как вызывать существующие инструменты, как обрабатывать ответы и события, и какие правила действуют при работе с MCP.
+> **ЛЕГАСИ. MCP API V1.** Эту версию использовать **НЕ НАДО**. Она будет **удалена весной 2027 года**. Пока живёт только потому, что на ней уже сделаны проекты (сайт RoboVitrina и др.) — для них она поддерживается без изменений. **Новые интеграции делать ТОЛЬКО на V2** — см. [`CONTEXT_MCP_V2.md`](CONTEXT_MCP_V2.md).
+>
+> Этот файл — справочник по MCP API V1 для AI-агентов. Здесь описано, как вызывать существующие инструменты, как обрабатывать ответы и события, и какие правила действуют при работе с MCP.
 
 ---
 
@@ -47,45 +49,7 @@ OsEngine/MCP/
     McpProtocolApi.cs       // initialize, tools/list, tools/call, notifications/initialized
 ```
 
-Тестовый стенд находится в `Tests/McpTestStand/OsEngine.McpApi.TestStand/`:
-
-```
-Tests/McpTestStand/OsEngine.McpApi.TestStand/
-  Program.cs                // Точка входа, запуск OsEngine, оркестрация
-  McpApiClient.cs           // Синхронный HTTP-клиент
-  TestContext.cs            // Контекст прогона и печать отчёта
-  TestRunner.cs             // Запуск модульных тестов
-  TestResult.cs             // Результат одного теста
-  Tests/                    // Модульные тесты
-    ProtocolTests.cs
-    TerminalTests.cs
-    LogsTests.cs
-    SettingsTests.cs
-    ConfigTests.cs
-    ServerManagementTests.cs
-    ServerInstanceTests.cs
-    WikiRobotsTests.cs
-    WikiIndicatorsTests.cs
-    WikiSecuritiesTests.cs
-    WikiDividendsTests.cs
-    SseTests.cs
-    ErrorTests.cs
-    DataTests.cs
-    TesterTests.cs          // tester_* and bot_* via tester mode
-    SystemLoadTests.cs      // system_load_* via BotStationLight mode
-    ComparePositionsTests.cs // compare_positions_* via BotStationLight mode
-    ProxyTests.cs           // proxy_* via BotStationLight mode
-    OptimizerTests.cs       // optimizer_* via Optimizer mode
-```
-
-По умолчанию стенд прогоняет все 20 модулей подряд. Аргумент `--module` (или `-m`) запускает только выбранные модули: номер модуля (1–20) или подстрока его имени без учёта регистра, несколько значений — через запятую. Нумерация соответствует порядку полного прогона: 1 Protocol, 2 Logs, 3 Settings, 4 Config, 5 ServerManagement, 6 ServerInstance, 7 SSE, 8 Errors, 9 WikiRobots, 10 WikiIndicators, 11 WikiSecurities, 12 WikiDividends, 13 Data, 14 Tester, 15 Terminal, 16 SystemLoad, 17 ComparePositions, 18 Proxy, 19 Optimizer, 20 Encryption. Пропущенные модули не перезапускают OsEngine и не тратят время. Если фильтр не совпал ни с одним модулем, стенд печатает нумерованный список модулей и завершается с ошибкой.
-
-```bash
-./OsEngine.McpApi.TestStand.exe                      # все модули
-./OsEngine.McpApi.TestStand.exe --module Tester      # только модуль Tester
-./OsEngine.McpApi.TestStand.exe --module 5,6         # ServerManagement и ServerInstance
-./OsEngine.McpApi.TestStand.exe --module Wiki        # все wiki_* модули
-```
+Тестовый стенд: [`CONTEXT_MCP_TESTSTAND.md`](Tests/CONTEXT_MCP_TESTSTAND.md) — описание, запуск, модули и отчёт.
 
 ---
 
@@ -93,8 +57,10 @@ Tests/McpTestStand/OsEngine.McpApi.TestStand/
 
 ### 2.1. Endpoint'ы
 
-- **JSON-RPC:** `POST http://localhost:<port>/api/v1/mcp`
-- **SSE:** `GET http://localhost:<port>/api/v1/events`
+- **JSON-RPC:** `POST http://localhost:<port>/api/v1/mcp` — синхронный ответ прямо в теле;
+- **SSE:** `GET http://localhost:<port>/api/v1/events` — события терминала.
+
+Формат ответов: PascalCase-ключи (`Content`, `Type`, `Text`, `IsError`, `Tools`), в конверте рядом с `result` есть `"error": null`, `initialize` отклоняет версию протокола ≠ `2024-11-05`.
 
 Порт по умолчанию: `6500`. Хранится в `Engine\McpSettings.txt`.
 
@@ -120,6 +86,8 @@ X-Api-Key: <ключ>
 
 3. **Полезная нагрузка лежит в `result.Content[0].Text`.**  
    Это вложенная JSON-строка. Её нужно распарсить отдельно. Внутри строки кавычки могут быть экранированы как `\u0022`, поэтому `grep`/`sed`/`awk` не подходят для извлечения полей.
+
+   **Breaking change (16.09.2026):** ключи ответов `tools/list` и `tools/call` приведены к спецификации MCP — `tools`, `content`, `type`, `text`, `isError` (строчные). Раньше отдавались PascalCase (`Tools`, `Content`, `Type`, `Text`, `IsError`). Внешние скрипты, парсящие старые ключи, нужно обновить. Также конверт JSON-RPC теперь строго по спецификации: в успешном ответе нет ключа `error`, в ошибочном нет `result`.
 
 4. **Из Git Bash используйте готовый скрипт `OsEngine/bin/Debug/mcp_call.sh`.**  
    Он формирует корректный JSON-RPC запрос (в том числе с кириллицей) и распаковывает `Content[0].Text` через PowerShell:
@@ -325,7 +293,7 @@ JSON-RPC endpoint принимает только методы MCP-проток�
 | `optimizer_position_support_get` / `optimizer_position_support_set` | Общее сопровождение позиций для прогонов (`BotManualControl`) |
 | `optimizer_phases_get` / `optimizer_phases_set` | Фазы walk-forward и их пересчёт (`ReloadFazes`) |
 | `optimizer_filters_get` / `optimizer_filters_set` | Фильтры отсева между фазами (значение + вкл/выкл каждого) |
-| `optimizer_params_get` / `optimizer_params_set` / `optimizer_params_reset` | Пространство параметров: значения, диапазоны, on/off, сброс на стандартные |
+| `optimizer_params_get` / `optimizer_params_set` / `optimizer_params_reset` | Пространство параметров: значения, диапазоны, on/off, сброс на стандартные. Для числовых параметров `value` эквивалентно колонке «По умолчанию» грида оптимизатора: записывается и в Value, и в Defolt, и именно оно используется в прогоне для зафиксированных (on=false) параметров. В отчётах `optimizer_get_report` `value` — фактическое значение прогона |
 | `optimizer_get_pass_count` | Предполагаемое число прогонов (нельзя во время работы) |
 | `optimizer_get_threads` / `optimizer_set_threads` | Число потоков оптимизации (1..50) |
 | `optimizer_bot_tab_get_config` / `optimizer_bot_tab_set_config` | Вкладки робота оптимизации. Simple: бумага + таймфрейм. Screener: массив `securities` + таймфрейм одним источником (внутренние вкладки пересоздаются сразу; портфель по умолчанию `GodMode`, можно переопределить `portfolio_name`). Настроить нужно все вкладки перед `optimizer_start` |
@@ -352,6 +320,8 @@ curl -s -H "X-Api-Key: osengine-mcp-default-key" \
   -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}' \
   http://localhost:6500/api/v1/mcp
 ```
+
+Сервер согласовывает версию протокола по спецификации MCP: какую бы версию ни прислал клиент (или не прислал вовсе), отказа нет — ответ всегда содержит поддерживаемую сервером версию в `protocolVersion` (сейчас `2024-11-05`).
 
 **tools/list:**
 
@@ -1308,108 +1278,7 @@ data: {"event":"server_instance.log","timestamp":"2026-06-22T18:10:07","payload"
 
 ## 2.9. Тестовый стенд
 
-Репозиторий содержит консольный тестовый стенд:
-
-```
-Tests/McpTestStand/OsEngine.McpApi.TestStand/
-```
-
-Стенд запускает `OsEngine.exe`, дожидается готовности MCP API и последовательно проверяет каждый модуль:
-
-| Модуль | Что проверяется |
-|--------|-----------------|
-| Protocol | `initialize`, `notifications/initialized`, `tools/list` |
-| Logs | `log_get_emergency_log`, `log_get_mcp_log` |
-| Settings | `prime_settings_get`, `prime_settings_set` |
-| Config | `mcp_settings_get`, `mcp_settings_set` |
-| Server Management | `server_management_get_list`, `server_management_activate`, `server_management_get_trade_connectors`, `server_management_get_data_connectors`, `server_management_get_connector_permissions` |
-| Server Instance | `server_instance_get_params`, `server_instance_set_params`, `server_instance_create`, `server_instance_delete`, `server_instance_connect`, `server_instance_disconnect`, `server_instance_get_status`, `server_instance_get_securities`, `server_instance_get_portfolios`, `server_instance_get_log` |
-| Wiki Robots | `wiki_robots_list`, `wiki_robot_info` |
-| Wiki Indicators | `wiki_indicators_list`, `wiki_indicator_info` |
-| Wiki Securities | `wiki_securities_moex_iss`, `wiki_securities_tinvest`, `wiki_securities_alor`, `wiki_securities_qscalp`, `wiki_securities_mapping_info` |
-| SSE | подключение к `/api/v1/events`, события `terminal.launched` и `heartbeat` |
-| Errors | HTTP 401, `-32601`, неизвестный инструмент, невалидные параметры |
-| Terminal | `ping`, `terminal_get_status`, `terminal_launch`, `terminal_stop`, `terminal_kill`, `terminal_open_mode` |
-| Data | `data_get_sets`, `data_create_set`, `data_delete_set`, `data_set_settings_get`, `data_set_settings_set`, `data_set_securities_get`, `data_set_securities_add`, `data_set_securities_remove`, `data_set_on`, `data_set_off`, `data_get_set_status`, `data_get_security_status` |
-| Robot | `bot_get_list`, `bot_create`, `bot_delete`, `bot_get_params`, `bot_set_params`, `bot_click_param_button`, `bot_get_sources`, `bot_get_config_tab_simple`, `bot_set_config_tab_simple`, `bot_get_config_tab_screener`, `bot_set_config_tab_screener`, `bot_get_config_tab_index`, `bot_set_config_tab_index` |
-| Journal | `bot_journal_get_settings`, `bot_journal_set_settings`, `bot_journal_get_summary`, `bot_journal_get_equity`, `bot_journal_get_statistics`, `bot_journal_get_drawdown`, `bot_journal_get_volume`, `bot_journal_get_open_positions`, `bot_journal_get_closed_positions` |
-| Tester | `tester_data_get_config`, `tester_data_get_available_sets`, `tester_data_set_config`, `tester_execution_get_config`, `tester_execution_set_config`, `tester_portfolio_get_config`, `tester_portfolio_set_config`, `tester_start`, `tester_pause`, `tester_stop`, `tester_fast_forward`, `tester_step_forward`, `tester_get_status` |
-
-### Запуск
-
-```bash
-cd Tests/McpTestStand/OsEngine.McpApi.TestStand/bin/Debug/net10.0
-./OsEngine.McpApi.TestStand.exe
-```
-
-> **Важно:** стенд запускать только с **явного разрешения пользователя**.
->
-> Стенд работает в foreground. При запуске из Kimi Shell он создаёт собственное видимое консольное окно, а вывод дублируется в это окно, в исходный stdout и в лог-файл `mcp-test-stand-yyyyMMdd-HHmmss.log` рядом с `.exe`. Запрещено использовать `run_in_background=true`. Длительность прогона — около 4 минут; дожидаться завершения через `TaskOutput(block=true)` или автоматическое уведомление.
-
-### Аргументы командной строки
-
-| Аргумент | Описание |
-|----------|----------|
-| `path/to/OsEngine.exe` | Путь к OsEngine (по умолчанию `../../../../../../OsEngine/bin/Debug/OsEngine.exe`) |
-| `--port <port>` | Порт MCP (по умолчанию `6500`) |
-| `--api-key <key>` | Ключ (по умолчанию `osengine-mcp-default-key`) |
-| `--timeout <seconds>` | Таймаут ожидания готовности (по умолчанию `60`) |
-| `--no-wait` | Не ждать нажатия клавиши в конце |
-
-### Настройка секретов коннектора
-
-Некоторые тесты (например, подключение к бирже) требуют реальных учётных данных. Тестовый стенд **не хранит секреты в исходном коде** и **не коммитит их**. Секреты загружаются по следующему приоритету:
-
-1. **Переменные окружения** (удобно для CI/CD):
-   ```bash
-   set OSENGINE_TEST_CONNECTOR_TYPE=TInvest
-   set OSENGINE_TEST_CONNECTOR_PARAMETERS={"Token":"..."}
-   ```
-
-2. **Локальный файл `test-secrets.json`** рядом с `.exe` (удобно для ручного запуска):
-   ```json
-   {
-     "connector": {
-       "type": "TInvest",
-       "parameters": {
-         "Token": "..."
-       }
-     }
-   }
-   ```
-
-3. **Интерактивный консольный prompt** — если и env vars, и файл отсутствуют, стенд спросит тип коннектора и параметры, а затем сохранит их в `test-secrets.json`.
-
-Файл `test-secrets.json` добавлен в `.gitignore` и не должен попадать в репозиторий. При выводе запросов значения параметров, чьи имена содержат `token`, `key`, `secret` или `password`, маскируются.
-
-### Пример отчёта
-
-```
---- Module Summary ---
-PROTOCOL:          3/3 passed
-LOGS:              3/3 passed
-SETTINGS:          2/2 passed
-CONFIG:            2/2 passed
-SERVER_MANAGEMENT: 5/5 passed
-SERVER_INSTANCE:   5/5 passed
-SSE:               1/1 passed
-ERRORS:            4/4 passed
-WIKI_ROBOTS:       6/6 passed
-WIKI_INDICATORS:   7/7 passed
-WIKI_SECURITIES:  12/12 passed
-WIKI_DIVIDENDS:   12/12 passed
-DATA:             16/16 passed
-TESTER:           43/43 passed
-TERMINAL:         13/13 passed
-SYSTEMLOAD:        4/4 passed
-COMPAREPOSITIONS:  5/5 passed
-PROXY:             8/8 passed
-OPTIMIZER:        19/19 passed
-
-Total: 170/170 passed in 338.6s
-```
-
-Если стенд запущен двойным кликом из проводника, окно консоли остаётся открытым до нажатия клавиши.
+Описание, запуск, модули, секреты и отчёт — в [`CONTEXT_MCP_TESTSTAND.md`](Tests/CONTEXT_MCP_TESTSTAND.md).
 
 ---
 
@@ -1521,17 +1390,4 @@ OsEngine не поддерживает несколько процессов, р
 
 ### 3.6. Что делает тестовый стенд
 
-Тестовый стенд уже устанавливает правильный `WorkingDirectory`:
-
-```csharp
-string workingDirectory = Path.GetDirectoryName(osEnginePath) ?? string.Empty;
-
-osEngineProcess = Process.Start(new ProcessStartInfo(osEnginePath)
-{
-    WorkingDirectory = workingDirectory,
-    UseShellExecute = false,
-    CreateNoWindow = false
-});
-```
-
-Поэтому при запуске через стенд проблема Message6 не возникает. Ошибки обычно связаны либо с правами, либо с тем, что предыдущий процесс `OsEngine.exe` ещё не завершился (Message7).
+Тестовый стенд сам выставляет правильный `WorkingDirectory` при запуске OsEngine — подробнее в [`CONTEXT_MCP_TESTSTAND.md`](Tests/CONTEXT_MCP_TESTSTAND.md).
