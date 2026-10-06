@@ -572,10 +572,19 @@ namespace OsEngine.OsTrader.Panels.Tab
 
         private void _journalUi_Closed(object sender, EventArgs e)
         {
-            _journalUi2.Closed -= _journalUi_Closed;
-            _journalUi2.LogMessageEvent -= _journalUi2_LogMessageEvent;
-            _journalUi2.IsErase = true;
-            _journalUi2 = null;
+            JournalUi2 journalUi = sender as JournalUi2;
+
+            if (journalUi != null)
+            {
+                journalUi.Closed -= _journalUi_Closed;
+                journalUi.LogMessageEvent -= _journalUi2_LogMessageEvent;
+                journalUi.IsErase = true;
+            }
+
+            if (ReferenceEquals(_journalUi2, journalUi))
+            {
+                _journalUi2 = null;
+            }
         }
 
         private void ComboBoxSec2Regime_SelectionChanged(object sender, SelectionChangedEventArgs e)

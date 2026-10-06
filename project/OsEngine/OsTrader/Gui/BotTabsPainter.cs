@@ -615,7 +615,7 @@ namespace OsEngine.OsTrader.Gui
 
                 for (int i = 0; i < _journalUi.Count; i++)
                 {
-                    if (_journalUi[i].JournalName == myJournal.JournalName)
+                    if (ReferenceEquals(_journalUi[i], sender))
                     {
                         _journalUi[i].Closed -= _journalUi_Closed;
                         _journalUi[i].LogMessageEvent -= _journalUi_LogMessageEvent;

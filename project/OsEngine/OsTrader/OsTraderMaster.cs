@@ -1735,20 +1735,32 @@ namespace OsEngine.OsTrader
         /// </summary>
         private void _journalUi_Closed(object sender, EventArgs e)
         {
-            if (_journalUi2 != null)
+            JournalUi2 journalUi2 = sender as JournalUi2;
+
+            if (journalUi2 != null)
             {
-                _journalUi2.LogMessageEvent -= SendNewLogMessage;
-                _journalUi2.Closed -= _journalUi_Closed;
-                _journalUi2.IsErase = true;
-                _journalUi2 = null;
+                journalUi2.LogMessageEvent -= SendNewLogMessage;
+                journalUi2.Closed -= _journalUi_Closed;
+                journalUi2.IsErase = true;
+
+                if (ReferenceEquals(_journalUi2, journalUi2))
+                {
+                    _journalUi2 = null;
+                }
             }
 
-            if (_journalUi1 != null)
+            JournalUi journalUi1 = sender as JournalUi;
+
+            if (journalUi1 != null)
             {
-                _journalUi1.LogMessageEvent -= SendNewLogMessage;
-                _journalUi1.Closed -= _journalUi_Closed;
-                _journalUi1.IsErase = true;
-                _journalUi1 = null;
+                journalUi1.LogMessageEvent -= SendNewLogMessage;
+                journalUi1.Closed -= _journalUi_Closed;
+                journalUi1.IsErase = true;
+
+                if (ReferenceEquals(_journalUi1, journalUi1))
+                {
+                    _journalUi1 = null;
+                }
             }
 
             GC.Collect();

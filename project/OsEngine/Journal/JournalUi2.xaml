@@ -97,7 +97,7 @@
             </Slider>
             <Button Name="ButtonReload" Content="Reload" HorizontalAlignment="Right" Margin="0,41,2,0" VerticalAlignment="Top" Width="110" Height="21" Click="ButtonReload_Click"/>
             <CheckBox Name="ButtonAutoReload" Content="Auto update" HorizontalAlignment="Left" Margin="400,5,0,0" VerticalAlignment="Top" Width="110"/>
-            <TabControl Margin="1,78,1,28">
+            <TabControl Name="TabControlFilters" Margin="1,78,1,28">
                 <TabItem Name="TabItemBotFilters" Header="Bots filter">
                     <WindowsFormsHost Name="HostBotsSelected" Margin="-2,0,-4,0"/>
                 </TabItem>

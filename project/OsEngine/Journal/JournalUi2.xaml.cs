@@ -41,6 +41,10 @@ namespace OsEngine.Journal
 
         public bool IsErase;
 
+        private CancellationTokenSource _workerCancellation;
+
+        private CancellationTokenSource _leftPanelCancellation;
+
         public JournalUi2(List<BotPanelJournal> botsJournals, StartProgram startProgram)
         {
             InitializeComponent();
@@ -74,8 +78,8 @@ namespace OsEngine.Journal
 
             _currentCulture = OsLocalization.CurCulture;
 
-            Task task = new Task(ThreadWorkerPlace);
-            task.Start();
+            _workerCancellation = new CancellationTokenSource();
+            Task.Run(() => ThreadWorkerPlace(_workerCancellation.Token));
 
             Title = OsLocalization.Journal.TitleJournalUi;
             Label1.Content = OsLocalization.Journal.Label1;
@@ -137,8 +141,8 @@ namespace OsEngine.Journal
             CreateBotsGrid();
             PaintBotsGrid();
 
-            Thread task2 = new Thread(LeftBotsPanelPainterThread);
-            task2.Start();
+            _leftPanelCancellation = new CancellationTokenSource();
+            Task.Run(() => LeftBotsPanelPainterThread(_leftPanelCancellation.Token));
 
             CreateSlidersShowPositions();
 
@@ -189,11 +193,134 @@ namespace OsEngine.Journal
             StartButtonBlinkAnimation();
         }
 
+        private void DisposeWindowsFormsHost(System.Windows.Forms.Integration.WindowsFormsHost host)
+        {
+            if (host == null)
+            {
+                return;
+            }
+
+            try
+            {
+                System.Windows.Forms.Control child = host.Child;
+
+                host.Child = null;
+
+                if (child != null)
+                {
+                    child.Dispose();
+                }
+
+                host.Dispose();
+            }
+            catch (Exception error)
+            {
+                SendNewLogMessage(error.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void ClearTabControlContent(System.Windows.Controls.TabControl tabControl)
+        {
+            if (tabControl == null)
+            {
+                return;
+            }
+
+            try
+            {
+                tabControl.SelectedItem = null;
+                tabControl.SelectedIndex = -1;
+
+                for (int i = 0; i < tabControl.Items.Count; i++)
+                {
+                    System.Windows.Controls.TabItem tabItem =
+                        tabControl.Items[i] as System.Windows.Controls.TabItem;
+
+                    if (tabItem == null)
+                    {
+                        continue;
+                    }
+
+                    tabItem.Content = null;
+                    tabItem.Header = null;
+                }
+
+                tabControl.Items.Clear();
+                tabControl.ItemsSource = null;
+            }
+            catch (Exception error)
+            {
+                SendNewLogMessage(error.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void ClearComboBoxContent(System.Windows.Controls.ComboBox comboBox)
+        {
+            if (comboBox == null)
+            {
+                return;
+            }
+
+            try
+            {
+                comboBox.SelectedItem = null;
+                comboBox.SelectedIndex = -1;
+                comboBox.ItemsSource = null;
+                comboBox.Items.Clear();
+            }
+            catch (Exception error)
+            {
+                SendNewLogMessage(error.ToString(), LogMessageType.Error);
+            }
+        }
+
+        private void DisposeAllWindowsFormsHosts()
+        {
+            DisposeWindowsFormsHost(HostEquity);
+            HostEquity = null;
+
+            DisposeWindowsFormsHost(HostStatistics);
+            HostStatistics = null;
+
+            DisposeWindowsFormsHost(HostDrawdown);
+            HostDrawdown = null;
+
+            DisposeWindowsFormsHost(HostVolume);
+            HostVolume = null;
+
+            DisposeWindowsFormsHost(HostVolumePortfolio);
+            HostVolumePortfolio = null;
+
+            DisposeWindowsFormsHost(HostOpenPosition);
+            HostOpenPosition = null;
+
+            DisposeWindowsFormsHost(HostClosePosition);
+            HostClosePosition = null;
+
+            DisposeWindowsFormsHost(HostBotsSelected);
+            HostBotsSelected = null;
+
+            DisposeWindowsFormsHost(HostSecuritiesSelected);
+            HostSecuritiesSelected = null;
+        }
+
         private void JournalUi_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             try
             {
                 IsErase = true;
+
+                if (_workerCancellation != null)
+                {
+                    _workerCancellation.Cancel();
+                    _workerCancellation = null;
+                }
+
+                if (_leftPanelCancellation != null)
+                {
+                    _leftPanelCancellation.Cancel();
+                    _leftPanelCancellation = null;
+                }
 
                 TabControlPrime.SelectionChanged -= TabControlPrime_SelectionChanged;
                 TabControlVolume.SelectionChanged -= TabControlVolume_SelectionChanged;
@@ -207,6 +334,11 @@ namespace OsEngine.Journal
                 ComboBoxOpenPosesShowNumbers.SelectionChanged -= ComboBoxOpenPosesShowNumbers_SelectionChanged;
 
                 ButtonAutoReload.Click -= ButtonAutoReload_Click;
+                ButtonRefreshBenchmark.Click -= ButtonRefreshBenchmark_Click;
+                ButtonShowLeftPanel.Click -= ButtonShowLeftPanel_Click;
+                ButtonHideLeftPanel.Click -= ButtonHideLeftPanel_Click;
+                ButtonReload.Click -= ButtonReload_Click;
+
                 CheckBoxShowDontOpenPoses.Click -= CheckBoxShowDontOpenPoses_Click;
                 if (ButtonPostsJournal2.Visibility == Visibility.Visible)
                 {
@@ -217,9 +349,6 @@ namespace OsEngine.Journal
                 SliderTo.ValueChanged -= SliderTo_ValueChanged;
                 TextBoxFrom.TextChanged -= TextBoxFrom_TextChanged;
                 TextBoxTo.TextChanged -= TextBoxTo_TextChanged;
-
-                TabControlPrime.Items.Clear();
-                TabControlVolume.Items.Clear();
 
                 Closing -= JournalUi_Closing;
 
@@ -277,7 +406,7 @@ namespace OsEngine.Journal
 
                         if (HostEquity != null)
                         {
-                            HostEquity.Child = null;
+                            DisposeWindowsFormsHost(HostEquity);
                         }
 
                         _chartEquity.Dispose();
@@ -301,7 +430,7 @@ namespace OsEngine.Journal
 
                         if (HostVolume != null)
                         {
-                            HostVolume.Child = null;
+                            DisposeWindowsFormsHost(HostVolume);
                         }
 
                         _chartVolume.Dispose();
@@ -354,7 +483,7 @@ namespace OsEngine.Journal
                     _layoutPanelPortfolio.Dispose();
                     _layoutPanelPortfolio = null;
                     HostVolumePortfolio.Child.Hide();
-                    HostVolumePortfolio.Child = null;
+                    DisposeWindowsFormsHost(HostVolumePortfolio);
                     HostVolumePortfolio = null;
                 }
 
@@ -366,10 +495,7 @@ namespace OsEngine.Journal
                         _chartDd.Series.Clear();
                         _chartDd.ChartAreas.Clear();
 
-                        if (HostDrawdown != null)
-                        {
-                            HostDrawdown.Child = null;
-                        }
+                        DisposeWindowsFormsHost(HostDrawdown);
 
                         _chartDd.Dispose();
                         _chartDd = null;
@@ -382,8 +508,7 @@ namespace OsEngine.Journal
                 }
 
                 if (_gridStatistics != null)
-                {
-                    HostStatistics.Child = null;
+                {                    
                     DataGridFactory.ClearLinks(_gridStatistics);
                     _gridStatistics.DataError -= _gridStatistics_DataError;
                     _gridStatistics.Rows.Clear();
@@ -391,12 +516,13 @@ namespace OsEngine.Journal
                     _gridStatistics.DataSource = null;
                     _gridStatistics.Dispose();
                     _gridStatistics = null;
+
+                    DisposeWindowsFormsHost(HostStatistics);
                     HostStatistics = null;
                 }
 
                 if (_openPositionGrid != null)
                 {
-                    HostOpenPosition.Child = null;
                     DataGridFactory.ClearLinks(_openPositionGrid);
                     _openPositionGrid.Click -= _openPositionGrid_Click;
                     _openPositionGrid.CellClick -= _gridOpenDeal_CellClick;
@@ -407,12 +533,12 @@ namespace OsEngine.Journal
                     _openPositionGrid.DataSource = null;
                     _openPositionGrid.Dispose();
                     _openPositionGrid = null;
+                    DisposeWindowsFormsHost(HostOpenPosition);
                     HostOpenPosition = null;
                 }
 
                 if (_closePositionGrid != null)
                 {
-                    HostClosePosition.Child = null;
                     DataGridFactory.ClearLinks(_closePositionGrid);
                     _closePositionGrid.Click -= _closePositionGrid_Click;
                     _closePositionGrid.CellClick -= _gridCloseDeal_CellClick;
@@ -423,12 +549,12 @@ namespace OsEngine.Journal
                     _closePositionGrid.DataSource = null;
                     _closePositionGrid.Dispose();
                     _closePositionGrid = null;
+                    DisposeWindowsFormsHost(HostClosePosition);
                     HostClosePosition = null;
                 }
 
                 if (_gridLeftBotsPanel != null)
                 {
-                    HostBotsSelected.Child = null;
                     _gridLeftBotsPanel.CellEndEdit -= _gridLeftBotsPanel_CellEndEdit;
                     _gridLeftBotsPanel.CellBeginEdit -= _gridLeftBotsPanel_CellBeginEdit;
                     _gridLeftBotsPanel.DataError -= _gridStatistics_DataError;
@@ -437,12 +563,12 @@ namespace OsEngine.Journal
                     _gridLeftBotsPanel.Columns.Clear();
                     _gridLeftBotsPanel.DataSource = null;
                     _gridLeftBotsPanel.Dispose();
+                    DisposeWindowsFormsHost(HostBotsSelected);
                     _gridLeftBotsPanel = null;
                 }
 
                 if (_gridLeftSecuritiesPanel != null)
                 {
-                    HostSecuritiesSelected.Child = null;
                     _gridLeftSecuritiesPanel.CellClick -= _gridLeftSecuritiesPanel_CellClick;
                     _gridLeftSecuritiesPanel.DataError -= _gridStatistics_DataError;
                     DataGridFactory.ClearLinks(_gridLeftSecuritiesPanel);
@@ -450,6 +576,7 @@ namespace OsEngine.Journal
                     _gridLeftSecuritiesPanel.Columns.Clear();
                     _gridLeftSecuritiesPanel.DataSource = null;
                     _gridLeftSecuritiesPanel.Dispose();
+                    DisposeWindowsFormsHost(HostSecuritiesSelected);
                     _gridLeftSecuritiesPanel = null;
                 }
 
@@ -459,6 +586,22 @@ namespace OsEngine.Journal
                     _blinkTimer.Tick -= _blinkTimer_Tick;
                     _blinkTimer = null;
                 }
+
+                DisposeAllWindowsFormsHosts();
+
+                ClearTabControlContent(TabControlPrime);
+                ClearTabControlContent(TabControlVolume);
+                ClearTabControlContent(TabControlFilters);
+
+                ClearComboBoxContent(ComboBoxChartType);
+                ClearComboBoxContent(ComboBoxBenchmark);
+                ClearComboBoxContent(VolumeShowNumbers);
+                ClearComboBoxContent(ComboBoxOpenPosesOnPage);
+                ClearComboBoxContent(ComboBoxOpenPosesShowNumbers);
+                ClearComboBoxContent(ComboBoxClosePosesOnPage);
+                ClearComboBoxContent(ComboBoxClosePosesShowNumbers);
+
+                Content = null;
             }
             catch (Exception ex)
             {
@@ -552,20 +695,20 @@ namespace OsEngine.Journal
             }
         }
 
-        private async void ThreadWorkerPlace()
+        private async Task ThreadWorkerPlace(CancellationToken token)
         {
             if (_startProgram != StartProgram.IsOsTrader)
             {
                 return;
             }
 
-            while (true)
+            while (token.IsCancellationRequested == false)
             {
                 try
                 {
-                    await Task.Delay(30000);
+                    await Task.Delay(30000, token);
 
-                    if (IsErase == true)
+                    if (IsErase == true || token.IsCancellationRequested)
                     {
                         return;
                     }
@@ -576,6 +719,10 @@ namespace OsEngine.Journal
                     }
 
                     RePaint();
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
                 }
                 catch (Exception error)
                 {
@@ -596,7 +743,7 @@ namespace OsEngine.Journal
 
                 if (!TabControlPrime.CheckAccess())
                 {
-                    TabControlPrime.Dispatcher.Invoke(RePaint);
+                    TabControlPrime.Dispatcher.BeginInvoke(RePaint);
                     return;
                 }
 
@@ -4780,7 +4927,7 @@ namespace OsEngine.Journal
                 SendNewLogMessage(ex.ToString(), LogMessageType.Error);
             }
 
-            HostClosePosition.Child = _openPositionGrid;
+            HostClosePosition.Child = _closePositionGrid;
         }
 
         private List<Position> GetClosePositions()
@@ -5429,7 +5576,7 @@ namespace OsEngine.Journal
             {
                 if (!TabControlPrime.CheckAccess())
                 {
-                    TabControlPrime.Dispatcher.Invoke(PaintBotsGrid);
+                    TabControlPrime.Dispatcher.BeginInvoke(PaintBotsGrid);
                     return;
                 }
 
@@ -5469,13 +5616,13 @@ namespace OsEngine.Journal
 
         private bool _needToRaPaintBotsGrid;
 
-        private void LeftBotsPanelPainterThread()
+        private async Task LeftBotsPanelPainterThread(CancellationToken token)
         {
-            while (true)
+            while (token.IsCancellationRequested == false)
             {
                 try
                 {
-                    if (IsErase == true)
+                    if (IsErase == true || token.IsCancellationRequested)
                     {
                         return;
                     }
@@ -5488,13 +5635,25 @@ namespace OsEngine.Journal
                     }
                     else
                     {
-                        Thread.Sleep(200);
+                        await Task.Delay(200, token);
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
                 }
                 catch (Exception error)
                 {
                     SendNewLogMessage(error.ToString(), LogMessageType.Error);
-                    Thread.Sleep(5000);
+
+                    try
+                    {
+                        await Task.Delay(5000, token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
                 }
             }
         }

@@ -937,10 +937,19 @@ namespace OsEngine.OsTrader.Panels
         {
             try
             {
-                _journalUi.Closed -= _journalUi_Closed;
-                _journalUi.LogMessageEvent -= _journalUi_LogMessageEvent;
-                _journalUi.IsErase = true;
-                _journalUi = null;
+                JournalUi2 journalUi = sender as JournalUi2;
+
+                if (journalUi != null)
+                {
+                    journalUi.Closed -= _journalUi_Closed;
+                    journalUi.LogMessageEvent -= _journalUi_LogMessageEvent;
+                    journalUi.IsErase = true;
+                }
+
+                if (ReferenceEquals(_journalUi, journalUi))
+                {
+                    _journalUi = null;
+                }
             }
             catch (Exception ex)
             {
