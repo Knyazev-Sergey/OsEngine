@@ -1,4 +1,9 @@
-﻿using Newtonsoft.Json;
+﻿/*
+ * 4.10.26 исправлено восстановление ордеров после их отмены и после перезапуска
+ *          добавил зону активации хеджа по unrealizPnl
+ */
+
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OsEngine.Entity;
 using OsEngine.Indicators;
@@ -78,7 +83,10 @@ namespace OsEngine.Robots
         private StrategyParameterDecimal _percentMartingaleHedge;
         private StrategyParameterDecimal _logPriceLevelsHedge;
 
-        private StrategyParameterInt _setValueUnrealizePnL;
+        private StrategyParameterInt _setValueUnrealizePnLToClose;
+
+        private StrategyParameterBool _setZoneActivUnrealPnlBool;
+        private StrategyParameterDecimal _setUnrealPnlValue;
 
         private bool _versionDiff = true;
 
@@ -157,7 +165,9 @@ namespace OsEngine.Robots
 
             if (_versionDiff)
             {
-                _setValueUnrealizePnL = CreateParameter("Значение UnrealizePnL для активации Автохедж (с минусом)", -100, 0, 0, 0, tabNameAutoHedge);
+                _setZoneActivUnrealPnlBool = CreateParameter("Зона активации: значение UnrealizePnL", true, tabNameAutoHedge);
+                _setUnrealPnlValue = CreateParameter("Значение UnrealizePnL для активации хеджа (с минусом)", -50m, 0m, 0m, 0m, tabNameAutoHedge);
+                _setValueUnrealizePnLToClose = CreateParameter("Значение UnrealizePnL для закрытия позиции (с минусом)", -100, 0, 0, 0, tabNameAutoHedge);
             }
 
             ParametrsChangeByUser += GridBot_ParametrsChangeByUser;
@@ -1354,8 +1364,8 @@ namespace OsEngine.Robots
 
             if (_status == Status.NoWork)
             {
-                if (_main != null) _main = null;
-                if (_hedge != null) _hedge = null;
+                //if (_main != null) _main = null;
+                //if (_hedge != null) _hedge = null;
 
                 return;
             }
@@ -1471,7 +1481,7 @@ namespace OsEngine.Robots
 
         private void CheckUnrealizedPnL(Grid grid)
         {
-            decimal checkValue = _setValueUnrealizePnL.ValueInt;
+            decimal checkValue = _setValueUnrealizePnLToClose.ValueInt;
 
             if (_main.UnrealizPnL > checkValue) return;
 
@@ -1712,7 +1722,8 @@ namespace OsEngine.Robots
 
             if (pos.CloseOrders != null &&
                 pos.CloseOrders.Count > 0 &&
-                pos.CloseOrders[^1].State != OrderStateType.Done)
+                pos.CloseOrders[^1].State != OrderStateType.Done &&
+                pos.CloseOrders[^1].State != OrderStateType.Cancel)
             {                
                 if (pos.OpenVolume > pos.CloseOrders[^1].Volume)
                 {
@@ -2534,6 +2545,12 @@ namespace OsEngine.Robots
 
             LoadRecovery();
 
+            _main.State_CheckDoneOpenOrder = true;
+            _main.AveragePricePosition = 0;
+
+            _hedge.State_CheckDoneOpenOrder = true;
+            _hedge.AveragePricePosition = 0;
+
             _timeCheckRsi = true;
 
             if (_main.GetListPosition().Count == 0)
@@ -2910,6 +2927,18 @@ namespace OsEngine.Robots
                 {
                     SendNewLogMessage("Восстанавливаем предыдущую сетку", Logging.LogMessageType.User);
                     LoadRecovery();
+
+                    if (_main != null)
+                    {
+                        _main.State_CheckDoneOpenOrder = true;
+                        _main.AveragePricePosition = 0;
+                    }
+
+                    if (_hedge != null)
+                    {
+                        _hedge.State_CheckDoneOpenOrder = true;
+                        _hedge.AveragePricePosition = 0;
+                    }
                 }
                 else
                 {
@@ -2969,76 +2998,21 @@ namespace OsEngine.Robots
             SendNewLogMessage("Включена остановка", Logging.LogMessageType.User);
         }
 
-        /*private void PushForcedStop()
-        {
-            _status = Status.ForcedStop;
-            SetFalseAllFlags();
-            SaveRuntimeState(true);
-
-            SendNewLogMessage("Включена принудительная остановка", Logging.LogMessageType.User);
-
-            ForcedStop();
-        }
-
-        private void ForcedStop()
-        {                      
-            if (_tab.PositionOpenLong != null && _tab.PositionOpenLong.Count > 0)
-            {
-                if (_tab.PositionOpenLong[0].OpenOrders.Count > 0)
-                {
-                    for (int i = 0; i < _tab.PositionOpenLong[0].OpenOrders.Count; i++)
-                    {
-                        if (_tab.PositionOpenLong[0].OpenOrders[i].State == OrderStateType.Active)
-                        {
-                            ListOrders list = new ListOrders();
-                            list.Price = _tab.PositionOpenLong[0].OpenOrders[i].Price;
-                            list.Volume = _tab.PositionOpenLong[0].OpenOrders[i].Volume;
-                            _listOrdersBuy.Add(list);
-                            _tab.CloseOrder(_tab.PositionOpenLong[0].OpenOrders[i]);
-                        }                        
-                    }
-
-                    List<ListOrders> sortedList = _listOrdersBuy.OrderByDescending(x => x.Price).ToList();
-                    _listOrdersBuy.Clear();
-                    _listOrdersBuy = sortedList;
-                }                
-            }
-
-            if (_tab.PositionOpenShort != null && _tab.PositionOpenShort.Count > 0)
-            {
-                if (_tab.PositionOpenShort[0].OpenOrders.Count > 0)
-                {
-                    for (int i = 0; i < _tab.PositionOpenShort[0].OpenOrders.Count; i++)
-                    {
-                        if (_tab.PositionOpenShort[0].OpenOrders[i].State == OrderStateType.Active)
-                        {
-                            ListOrders list = new ListOrders();
-                            list.Price = _tab.PositionOpenShort[0].OpenOrders[i].Price;
-                            list.Volume = _tab.PositionOpenShort[0].OpenOrders[i].Volume;
-                            _listOrdersSell.Add(list);
-                            _tab.CloseOrder(_tab.PositionOpenShort[0].OpenOrders[i]);
-                        }
-                    }
-
-                    List<ListOrders> sortedList = _listOrdersSell.OrderBy(x => x.Price).ToList();
-                    _listOrdersSell.Clear();
-                    _listOrdersSell = sortedList;
-                }
-            }
-
-            //SaveRecoveryGrid();
-            //SaveRuntimeState();
-
-            //WriteLogOrders();
-        }*/
-
         private void CancelAllOrders()
         {
             _status = Status.CancelAllOrders;
 
             SendNewLogMessage("Нажата кнопка отмены всех ордеров", Logging.LogMessageType.User);
 
-            //DialogResult result = MessageBox.Show("Остановить бота?", "Сообщение", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1);
+            if (_main != null)
+            {
+                ReturnActiveOpenOrdersToGrid(_main);
+            }
+
+            if (_hedge != null)
+            {
+                ReturnActiveOpenOrdersToGrid(_hedge);
+            }
 
             for (int i = 0; i < _tab.PositionsOpenAll.Count; i++)
             {
@@ -3048,6 +3022,80 @@ namespace OsEngine.Robots
             SetZeroFlagsGrid(_main);
 
             _status = Status.NoWork;
+
+            SaveRecovery();
+        }
+
+        private int ReturnActiveOpenOrdersToGrid(Grid grid)
+        {
+            if (grid == null)
+            {
+                return 0;
+            }
+
+            List<Position> positions = grid.GetListPosition();
+
+            if (positions == null ||
+                positions.Count == 0 ||
+                positions[0].OpenOrders == null ||
+                positions[0].OpenOrders.Count == 0)
+            {
+                return 0;
+            }
+
+            int restored = 0;
+
+            for (int i = 0; i < positions[0].OpenOrders.Count; i++)
+            {
+                Order order = positions[0].OpenOrders[i];
+
+                if (order.State != OrderStateType.Active &&
+                    order.State != OrderStateType.Pending &&
+                    order.State != OrderStateType.Partial &&
+                    order.State != OrderStateType.None)
+                {
+                    continue;
+                }
+
+                decimal remainVolume = Math.Round(
+                    Math.Max(0, order.Volume - order.VolumeExecute),
+                    _tab.Security.DecimalsVolume,
+                    MidpointRounding.ToPositiveInfinity);
+
+                if (remainVolume <= 0)
+                {
+                    continue;
+                }
+
+                grid.ListOrders.Add(new ListOrders
+                {
+                    Price = order.Price,
+                    Volume = remainVolume
+                });
+
+                restored++;
+            }
+
+            SortGridOrders(grid);
+
+            return restored;
+        }
+
+        private void SortGridOrders(Grid grid)
+        {
+            if (grid == null || grid.ListOrders == null)
+            {
+                return;
+            }
+
+            if (grid.SideGrid == Side.Buy)
+            {
+                grid.ListOrders = grid.ListOrders.OrderByDescending(x => x.Price).ToList();
+            }
+            else
+            {
+                grid.ListOrders = grid.ListOrders.OrderBy(x => x.Price).ToList();
+            }
         }
 
         private void CloseOrdersOnMarket()
@@ -3251,6 +3299,8 @@ namespace OsEngine.Robots
             decimal minimumPrice = 0;
             double maximumPrice = 0;
             decimal summPositions = 0;
+
+            if (_main.PriceTP <= 0) GetPriceCloseOrder(_main);
 
             if (side == Side.Buy)
             {
@@ -3804,6 +3854,15 @@ namespace OsEngine.Robots
                 {
                     _autoHedgeState = AutoHedgeState.ActiveHedgeGrid;
                     SendNewLogMessage($"Запускаем режим хеджирующей сетки. Зона активации: % от просадки депозита. ValueDeposit = {valueDeposit}, depositLossValue = {depositLossValue}", Logging.LogMessageType.User);
+                }
+            }
+
+            if (_setZoneActivUnrealPnlBool)
+            {            
+                if (grid.UnrealizPnL < _setUnrealPnlValue)
+                {
+                    _autoHedgeState = AutoHedgeState.ActiveHedgeGrid;
+                    SendNewLogMessage($"Запускаем режим хеджирующей сетки. Зона активации: значение UnrealizePnL = {grid.UnrealizPnL}", Logging.LogMessageType.User);
                 }
             }
         }        
