@@ -129,6 +129,10 @@ namespace OsEngine.Entity
                     _tabs = null;
                 }
 
+                ClearTabControlContent(TabControlSettings);
+                DataContext = null;
+                Content = null;
+
                 _panel = null;
             }
             catch (Exception ex)
@@ -138,6 +142,37 @@ namespace OsEngine.Entity
                     _panel.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
                     _panel = null;
                 }
+            }
+        }
+
+        private void ClearTabControlContent(System.Windows.Controls.TabControl tabControl)
+        {
+            try
+            {
+                if (tabControl == null)
+                {
+                    return;
+                }
+
+                for (int i = 0; i < tabControl.Items.Count; i++)
+                {
+                    TabItem tabItem = tabControl.Items[i] as TabItem;
+
+                    if (tabItem == null)
+                    {
+                        continue;
+                    }
+
+                    tabItem.Content = null;
+                    tabItem.DataContext = null;
+                }
+
+                tabControl.Items.Clear();
+                tabControl.DataContext = null;
+            }
+            catch
+            {
+                // ignore
             }
         }
 
@@ -593,6 +628,7 @@ namespace OsEngine.Entity
                 if (_host != null)
                 {
                     _host.Child = null;
+                    _host.Dispose();
                     _host = null;
                 }
 
