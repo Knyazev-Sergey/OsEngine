@@ -82,11 +82,14 @@ namespace OsEngine.Robots
         private StrategyParameterInt _countOrdersGridHedge;
         private StrategyParameterDecimal _percentMartingaleHedge;
         private StrategyParameterDecimal _logPriceLevelsHedge;
+        private StrategyParameterDecimal _profitHedge;
 
         private StrategyParameterInt _setValueUnrealizePnLToClose;
 
         private StrategyParameterBool _setZoneActivUnrealPnlBool;
         private StrategyParameterDecimal _setUnrealPnlValue;
+
+        private StrategyParameterBool _setZoneDeactivRSIBool;
 
         private bool _versionDiff = true;
 
@@ -110,23 +113,23 @@ namespace OsEngine.Robots
             _setAutoStart = CreateParameter("Автоподключение", false, tabNameParameters);
             _typeVolume = CreateParameter("Тип объема", GetDescription(TypeVolume.Percent), new string[] { GetDescription(TypeVolume.Fix), GetDescription(TypeVolume.Percent) }, tabNameParameters);
             _volume = CreateParameter("Объем", 0m, 0m, 0m, 0m, tabNameParameters);
-            _leverage = CreateParameter("Плечо", 0m, 0m, 0m, 0m, tabNameParameters);
+            _leverage = CreateParameter("Плечо", 5m, 0m, 0m, 0m, tabNameParameters);
             _regime = CreateParameter("Режим работы", GetDescription(Regime.Long),
                 new string[] { GetDescription(Regime.Long), GetDescription(Regime.Short) }, tabNameParameters);
 
             _loadGrig = CreateParameter("Загрузить сетку из шаблона", false, tabNameParameters);
             _stringFileSample = CreateParameter("Путь к файлу шаблона", "", tabNameParameters);
-            _сoveringPriceChanges = CreateParameter("Перекрытие изменения цены, %", 0m, 0m, 0m, 0m, tabNameParameters);
-            _countOrdersGrid = CreateParameter("Сетка ордеров", 0, 0, 0, 0, tabNameParameters);
-            _percentMartingale = CreateParameter("Процент мартингейла, %", 0m, 0m, 0m, 0m, tabNameParameters);
+            _сoveringPriceChanges = CreateParameter("Перекрытие изменения цены, %", 5m, 0m, 0m, 0m, tabNameParameters);
+            _countOrdersGrid = CreateParameter("Сетка ордеров", 20, 0, 0, 0, tabNameParameters);
+            _percentMartingale = CreateParameter("Процент мартингейла, %", 0.01m, 0m, 0m, 0m, tabNameParameters);
             _autoCalcMartingaleAmountOrders = CreateParameter("Автоматический расчет ордеров по Мартингейлу", false, tabNameParameters);
-            _firstOrderIndent = CreateParameter("Отступ первого ордера, %", 0m, 0m, 0m, 0m, tabNameParameters);
-            _profit = CreateParameter("Профит, %", 0m, 0m, 0m, 0m, tabNameParameters);
-            _rearrangeGrid = CreateParameter("Подтяжка сетки ордеров, %", 0m, 0m, 0m, 0m, tabNameParameters);
-            _countOrdersOnExchange = CreateParameter("Частичное выставление", 0, 0, 0, 0, tabNameParameters);
+            _firstOrderIndent = CreateParameter("Отступ первого ордера, %", 0.15m, 0m, 0m, 0m, tabNameParameters);
+            _profit = CreateParameter("Профит, %", 1m, 0m, 0m, 0m, tabNameParameters);
+            _rearrangeGrid = CreateParameter("Подтяжка сетки ордеров, %", 0.3m, 0m, 0m, 0m, tabNameParameters);
+            _countOrdersOnExchange = CreateParameter("Частичное выставление", 3, 0, 0, 0, tabNameParameters);
             _delayRearrange = CreateParameter("Задержка перед отменой сетки ордеров для подтяжки, мин", 0m, 0m, 0m, 0m, tabNameParameters);
             _delayAfterCycle = CreateParameter("Задержка после завершения цикла, мин", 0m, 0m, 0m, 0m, tabNameParameters);
-            _logPriceLevels = CreateParameter("Логарифмическое распределение уровней цен", 0m, 0m, 0m, 0m, tabNameParameters);
+            _logPriceLevels = CreateParameter("Логарифмическое распределение уровней цен", 0.01m, 0m, 0m, 0m, tabNameParameters);
             _minVolumeForTicker = CreateParameter("Минимальный объем по инструменту", 0m, 0m, 0m, 0m, tabNameParameters);
             _boolTimerTwapOrders = CreateParameter("Включить TWAP ордера", false, tabNameParameters);
             _setTimeTwapOrders = CreateParameter("Задержка выставления TWAP ордеров", 0m, 0m, 0m, 0m, tabNameParameters);
@@ -151,23 +154,25 @@ namespace OsEngine.Robots
             _setTypeLotHedge = CreateParameter("Тип лота хеджирования ", GetDescription(TypeVolume.Fix), new string[] { GetDescription(TypeVolume.Fix), GetDescription(TypeVolume.Percent) }, tabNameAutoHedge);
             _setLotHedge = CreateParameter("Лот хеджирования", 10m, 0m, 0m, 0m, tabNameAutoHedge);
             _setHedgeTypeLoss = CreateParameter("Тип допустимого убытка", GetDescription(TypeVolume.Fix), new string[] { GetDescription(TypeVolume.Fix), GetDescription(TypeVolume.Percent) }, tabNameAutoHedge);
-            _setHedgeLoss = CreateParameter("Допустимый убыток", 10m, 0m, 0m, 0m, tabNameAutoHedge);
-            _setZoneActivMainPriceBool = CreateParameter("Зона активации: % от цены основной позиции", true, tabNameAutoHedge);
+            _setHedgeLoss = CreateParameter("Допустимый убыток", 5m, 0m, 0m, 0m, tabNameAutoHedge);
+            _setZoneActivMainPriceBool = CreateParameter("Зона активации: % от цены основной позиции", false, tabNameAutoHedge);
             _setZoneActivMainPriceValue = CreateParameter("% от цены основной позиции", 10m, 0m, 0m, 0m, tabNameAutoHedge);
-            _setZoneActivDepositLossBool = CreateParameter("Зона активации: % от просадки депозита", true, tabNameAutoHedge);
+            _setZoneActivDepositLossBool = CreateParameter("Зона активации: % от просадки депозита", false, tabNameAutoHedge);
             _setZoneActivDepositLossValue = CreateParameter("% от просадки депозита", 10m, 0m, 0m, 0m, tabNameAutoHedge);
-            _setZoneActivRangeLiquidationBool = CreateParameter("Зона активации: диапазон ликвидации", true, tabNameAutoHedge);
+            _setZoneActivRangeLiquidationBool = CreateParameter("Зона активации: диапазон ликвидации", false, tabNameAutoHedge);
             _setRangeLiquidationValue = CreateParameter("Диапазон ликвидации, % от рыночной цены", 10m, 0m, 0m, 0m, tabNameAutoHedge);
-            _setOffsetLastOrder = CreateParameter("Смещение последнего ордера, %", 30m, 0m, 0m, 0m, tabNameAutoHedge);
+            _setOffsetLastOrder = CreateParameter("Смещение последнего ордера, %", 5m, 0m, 0m, 0m, tabNameAutoHedge);
             _countOrdersGridHedge = CreateParameter("Сетка ордеров хедж сетки", 20, 0, 0, 0, tabNameAutoHedge);
             _percentMartingaleHedge = CreateParameter("Процент мартингейла хедж сетки, %", 0.01m, 0m, 0m, 0m, tabNameAutoHedge);
             _logPriceLevelsHedge = CreateParameter("Логарифмическое распределение уровней цен хедж сетки", 0.01m, 0m, 0m, 0m, tabNameAutoHedge);
+            _profitHedge = CreateParameter("Профит хедж сетки, %", 1m, 0m, 0m, 0m, tabNameAutoHedge);
 
             if (_versionDiff)
             {
-                _setZoneActivUnrealPnlBool = CreateParameter("Зона активации: значение UnrealizePnL", true, tabNameAutoHedge);
+                _setZoneActivUnrealPnlBool = CreateParameter("Зона активации: значение UnrealizePnL", false, tabNameAutoHedge);
                 _setUnrealPnlValue = CreateParameter("Значение UnrealizePnL для активации хеджа (с минусом)", -50m, 0m, 0m, 0m, tabNameAutoHedge);
-                _setValueUnrealizePnLToClose = CreateParameter("Значение UnrealizePnL для закрытия позиции (с минусом)", -100, 0, 0, 0, tabNameAutoHedge);
+                _setValueUnrealizePnLToClose = CreateParameter("Значение UnrealizePnL для закрытия позиции (с минусом)", -200, 0, 0, 0, tabNameAutoHedge);
+                _setZoneDeactivRSIBool = CreateParameter("Зона активации: при отмене ордеров по RSI", true, tabNameAutoHedge);
             }
 
             ParametrsChangeByUser += GridBot_ParametrsChangeByUser;
@@ -206,6 +211,7 @@ namespace OsEngine.Robots
             worker.Start();
 
             _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;
+            _tabRSI.CandleFinishedEvent += _tabRSI_CandleFinishedEvent;
 
             if (StartProgram == StartProgram.IsTester
                 && ServerMaster.GetServers() != null)
@@ -223,7 +229,15 @@ namespace OsEngine.Robots
 
             _tab.DeleteBotEvent += Tab_DeleteBotEvent;
         }
-                
+
+        private void _tabRSI_CandleFinishedEvent(List<Candle> obj)
+        {
+            if (_choiseRSI == GetDescription(ChoiseRSI.Second))
+            {
+                _timeCheckRsi = true;
+            }
+        }
+
         private bool _deleteBot = false;
 
         private void Tab_DeleteBotEvent(int obj)
@@ -322,6 +336,7 @@ namespace OsEngine.Robots
             str.Add($"_status: {_status}");
             str.Add($"_rsiBlocked: {_rsiBlocked}");
             str.Add($"_startDepositValue: {_startDepositValue}");
+            str.Add($"_autoHedgeState = " + _autoHedgeState);
 
             if (_main != null)
             {
@@ -360,8 +375,7 @@ namespace OsEngine.Robots
 
             if (_hedge != null)
             {
-                str.Add("\nHedge:");
-                str.Add($"_autoHedgeState = " + _autoHedgeState);
+                str.Add("\nHedge:");                
                 str.Add($"State_PlaceNewGrid = " + _hedge.State_PlaceNewGrid);
                 str.Add($"State_PlaceNewOrderGrid = " + _hedge.State_PlaceNewOrderGrid);
                 str.Add($"State_CheckDoneOpenOrder = " + _hedge.State_CheckDoneOpenOrder);
@@ -1143,7 +1157,7 @@ namespace OsEngine.Robots
             if (_main != null)
             {
                 averagePricePositionMain = GetAveragePricePositions(_main.SideGrid);
-                priceTPMain = GetTpPricePosition(_main.SideGrid, averagePricePositionMain);
+                priceTPMain = GetTpPricePosition(_main, averagePricePositionMain);
                 unrealizPnLMain = _main.UnrealizPnL;
             }
 
@@ -1154,7 +1168,7 @@ namespace OsEngine.Robots
             if (_hedge != null)
             {
                 averagePricePositionHedge = GetAveragePricePositions(_hedge.SideGrid);
-                priceTPHedge = GetTpPricePosition(_hedge.SideGrid, averagePricePositionHedge);
+                priceTPHedge = GetTpPricePosition(_hedge, averagePricePositionHedge);
                 unrealizPnLHedge = _hedge.UnrealizPnL;
             }
             
@@ -1373,10 +1387,7 @@ namespace OsEngine.Robots
             if (_main == null) CreateNewGrid(TypeGrid.Main);
             if (_hedge == null) CreateNewGrid(TypeGrid.Hedge);
 
-            // Что делать, если во время отключения исполнятся открывающие ордера и закрывающий ордер в Автостарт и Рекавери
-            
             GetValueWallet();
-
             RsiFilter();
             CalcUnrealizePnL();
             LogicMainGrid();
@@ -1501,6 +1512,8 @@ namespace OsEngine.Robots
 
         private void CheckHedgeLoss(Grid grid)
         {
+            if (_autoHedgeState != AutoHedgeState.ActiveHedgeGrid) return;
+
             decimal hedgeLoss = _setHedgeLoss.ValueDecimal;
 
             if (_setHedgeTypeLoss.ValueString == GetDescription(TypeVolume.Percent))
@@ -1518,6 +1531,7 @@ namespace OsEngine.Robots
 
             SetZeroFlagsGrid(grid);            
             grid.State_CancelActiveOrders = true;
+            grid.State_HasHedgeGrid = true;
             SendLogFlagsGrid(grid);
 
             SaveRecovery();
@@ -1547,7 +1561,7 @@ namespace OsEngine.Robots
             if (_status != Status.Work) return;
 
             if (grid.TimeCycle > DateTime.Now) return;
-                        
+                                    
             if (_loadGrig.ValueBool)
             {
                 grid.ListOrders = LoadSampleToGrid(grid.SideGrid);
@@ -1565,9 +1579,9 @@ namespace OsEngine.Robots
 
                     if (grid.ListOrders == null || grid.ListOrders.Count == 0)
                     {
-                        _setRegimeAutoHedge.ValueString = RegimeOnOff.Off.ToString();
+                        //_setRegimeAutoHedge.ValueString = RegimeOnOff.Off.ToString();
                         _main.State_HasHedgeGrid = false;
-                        _autoHedgeState = AutoHedgeState.Monitoring;
+                        _autoHedgeState = AutoHedgeState.Disable;
                         SendLogFlagsGrid(grid);
                         SaveRecovery();
 
@@ -1784,13 +1798,20 @@ namespace OsEngine.Robots
         {
             grid.AveragePricePosition = GetAveragePricePositions(grid.SideGrid);
 
+            double profit = (double)_profit.ValueDecimal;
+
+            if (grid.TypeGrid == TypeGrid.Hedge)
+            {
+                profit = (double)_profitHedge.ValueDecimal;
+            }
+
             if (grid.SideGrid == Side.Buy)
             {
-                grid.PriceTP = Math.Round((grid.AveragePricePosition + grid.AveragePricePosition * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep * (double)_tab.Security.PriceStep, _tab.Security.Decimals, MidpointRounding.AwayFromZero);
+                grid.PriceTP = Math.Round((grid.AveragePricePosition + grid.AveragePricePosition * profit / 100) / (double)_tab.Security.PriceStep * (double)_tab.Security.PriceStep, _tab.Security.Decimals, MidpointRounding.AwayFromZero);
             }
             else
             {
-                grid.PriceTP = Math.Round((grid.AveragePricePosition - grid.AveragePricePosition * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep * (double)_tab.Security.PriceStep, _tab.Security.Decimals, MidpointRounding.AwayFromZero);
+                grid.PriceTP = Math.Round((grid.AveragePricePosition - grid.AveragePricePosition * profit / 100) / (double)_tab.Security.PriceStep * (double)_tab.Security.PriceStep, _tab.Security.Decimals, MidpointRounding.AwayFromZero);
             }
 
             SendNewLogMessage($"[{grid.TypeGrid}, {grid.SideGrid}] Цена TP ордера должен быть: " + grid.PriceTP, Logging.LogMessageType.User);
@@ -1823,6 +1844,8 @@ namespace OsEngine.Robots
             if (_status != Status.Work && _status != Status.Stop) return;
 
             //grid.AveragePricePosition = GetAveragePricePositions(grid.SideGrid);
+
+            if (grid.TypeGrid == TypeGrid.Main && grid.State_HasHedgeGrid) return;
 
             if (grid.AveragePricePosition == 0) return;
 
@@ -2032,7 +2055,7 @@ namespace OsEngine.Robots
         private void CheckRearrangeGrid(Grid grid)
         {
             if (_status != Status.Work && _status != Status.Stop) return;
-            if (grid.TypeGrid == TypeGrid.Hedge) return;
+            //if (grid.TypeGrid == TypeGrid.Hedge) return;
 
             if (grid.GetListPosition().Count == 0) return;
 
@@ -2111,6 +2134,11 @@ namespace OsEngine.Robots
                 grid.State_NeedRearrangeGrid = true;          
                 grid.TimeRearrangeGrid = DateTime.Now.AddMinutes((double)_delayRearrange.ValueDecimal);
 
+                if (grid.TypeGrid == TypeGrid.Hedge)
+                {
+                    grid.State_NeedReCalcGrid = true;
+                }
+
                 SendNewLogMessage($"[{grid.TypeGrid}, {grid.SideGrid}] Следующая подтяжка сетки будет после {grid.TimeRearrangeGrid}", Logging.LogMessageType.User);
 
                 SendLogFlagsGrid(grid);
@@ -2120,6 +2148,8 @@ namespace OsEngine.Robots
             {
                 SendNewLogMessage($"[{grid.TypeGrid}, {grid.SideGrid}] Подтяжка сетки не требуется", Logging.LogMessageType.User);
                 grid.State_NeedRearrangeGrid = false;
+
+                if (grid.TypeGrid == TypeGrid.Hedge) grid.State_NeedReCalcGrid = false;
 
                 SendLogFlagsGrid(grid);
                 SaveRecovery();
@@ -2155,11 +2185,21 @@ namespace OsEngine.Robots
                 _tab.CloseAllOrderToPosition(_tab.PositionsOpenAll[i]);
             }
 
+            if (_tabHedge != null && _tabHedge.PositionsOpenAll.Count > 0)
+            {
+                for (int i = 0; i < _tabHedge.PositionsOpenAll.Count; i++)
+                {
+                    _tabHedge.CloseAllOrderToPosition(_tabHedge.PositionsOpenAll[i]);
+                }
+            }
+
             grid.State_CancelActiveOrders = false;
             grid.State_CheckCancelActiveOrders = true;
 
             _main.ListOrders.Clear();
             _hedge.ListOrders.Clear();
+
+            SendNewLogMessage("grid.State_CheckCancelActiveOrders = true;", Logging.LogMessageType.User);
         }
 
         private void CheckCancelActiveOrders(Grid grid)
@@ -2169,9 +2209,20 @@ namespace OsEngine.Robots
                 if (_tab.PositionsOpenAll[i].OpenActive) return;
                 if (_tab.PositionsOpenAll[i].CloseActive) return;
             }
-            
+
+            if (_tabHedge != null && _tabHedge.PositionsOpenAll.Count > 0)
+            {
+                for (int i = 0; i < _tabHedge.PositionsOpenAll.Count; i++)
+                {
+                    if (_tabHedge.PositionsOpenAll[i].OpenActive) return;
+                    if (_tabHedge.PositionsOpenAll[i].CloseActive) return;
+                }
+            }
+
             grid.State_CheckCancelActiveOrders = false;
-            grid.State_ClosePositionAtMarket = true;            
+            grid.State_ClosePositionAtMarket = true;
+
+            SendNewLogMessage("grid.State_ClosePositionAtMarket = true;", Logging.LogMessageType.User);
         }
 
         private void ClosePositionAtMarket(Grid grid)
@@ -2200,6 +2251,8 @@ namespace OsEngine.Robots
                 _tabHedge.CloseAtMarket(_tabHedge.PositionsOpenAll[i], _tabHedge.PositionsOpenAll[i].OpenVolume);
                 SendNewLogMessage($"Закрываем ордер на хедж вкладке - {_tabHedge.PositionsOpenAll[i].OpenVolume}", Logging.LogMessageType.User);
             }
+
+            SendNewLogMessage("grid.State_CheckClosePositionAtMarket = true;", Logging.LogMessageType.User);
         }
 
         private void CheckClosePositionAtMarket(Grid grid)
@@ -2208,7 +2261,12 @@ namespace OsEngine.Robots
             {
                 if (_tab.PositionsOpenAll[i].OpenVolume > 0) return;
             }
-            
+
+            for (int i = 0; i < _tabHedge.PositionsOpenAll.Count; i++)
+            {
+                if (_tabHedge.PositionsOpenAll[i].OpenVolume > 0) return;
+            }
+
             grid.State_CheckClosePositionAtMarket = false;
 
             SetZeroFlagsGrid(grid);
@@ -2252,7 +2310,6 @@ namespace OsEngine.Robots
         {
             if (grid == null) return;
 
-            grid.State_NewGrid = false;
             grid.State_PlaceNewGrid = false;
             grid.State_PlaceNewOrderGrid = false;
             grid.State_CheckDoneOpenOrder = false;
@@ -2309,7 +2366,8 @@ namespace OsEngine.Robots
             str += $"Сетка ордеров хедж сетки - {_countOrdersGridHedge.ValueInt}, ";
             str += $"Процент мартингейла хедж сетки, % - {_percentMartingaleHedge.ValueDecimal}, ";
             str += $"Логарифмическое распределение уровней цен хедж сетки - {_logPriceLevelsHedge.ValueDecimal}, ";
-           
+            str += $"Профит хедж сетки, % - {_profitHedge.ValueDecimal}, ";
+
             SendNewLogMessage(str, Logging.LogMessageType.User);
         }
 
@@ -2329,6 +2387,7 @@ namespace OsEngine.Robots
                 {
                     recoveryData.Add("Side", _main.SideGrid.ToString());
                     recoveryData.Add("StartDepositValue", _startDepositValue.ToString());
+                    recoveryData.Add("AutoHedgeState", _autoHedgeState.ToString());
 
                     Dictionary<string, dynamic> data = new();
 
@@ -2346,7 +2405,6 @@ namespace OsEngine.Robots
 
                     data.Add("ListOrders", ordersArray);
 
-                    data.Add("State_NewGrid", _main.State_NewGrid);
                     data.Add("State_PlaceNewGrid", _main.State_PlaceNewGrid);
                     data.Add("State_PlaceNewOrderGrid", _main.State_PlaceNewOrderGrid);
                     data.Add("State_CheckDoneOpenOrder", _main.State_CheckDoneOpenOrder);
@@ -2386,7 +2444,6 @@ namespace OsEngine.Robots
 
                     data.Add("ListOrders", ordersArray);
 
-                    data.Add("State_NewGrid", _hedge.State_NewGrid);
                     data.Add("State_PlaceNewGrid", _hedge.State_PlaceNewGrid);
                     data.Add("State_PlaceNewOrderGrid", _hedge.State_PlaceNewOrderGrid);
                     data.Add("State_CheckDoneOpenOrder", _hedge.State_CheckDoneOpenOrder);
@@ -2453,6 +2510,13 @@ namespace OsEngine.Robots
                     }
                 }
 
+                if (recoveryData.TryGetValue("AutoHedgeState", out JToken ahsToken) && _main != null &&
+                    Enum.TryParse(ahsToken?.ToString(), ignoreCase: true, out AutoHedgeState state) &&
+                    Enum.IsDefined(typeof(AutoHedgeState), state))
+                {
+                    _autoHedgeState = state;
+                }
+
                 if (recoveryData.TryGetValue("Main", out JToken mainToken) && _main != null)
                 {
                     var mainData = mainToken as JObject;
@@ -2463,7 +2527,6 @@ namespace OsEngine.Robots
                             _main.ListOrders = ordersToken.ToObject<List<ListOrders>>();                            
                         }
 
-                        _main.State_NewGrid = mainData["State_NewGrid"].Value<bool>();
                         _main.State_PlaceNewGrid = mainData["State_PlaceNewGrid"].Value<bool>();
                         _main.State_PlaceNewOrderGrid = mainData["State_PlaceNewOrderGrid"].Value<bool>();
                         _main.State_CheckDoneOpenOrder = mainData["State_CheckDoneOpenOrder"].Value<bool>();
@@ -2494,7 +2557,6 @@ namespace OsEngine.Robots
                             _hedge.ListOrders = ordersToken.ToObject<List<ListOrders>>();
                         }
 
-                        _hedge.State_NewGrid = hedgeData["State_NewGrid"].Value<bool>();
                         _hedge.State_PlaceNewGrid = hedgeData["State_PlaceNewGrid"].Value<bool>();
                         _hedge.State_PlaceNewOrderGrid = hedgeData["State_PlaceNewOrderGrid"].Value<bool>();
                         _hedge.State_CheckDoneOpenOrder = hedgeData["State_CheckDoneOpenOrder"].Value<bool>();
@@ -2509,22 +2571,6 @@ namespace OsEngine.Robots
                         _hedge.State_NeedReCalcGrid = hedgeData["State_NeedReCalcGrid"].Value<bool>();
                     }
                 }
-
-                /*if (_main.GetListPosition().Count > 0)
-                {
-                    if (_main.AveragePricePosition == 0)
-                    {
-                        GetPriceCloseOrder(_main);
-                    }
-                }
-
-                if (_hedge.GetListPosition().Count > 0)
-                {
-                    if (_hedge.AveragePricePosition == 0)
-                    {
-                        GetPriceCloseOrder(_hedge);
-                    }
-                }*/
             }
             catch (Exception ex)
             {
@@ -2579,6 +2625,7 @@ namespace OsEngine.Robots
             if (!_timeCheckRsi) return;            
             if (_status != Status.Work) return;
             if (_main == null) return;
+            if (_main.State_HasHedgeGrid) return;
 
             if (_rsiOnOff.ValueString == GetDescription(RegimeOnOff.Off))
             {
@@ -2670,7 +2717,6 @@ namespace OsEngine.Robots
             canceledOrdersCount += CancelOpenOrdersForRsiBlock(grid);
 
             grid.State_PlaceNewGrid = false;
-            grid.State_NewGrid = false;
             grid.State_PlaceNewOrderGrid = false;
             grid.State_CheckDoneOpenOrder = false;
             grid.State_CheckDoneCloseOrder = false;
@@ -3278,15 +3324,22 @@ namespace OsEngine.Robots
             }            
         }
 
-        private double GetTpPricePosition(Side side, double averagePricePosition)
+        private double GetTpPricePosition(Grid grid, double averagePricePosition)
         {
-            if (side == Side.Buy)
+            double profit = (double)_profit.ValueDecimal;
+
+            if (grid.TypeGrid == TypeGrid.Hedge)
             {
-                return Math.Round((averagePricePosition + averagePricePosition * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep * (double)_tab.Security.PriceStep, _tab.Security.Decimals, MidpointRounding.AwayFromZero);
+                profit = (double)_profitHedge.ValueDecimal;
+            }
+
+            if (grid.SideGrid == Side.Buy)
+            {
+                return Math.Round((averagePricePosition + averagePricePosition * profit / 100) / (double)_tab.Security.PriceStep * (double)_tab.Security.PriceStep, _tab.Security.Decimals, MidpointRounding.AwayFromZero);
             }
             else
             {
-                return Math.Round((averagePricePosition - averagePricePosition * (double)_profit.ValueDecimal / 100) / (double)_tab.Security.PriceStep * (double)_tab.Security.PriceStep, _tab.Security.Decimals, MidpointRounding.AwayFromZero);
+                return Math.Round((averagePricePosition - averagePricePosition * profit / 100) / (double)_tab.Security.PriceStep * (double)_tab.Security.PriceStep, _tab.Security.Decimals, MidpointRounding.AwayFromZero);
             }
         }
 
@@ -3305,7 +3358,8 @@ namespace OsEngine.Robots
             if (side == Side.Buy)
             {
                 minimumPrice = Math.Round(_lastPrice - indentMinPrice, _tab.Security.Decimals, MidpointRounding.AwayFromZero);
-                maximumPrice = _main.PriceTP - (double)minimumPrice * (((double)minimumPrice - _main.PriceTP) / (double)minimumPrice * ((double)_setOffsetLastOrder.ValueDecimal / 100 + 1));
+                //maximumPrice = _main.PriceTP - (double)minimumPrice * (((double)minimumPrice - _main.PriceTP) / (double)minimumPrice * ((double)_setOffsetLastOrder.ValueDecimal / 100 + 1));
+                maximumPrice = _main.PriceTP - _main.PriceTP * ((double)_setOffsetLastOrder.ValueDecimal / 100);
                 summPositions = _tab.PositionOpenShort[0].OpenVolume * _tab.PositionOpenShort[0].EntryPrice;
 
                 if (_tabHedge.PositionOpenLong.Count > 0) // нужно когда сработала логика по ликвидационной цене
@@ -3318,7 +3372,8 @@ namespace OsEngine.Robots
             if (side == Side.Sell)
             {
                 minimumPrice = Math.Round(_lastPrice + indentMinPrice, _tab.Security.Decimals, MidpointRounding.AwayFromZero);
-                maximumPrice = _main.PriceTP + (double)minimumPrice * ((_main.PriceTP - (double)minimumPrice) / (double)minimumPrice * ((double)_setOffsetLastOrder.ValueDecimal / 100 + 1));
+                //maximumPrice = _main.PriceTP + (double)minimumPrice * ((_main.PriceTP - (double)minimumPrice) / (double)minimumPrice * ((double)_setOffsetLastOrder.ValueDecimal / 100 + 1));
+                maximumPrice = _main.PriceTP + _main.PriceTP * ((double)_setOffsetLastOrder.ValueDecimal / 100);
                 summPositions = _tab.PositionOpenLong[0].OpenVolume * _tab.PositionOpenLong[0].EntryPrice;
 
                 if (_tabHedge.PositionOpenShort.Count > 0)// нужно когда сработала логика по ликвидационной цене
@@ -3865,7 +3920,28 @@ namespace OsEngine.Robots
                     SendNewLogMessage($"Запускаем режим хеджирующей сетки. Зона активации: значение UnrealizePnL = {grid.UnrealizPnL}", Logging.LogMessageType.User);
                 }
             }
-        }        
+
+            CheckDeactivationRsiForHedge();            
+        }
+
+        private void CheckDeactivationRsiForHedge()
+        {
+            if (!_rsiBlocked) return;
+
+            if (_setZoneDeactivRSIBool)
+            {
+                if (_main == null) return;
+
+                List<Position> pos = _main.GetListPosition();
+
+                if (pos == null) return;
+                if (pos.Count == 0) return;
+                if (pos[0].OpenVolume == 0) return;
+
+                _autoHedgeState = AutoHedgeState.ActiveHedgeGrid;
+                SendNewLogMessage($"Запускаем режим хеджирующей сетки. Зона активации: включен фильтр RSI", Logging.LogMessageType.User);
+            }
+        }
 
         private void RangeLiquidation(Grid grid)
         {
@@ -4025,8 +4101,11 @@ namespace OsEngine.Robots
                 if (!_main.State_HasHedgeGrid)
                 {
                     if (pos.CloseOrders[^1].State == OrderStateType.Active)
-                    {
+                    {                      
                         CancelActiveCloseOrders(pos);
+                        _main.State_PlaceCloseOrder = false;//
+                        _main.State_CheckPlaceCloseOrder = false;//
+                        _main.State_CheckDoneCloseOrder = false;//
                         _main.State_CheckCancelActiveCloseOrder = true;
                         _hedge.State_PlaceNewGrid = true;
                         _main.State_HasHedgeGrid = true;
@@ -4034,6 +4113,7 @@ namespace OsEngine.Robots
                 }
             }
 
+            if (_hedge.State_CheckRearrangeGrid) CheckRearrangeGrid(_hedge);
             if (_hedge.State_NeedReCalcGrid) NeedReCalcGrid(_hedge);
             if (_hedge.State_PlaceNewGrid) PlaceNewGrid(_hedge);
             if (_hedge.State_PlaceNewOrderGrid) PlaceNewOrderFromMainGrid(_hedge);
@@ -4189,7 +4269,6 @@ namespace OsEngine.Robots
             public bool State_CheckPlaceCloseOrder;
             public bool State_CancelOpenOrders;
             public bool State_CheckCancelOpenOrders;
-            public bool State_NewGrid;
 
             public bool State_CheckRearrangeGrid;
             public bool State_NeedRearrangeGrid;

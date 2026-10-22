@@ -4623,7 +4623,7 @@ namespace OsEngine.Market.Servers.Bybit
                 request.AddHeader("X-BAPI-SIGN-TYPE", "2");
                 request.AddHeader("X-BAPI-TIMESTAMP", timestamp);
                 request.AddHeader("X-BAPI-RECV-WINDOW", RecvWindow);
-                request.AddHeader("referer", "OsEngine");
+                //request.AddHeader("referer", "OsEngine");
 
                 RestClient client = new RestClient(RestUrl);
 
