@@ -76,14 +76,16 @@
         <TextBox Grid.Row="3" HorizontalAlignment="Left" Margin="113,30,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="22" Grid.Column="2" Name="SecondEndTextBox"/>
         <Label Grid.Row="3" Content="С:" HorizontalAlignment="Left" Margin="92,30,0,0" VerticalAlignment="Top" Height="22" Width="19" Grid.Column="2"/>
 
-        <Rectangle Grid.Row="4" Margin="2,2,2,0" Stroke="Black" Grid.ColumnSpan="3"   />
+        <Rectangle Grid.Row="4" Margin="2,2,2,0" Stroke="Black" Grid.ColumnSpan="3"/>
         <Label Grid.Row="4" Content="Парам. интервала" HorizontalAlignment="Left" Margin="10,5,0,0" VerticalAlignment="Top" Height="22" Width="116"/>
         <Label Grid.Row="4" Content="Кол-во итераций" HorizontalAlignment="Left" Margin="10,5,0,0" VerticalAlignment="Top" Height="22" Width="116" Grid.Column="1"/>
         <Label Grid.Row="4" Content="Время итер., сек." HorizontalAlignment="Left" Margin="10,5,0,0" VerticalAlignment="Top" Height="22" Width="116" Grid.Column="2"/>
-
+        <Label Grid.Row="4" Content="Диапазон времени (%)" HorizontalAlignment="Left" Margin="0,50,0,0" VerticalAlignment="Top" Height="22" Width="145" Grid.Column="2"/>
+       
         <ComboBox Grid.Row="4" Margin="10,30,10,0" VerticalAlignment="Top" Name="IntervalParametersComboBox"/>
         <TextBox Grid.Row="4" Margin="10,30,10,0" TextWrapping="Wrap" VerticalAlignment="Top" Grid.Column="1" Name="QuantityIterationsTextBox"/>
         <TextBox Grid.Row="4" Margin="10,30,10,0" TextWrapping="Wrap" VerticalAlignment="Top" Grid.Column="2" Name="IterationTimeTextBox"/>
+        <TextBox Grid.Row="4" Margin="10,70,10,0" TextWrapping="Wrap" VerticalAlignment="Top" Grid.Column="2" Name="TimeRangeTextBox"/>
 
         <Rectangle Grid.Row="5" Margin="2,2,2,0" Stroke="Black" Grid.ColumnSpan="3"   />
         <Button Grid.Row="5" Content="Старт" Margin="5,30,6,0" VerticalAlignment="Top" Height="25" Click="ButtonStart_Click">

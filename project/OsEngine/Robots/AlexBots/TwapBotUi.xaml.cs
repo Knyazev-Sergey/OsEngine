@@ -84,6 +84,9 @@ namespace OsEngine.Robots.AlexBots
             }
             QuantityIterationsTextBox.TextChanged += QuantityIterationsTextBox_TextChanged;
 
+            TimeRangeTextBox.Text = _bot.TimeRange.ToString();
+            TimeRangeTextBox.TextChanged += TimeRangeTextBox_TextChanged;
+
             if (_bot.IterationTime == 0)
             {
                 IterationTimeTextBox.Text = "";
@@ -222,6 +225,32 @@ namespace OsEngine.Robots.AlexBots
             }
         }
 
+        private void TimeRangeTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(TimeRangeTextBox.Text))
+                {
+                    return;
+                }
+
+                if (!int.TryParse(TimeRangeTextBox.Text, out int result)
+                    || result < 0
+                    || result > 100)
+                {
+                    TimeRangeTextBox.Foreground = Brushes.Red;
+                    return;
+                }
+
+                TimeRangeTextBox.ClearValue(TextBox.ForegroundProperty);
+                _bot.TimeRange = result;
+            }
+            catch (Exception ex)
+            {
+                _bot.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+            }
+        }
+
         private void IterationTimeTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             try
@@ -269,12 +298,14 @@ namespace OsEngine.Robots.AlexBots
                 _bot.IntervalParameters = IntervalType.IterationTime;
                 QuantityIterationsTextBox.IsEnabled = false;
                 IterationTimeTextBox.IsEnabled = true;
+                TimeRangeTextBox.IsEnabled = true;
             }
             else if (IntervalParametersComboBox.SelectedIndex == 1)
             {
                 _bot.IntervalParameters = IntervalType.QuantityIterations;
                 QuantityIterationsTextBox.IsEnabled = true;
                 IterationTimeTextBox.IsEnabled = false;
+                TimeRangeTextBox.IsEnabled = false;
             }
         }
 
@@ -297,12 +328,14 @@ namespace OsEngine.Robots.AlexBots
                 IntervalParametersComboBox.SelectedIndex = 0;
                 QuantityIterationsTextBox.IsEnabled = false;
                 IterationTimeTextBox.IsEnabled = true;
+                TimeRangeTextBox.IsEnabled = true;
             }
             else if (_bot.IntervalParameters == IntervalType.QuantityIterations)
             {
                 IntervalParametersComboBox.SelectedIndex = 1;
                 QuantityIterationsTextBox.IsEnabled = true;
                 IterationTimeTextBox.IsEnabled = false;
+                TimeRangeTextBox.IsEnabled = false;
             }
         }
 
@@ -624,11 +657,12 @@ namespace OsEngine.Robots.AlexBots
             CurrentTimeCheckBox.Click -= CurrentTimeCheckBox_Click;
             IntervalParametersComboBox.SelectionChanged -= IntervalParametersComboBox_SelectionChanged;
             QuantityIterationsTextBox.TextChanged -= QuantityIterationsTextBox_TextChanged;
-            IterationTimeTextBox.TextChanged += IterationTimeTextBox_TextChanged;
+            IterationTimeTextBox.TextChanged -= IterationTimeTextBox_TextChanged;
             UseLogCheckBox.Click -= UseLogCheckBox_Click;
             SlipageTextBox.TextChanged -= SlipageTextBox_TextChanged;
             VolumeRangeTextBox.TextChanged -= VolumeRangeTextBox_TextChanged;
             _bot.TimeUpdateEvent -= _bot_TimeUpdateEvent;
+            TimeRangeTextBox.TextChanged -= TimeRangeTextBox_TextChanged;
 
             this.Closed -= TwapBotUi_Closed;
         }
@@ -816,12 +850,19 @@ namespace OsEngine.Robots.AlexBots
                 _bot.SendNewLogMessage("Ограничение цены равно 0. Заполните данный параметр или включите галочку Рыночная", Logging.LogMessageType.Error);
                 return;
             }
+            else if (_bot.IntervalParameters == IntervalType.IterationTime && 
+                (_bot.TimeRange < 0 || _bot.TimeRange > 100))
+            {
+                _bot.SendNewLogMessage("Диапазон времени указан неверно. Торговля невозможна", Logging.LogMessageType.Error);
+                return;
+            }
 
             if (!int.TryParse(VolumeRangeTextBox.Text, out var volumeRange) || volumeRange < 0)
             {
                 _bot.SendNewLogMessage("Диапазон объема указан неверно. Торговля невозможна", Logging.LogMessageType.Error);
                 return;
             }
+
 
             if (int.TryParse(HourStartTextBox.Text, out int hourStart))
             {
@@ -864,7 +905,7 @@ namespace OsEngine.Robots.AlexBots
 
             if (int.TryParse(HourEndTextBox.Text, out int hourEnd))
             {
-                if (hourStart >= 0 && hourStart <= 23)
+                if (hourEnd >= 0 && hourEnd <= 23)
                 {
                     // игнор
                 }
@@ -1040,11 +1081,13 @@ namespace OsEngine.Robots.AlexBots
                 {
                     QuantityIterationsTextBox.IsEnabled = false;
                     IterationTimeTextBox.IsEnabled = true;
+                    TimeRangeTextBox.IsEnabled = true;
                 }
                 else if (IntervalParametersComboBox.SelectedIndex == 1)
                 {
                     QuantityIterationsTextBox.IsEnabled = true;
                     IterationTimeTextBox.IsEnabled = false;
+                    TimeRangeTextBox.IsEnabled = false;
                 }
 
                 if (_bot.IsMarketOrder)
@@ -1066,6 +1109,7 @@ namespace OsEngine.Robots.AlexBots
                 QuantityTextBox.IsEnabled = isEnable;
                 SlipageTextBox.IsEnabled = isEnable;
                 TypeRestrictionComboBox.IsEnabled = isEnable;
+                TimeRangeTextBox.IsEnabled = isEnable;
             }
 
             TimeShiftTextBox.IsEnabled = isEnable;
@@ -1081,6 +1125,7 @@ namespace OsEngine.Robots.AlexBots
             MinuteEndTextBox.IsEnabled = isEnable;
             SecondEndTextBox.IsEnabled = isEnable;
             IntervalParametersComboBox.IsEnabled = isEnable;
+            
         }
 
         private void CreateBanLogMessage()

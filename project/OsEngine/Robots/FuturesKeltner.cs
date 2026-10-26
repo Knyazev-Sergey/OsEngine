@@ -237,6 +237,7 @@ namespace OsEngine.Robots
 
                     if (_tab == null || _tab.Portfolio == null) continue;
                     if (_tab.Connector?.IsReadyToTrade == false) continue;
+                    if (_tab.PriceBestAsk == 0 || _tab.PriceBestBid == 0) continue;
 
                     TradeLogic();                                       
                 }
@@ -498,6 +499,7 @@ namespace OsEngine.Robots
                 if (_checkBoxOuterStops)
                 {
                     _tab.CloseAtStopMarketOnServer(_tab.PositionOpenLong[0], _middleLine);
+                    SendNewLogMessage($"Переставляем закрывающий ордер по цене {_middleLine}", Logging.LogMessageType.User);
                 }
                 else
                 {
@@ -510,6 +512,7 @@ namespace OsEngine.Robots
                 if (_checkBoxOuterStops)
                 {
                     _tab.CloseAtStopMarketOnServer(_tab.PositionOpenLong[1], _upLine);
+                    SendNewLogMessage($"Переставляем закрывающий ордер по цене {_upLine}", Logging.LogMessageType.User);
                 }
                 else
                 {
@@ -522,6 +525,7 @@ namespace OsEngine.Robots
                 if (_checkBoxOuterStops)
                 {
                     _tab.CloseAtStopMarketOnServer(_tab.PositionOpenShort[0], _middleLine);
+                    SendNewLogMessage($"Переставляем закрывающий ордер по цене {_middleLine}", Logging.LogMessageType.User);
                 }
                 else
                 {
@@ -534,6 +538,7 @@ namespace OsEngine.Robots
                 if (_checkBoxOuterStops)
                 {
                     _tab.CloseAtStopMarketOnServer(_tab.PositionOpenShort[1], _downLine);
+                    SendNewLogMessage($"Переставляем закрывающий ордер по цене {_downLine}", Logging.LogMessageType.User);
                 }
                 else
                 {
@@ -623,101 +628,112 @@ namespace OsEngine.Robots
         // Method for calculating the volume of entry into a position
         private decimal GetVolume(BotTabSimple tab)
         {
-            decimal volume = 0;
-
-            if (_volumeType.ValueString == "Contracts")
+            try
             {
-                volume = _volume.ValueDecimal;
-            }
-            else if (_volumeType.ValueString == "Contract currency")
-            {
-                decimal contractPrice = tab.PriceBestAsk;
-                volume = _volume.ValueDecimal / contractPrice;
+                decimal volume = 0;
 
-                if (StartProgram == StartProgram.IsOsTrader)
+                if (_volumeType.ValueString == "Contracts")
                 {
-                    IServerPermission serverPermission = ServerMaster.GetServerPermission(tab.Connector.ServerType);
+                    volume = _volume.ValueDecimal;
+                }
+                else if (_volumeType.ValueString == "Contract currency")
+                {
+                    decimal contractPrice = tab.PriceBestAsk;
+                    volume = _volume.ValueDecimal / contractPrice;
 
-                    if (serverPermission != null &&
-                        serverPermission.IsUseLotToCalculateProfit &&
-                    tab.Security.Lot != 0 &&
-                        tab.Security.Lot > 1)
+                    if (StartProgram == StartProgram.IsOsTrader)
                     {
-                        volume = _volume.ValueDecimal / (contractPrice * tab.Security.Lot);
+                        IServerPermission serverPermission = ServerMaster.GetServerPermission(tab.Connector.ServerType);
+
+                        if (serverPermission != null &&
+                            serverPermission.IsUseLotToCalculateProfit &&
+                        tab.Security.Lot != 0 &&
+                            tab.Security.Lot > 1)
+                        {
+                            volume = _volume.ValueDecimal / (contractPrice * tab.Security.Lot);
+                        }
+
+                        volume = Math.Round(volume, tab.Security.DecimalsVolume);
                     }
-
-                    volume = Math.Round(volume, tab.Security.DecimalsVolume);
+                    else // Tester or Optimizer
+                    {
+                        volume = Math.Round(volume, 6);
+                    }
                 }
-                else // Tester or Optimizer
+                else if (_volumeType.ValueString == "Deposit percent")
                 {
-                    volume = Math.Round(volume, 6);
-                }
-            }
-            else if (_volumeType.ValueString == "Deposit percent")
-            {
-                Portfolio myPortfolio = tab.Portfolio;
+                    Portfolio myPortfolio = tab.Portfolio;
 
-                if (myPortfolio == null)
-                {
-                    return 0;
-                }
-
-                decimal portfolioPrimeAsset = 0;
-
-                if (_tradeAssetInPortfolio.ValueString == "Prime")
-                {
-                    portfolioPrimeAsset = myPortfolio.ValueCurrent;
-                }
-                else
-                {
-                    List<PositionOnBoard> positionOnBoard = myPortfolio.GetPositionOnBoard();
-
-                    if (positionOnBoard == null)
+                    if (myPortfolio == null)
                     {
                         return 0;
                     }
 
-                    for (int i = 0; i < positionOnBoard.Count; i++)
+                    decimal portfolioPrimeAsset = 0;
+
+                    if (_tradeAssetInPortfolio.ValueString == "Prime")
                     {
-                        if (positionOnBoard[i].SecurityNameCode == _tradeAssetInPortfolio.ValueString)
+                        portfolioPrimeAsset = myPortfolio.ValueCurrent;
+                    }
+                    else
+                    {
+                        List<PositionOnBoard> positionOnBoard = myPortfolio.GetPositionOnBoard();
+
+                        if (positionOnBoard == null)
                         {
-                            portfolioPrimeAsset = positionOnBoard[i].ValueCurrent;
-                            break;
+                            return 0;
+                        }
+
+                        for (int i = 0; i < positionOnBoard.Count; i++)
+                        {
+                            if (positionOnBoard[i].SecurityNameCode == _tradeAssetInPortfolio.ValueString)
+                            {
+                                portfolioPrimeAsset = positionOnBoard[i].ValueCurrent;
+                                break;
+                            }
                         }
                     }
-                }
 
-                if (portfolioPrimeAsset == 0)
-                {
-                    SendNewLogMessage("Can`t found portfolio " + _tradeAssetInPortfolio.ValueString, Logging.LogMessageType.Error);
-                    return 0;
-                }
-
-                decimal moneyOnPosition = portfolioPrimeAsset * (_volume.ValueDecimal / 100);
-
-                decimal qty = moneyOnPosition / tab.PriceBestAsk / tab.Security.Lot;
-
-                if (tab.StartProgram == StartProgram.IsOsTrader)
-                {
-                    if (tab.Security.UsePriceStepCostToCalculateVolume == true
-                       && tab.Security.PriceStep != tab.Security.PriceStepCost
-                       && tab.PriceBestAsk != 0
-                       && tab.Security.PriceStep != 0
-                       && tab.Security.PriceStepCost != 0)
-                    {// расчёт количества контрактов для фьючерсов и опционов на Мосбирже
-                        qty = moneyOnPosition / (tab.PriceBestAsk / tab.Security.PriceStep * tab.Security.PriceStepCost);
+                    if (portfolioPrimeAsset == 0)
+                    {
+                        SendNewLogMessage("Can`t found portfolio " + _tradeAssetInPortfolio.ValueString, Logging.LogMessageType.Error);
+                        return 0;
                     }
-                    qty = Math.Round(qty, tab.Security.DecimalsVolume);
-                }
-                else
-                {
-                    qty = Math.Round(qty, 7);
+
+                    decimal moneyOnPosition = portfolioPrimeAsset * (_volume.ValueDecimal / 100);
+
+                    decimal qty = moneyOnPosition / tab.PriceBestAsk / tab.Security.Lot;
+
+                    if (tab.StartProgram == StartProgram.IsOsTrader)
+                    {
+                        if (tab.Security.UsePriceStepCostToCalculateVolume == true
+                           && tab.Security.PriceStep != tab.Security.PriceStepCost
+                           && tab.PriceBestAsk != 0
+                           && tab.Security.PriceStep != 0
+                           && tab.Security.PriceStepCost != 0)
+                        {// расчёт количества контрактов для фьючерсов и опционов на Мосбирже
+                            qty = moneyOnPosition / (tab.PriceBestAsk / tab.Security.PriceStep * tab.Security.PriceStepCost);
+                        }
+                        qty = Math.Round(qty, tab.Security.DecimalsVolume);
+                    }
+                    else
+                    {
+                        qty = Math.Round(qty, 7);
+                    }
+
+                    return qty;
                 }
 
-                return qty;
+                return volume;
+
             }
-
-            return volume;
+            catch (DivideByZeroException ex)
+            {
+                SendNewLogMessage($"Невозможно посчитать объем позиции, есть нулевые данные. PriceAsk: {_tab.PriceBestAsk}, PriceStep: {tab.Security.PriceStep}, " +
+                    $"PriceStepCost: {tab.Security.PriceStepCost}, Lot: {tab.Security.Lot}\n" +
+                    $"{ex.ToString()}", Logging.LogMessageType.Error);
+                return 0;
+            }
         }
 
         #endregion     

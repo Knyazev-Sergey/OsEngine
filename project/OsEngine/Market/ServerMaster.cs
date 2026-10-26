@@ -94,6 +94,7 @@ using OsEngine.Market.Servers.TData;
 using OsEngine.Market.Servers.BitGetUnified;
 using OsEngine.Market.Servers.TwelveData;
 using OsEngine.Market.Servers.BCS;
+using OsEngine.Market.Servers.Databento;
 using OsEngine.Market.ServerEncryption;
 
 namespace OsEngine.Market
@@ -421,6 +422,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.BitGetUnified);
                 serverTypes.Add(ServerType.TwelveData);
                 serverTypes.Add(ServerType.BCS);
+                serverTypes.Add(ServerType.Databento);
 
                 // а теперь сортируем в зависимости от предпочтений пользователя
 
@@ -554,6 +556,7 @@ namespace OsEngine.Market
                 serverTypes.Add(ServerType.TDataHistory);
                 serverTypes.Add(ServerType.TwelveData);
                 serverTypes.Add(ServerType.BCS);
+                serverTypes.Add(ServerType.Databento);
 
                 return serverTypes;
             }
@@ -713,6 +716,10 @@ namespace OsEngine.Market
                     if (type == ServerType.BybitData)
                     {
                         newServer = new BybitDataServer();
+                    }
+                    else if (type == ServerType.Databento)
+                    {
+                        newServer = new DatabentoServer();
                     }
                     else if (type == ServerType.OKXData)
                     {
@@ -1774,6 +1781,10 @@ namespace OsEngine.Market
                 {
                     serverPermission = new BybitDataServerPermission();
                 }
+                else if (type == ServerType.Databento)
+                {
+                    serverPermission = new DatabentoServerPermission();
+                }
                 else if (type == ServerType.GateIoData)
                 {
                     serverPermission = new GateIoDataServerPermission();
@@ -2675,6 +2686,8 @@ namespace OsEngine.Market
         /// Bcs OpenAPI & Websocket
         /// подключение к АПИ брокера БКС
         /// </summary>
-        BCS
+        BCS,
+
+        Databento
     }
 }

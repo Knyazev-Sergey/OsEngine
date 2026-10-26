@@ -72,6 +72,8 @@ namespace OsEngine.Robots.AlexBots
 
         public int VolumeRange = 0;
 
+        public int TimeRange = 0;
+
         public bool UseLog;
 
         public decimal AveragePrice;
@@ -329,6 +331,27 @@ namespace OsEngine.Robots.AlexBots
             }
         }
 
+        private TimeSpan GetRandomLifetime(Random random)
+        {
+            if (TimeRange == 0)
+            {
+                return TimeSpan.FromSeconds(IterationTime);
+            }
+
+            int minSeconds = (int)Math.Round(
+                IterationTime * (1 - TimeRange / 100m));
+
+            int maxSeconds = (int)Math.Round(
+                IterationTime * (1 + TimeRange / 100m));
+
+            minSeconds = Math.Max(1, minSeconds);
+            maxSeconds = Math.Max(minSeconds, maxSeconds);
+
+            int randomSeconds = random.Next(minSeconds, maxSeconds + 1);
+
+            return TimeSpan.FromSeconds(randomSeconds);
+        }
+
         private List<ArbitrationStep> GenerateArbitrationSteps(decimal totalVolume, int stepsCount, TimeSpan lifetime, decimal volumeRange, Random random)
         {
             List<ArbitrationStep> steps = new List<ArbitrationStep>();
@@ -410,18 +433,26 @@ namespace OsEngine.Robots.AlexBots
             }
 
             bool clearDelta = false;
-
+            
             for (int i = startNumber; i < stepsCount; i++)
             {
+                TimeSpan stepLifetime = lifetime;
+
+                if (IntervalParameters == IntervalType.IterationTime)
+                {
+                    stepLifetime = GetRandomLifetime(random);
+                    //SendNewLogMessage(stepLifetime.TotalSeconds.ToString(), LogMessageType.Error);
+                }
+
                 ArbitrationStep step = new ArbitrationStep
                 {
                     Status = OrderStateType.None,
                     StartTime = startTime,
-                    EndTime = startTime + lifetime,
+                    EndTime = startTime + stepLifetime,
                     NumberStep = i + 1,
                     OpenVolume = 0,
                     OrderStep = null,
-                    Lifetime = lifetime,
+                    Lifetime = stepLifetime,
                     OrderDirection = OrderDirection
                 };
 
@@ -496,7 +527,7 @@ namespace OsEngine.Robots.AlexBots
 
                 remainingVolume -= step.VolumeStep;
 
-                startTime = startTime + lifetime;
+                startTime = startTime + stepLifetime;
 
                 if (remainingVolume < 0)
                 {

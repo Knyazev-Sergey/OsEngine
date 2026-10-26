@@ -184,6 +184,13 @@ namespace OsEngine.Market.Servers.Atp
             column7.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
             grid.Columns.Add(column7);
 
+            DataGridViewColumn massiveColumn = new DataGridViewColumn();
+            massiveColumn.CellTemplate = cell0;
+            massiveColumn.HeaderText = "Massive ticker";
+            massiveColumn.ReadOnly = false;
+            massiveColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            grid.Columns.Add(massiveColumn);
+
             DataGridViewColumn column8 = new DataGridViewColumn();
             column8.CellTemplate = cell0;
             column8.HeaderText = ""; // Add or Delete button
@@ -200,13 +207,13 @@ namespace OsEngine.Market.Servers.Atp
             int row = e.RowIndex;
 
             if (row == 0 &&
-                column == 9)
+                column == 10)
             {
                 _allSecurities.Insert(0, new Security());
                 PaintSecurities(_allSecurities);
             }
 
-            if (column == 9)
+            if (column == 10)
             { // delete 
 
                 if (row <= 0)
@@ -331,6 +338,10 @@ namespace OsEngine.Market.Servers.Atp
             nRow.Cells[8].ReadOnly = false;
             nRow.Cells[8].Value = security.Decimals; // 8 price decimals
 
+            nRow.Cells.Add(new DataGridViewTextBoxCell());
+            nRow.Cells[9].ReadOnly = false;
+            nRow.Cells[9].Value = security.MassiveTicker;
+
             DataGridViewButtonCell button = new DataGridViewButtonCell();
             button.Value = OsLocalization.Market.Label47;// 9 add or delete button
             nRow.Cells.Add(button);
@@ -388,6 +399,10 @@ namespace OsEngine.Market.Servers.Atp
             nRow.Cells.Add(new DataGridViewTextBoxCell());
             nRow.Cells[8].ReadOnly = true;
             nRow.Cells[8].Value = "";
+
+            nRow.Cells.Add(new DataGridViewTextBoxCell());
+            nRow.Cells[9].ReadOnly = true;
+            nRow.Cells[9].Value = "";
 
             DataGridViewButtonCell button = new DataGridViewButtonCell();
             button.Value = OsLocalization.Market.Label159;
@@ -532,6 +547,15 @@ namespace OsEngine.Market.Servers.Atp
             try
             {
                 newSec.Decimals = Convert.ToInt32(row.Cells[8].Value.ToString());
+            }
+            catch
+            {
+                // ignore
+            }
+
+            try
+            {
+                newSec.MassiveTicker = row.Cells[9].Value?.ToString();
             }
             catch
             {

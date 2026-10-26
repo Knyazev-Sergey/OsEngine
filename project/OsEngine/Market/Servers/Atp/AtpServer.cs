@@ -4,6 +4,8 @@
 */
 
 using OsEngine.Entity;
+using OsEngine.Entity.WebSocketOsEngine;
+using OsEngine.Market.Servers.Atp.Entities;
 using OsEngine.Logging;
 using OsEngine.Market.Servers.Entity;
 using System;
@@ -15,6 +17,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using Newtonsoft.Json;
 
 namespace OsEngine.Market.Servers.Atp
 {
@@ -35,6 +38,11 @@ namespace OsEngine.Market.Servers.Atp
 
             CreateParameterEnum("Activate routers",
                 "trade+data", new List<string>() { "trade+data", "trade", "data" });
+
+            CreateParameterEnum("Market Data",
+                MarketDataServers.Massive.ToString(), new List<string>() { MarketDataServers.Massive.ToString(), MarketDataServers.ATP.ToString() });
+
+            CreateParameterString("Massive Api Key", "");
 
             ServerParameterButton secButton = ((ServerParameterButton)ServerParameters[5]);
             secButton.UserClickButton += SecButton_UserClickButton;
@@ -57,6 +65,7 @@ namespace OsEngine.Market.Servers.Atp
         public AtpServerRealization()
         {
             ServerStatus = ServerConnectStatus.Disconnect;
+
             Thread worker = new Thread(SecurityLoader);
             worker.Start();
 
@@ -70,6 +79,10 @@ namespace OsEngine.Market.Servers.Atp
 
             Thread worker4 = new Thread(CheckSocketThreadsStatus);
             worker4.Start();
+
+            Thread massiveReader = new Thread(MassiveMessageReader);
+            massiveReader.IsBackground = true;
+            massiveReader.Start();
         }
 
         public DateTime ServerTime { get; set; }
@@ -86,6 +99,8 @@ namespace OsEngine.Market.Servers.Atp
             DataServerUrl = ((ServerParameterString)ServerParameters[3]).Value;
             TradeServerUrl = ((ServerParameterString)ServerParameters[4]).Value;
             IsReal = ((ServerParameterBool)ServerParameters[6]).Value;
+            _marketDataServers = ((ServerParameterEnum)ServerParameters[8]).Value;
+            _massiveApiKey = ((ServerParameterString)ServerParameters[9]).Value;
 
             if (string.IsNullOrEmpty(BrokerId))
             {
@@ -143,6 +158,11 @@ namespace OsEngine.Market.Servers.Atp
 
             _messagesToSendMarketData = new ConcurrentQueue<string>();
             _messagesToSendTrade = new ConcurrentQueue<string>();
+
+            if (_marketDataServers == MarketDataServers.Massive.ToString())
+            {
+                CreateMassiveWebSocket();
+            }
 
             string connectionStr = "C@";
             connectionStr += BrokerId + "@";
@@ -253,6 +273,8 @@ namespace OsEngine.Market.Servers.Atp
         {
             _canSendMessagesMarketData = false;
             _canSendMessagesTradeRouter = false;
+
+            CloseMassiveWebSocket();
 
             try
             {
@@ -369,7 +391,8 @@ namespace OsEngine.Market.Servers.Atp
             {
                 ServerParameterEnum parameter = ((ServerParameterEnum)ServerParameters[7]);
 
-                if (parameter.Value.Contains("data"))
+                if (parameter.Value.Contains("data")
+                    && _marketDataServers != MarketDataServers.Massive.ToString())
                 {
                     return true;
                 }
@@ -455,7 +478,14 @@ namespace OsEngine.Market.Servers.Atp
 
                 if (DataRouterIsActivate)
                 {
-                    Process.Start(dirMarketData);
+                    if (_marketDataServers == MarketDataServers.ATP.ToString())
+                    {
+                        Process.Start(dirMarketData);
+                    }
+                    else
+                    {
+
+                    }
                 }
 
                 Thread.Sleep(3000);
@@ -548,6 +578,18 @@ namespace OsEngine.Market.Servers.Atp
 
         private bool IsReal;
 
+        private string _marketDataServers;
+
+        private string _massiveApiKey;
+
+        private WebSocket _massiveWebSocket;
+
+        private ConcurrentQueue<string> _massiveMessages = new ConcurrentQueue<string>();
+
+        private readonly object _massiveSocketLocker = new object();
+
+        private readonly List<string> _massiveSubscriptions = new List<string>();
+
         #endregion
 
         #region 3 Securities
@@ -607,6 +649,11 @@ namespace OsEngine.Market.Servers.Atp
                         newSec.Strike = array[15].ToDecimal();
                         newSec.Expiration = Convert.ToDateTime(array[16]);
 
+                        if (array.Length > 17)
+                        {
+                            newSec.MassiveTicker = array[17];
+                        }
+
                         _securities.Add(newSec);
                     }
 
@@ -647,6 +694,7 @@ namespace OsEngine.Market.Servers.Atp
                         result += _securities[i].OptionType + "!";
                         result += _securities[i].Strike + "!";
                         result += _securities[i].Expiration + "!";
+                        result += _securities[i].MassiveTicker + "!";
 
                         writer.WriteLine(result);
                     }
@@ -1320,7 +1368,15 @@ namespace OsEngine.Market.Servers.Atp
                     }
                 }
 
-                _messagesToSendMarketData.Enqueue("S@" + security.Name + "@");
+                if (_marketDataServers == MarketDataServers.ATP.ToString())
+                {
+                    _messagesToSendMarketData.Enqueue("S@" + security.Name + "@");
+                }
+                else
+                {
+                    SubscribeMassive(security);
+                }
+
                 _messagesToSendTrade.Enqueue("S@" + security.Name + "@");
 
                 _subscribeSecurities.Add(security);
@@ -1330,17 +1386,189 @@ namespace OsEngine.Market.Servers.Atp
                 HandlerException(exeption);
             }
         }
+        private void SubscribeMassive(Security security)
+        {
+            if (_massiveWebSocket == null || string.IsNullOrWhiteSpace(security.MassiveTicker))
+            {
+                return;
+            }
+
+            string[] channels = { "T." + security.MassiveTicker, "Q." + security.MassiveTicker };
+
+            foreach (string channel in channels)
+            {
+                if (_massiveSubscriptions.Contains(channel)) continue;
+                _massiveSubscriptions.Add(channel);
+                if (_marketSocketConnect) _massiveWebSocket.SendAsync("{\"action\":\"subscribe\",\"params\":\"" + channel + "\"}");
+            }
+        }
 
         public bool SubscribeNews()
         {
             return false;
         }
 
-        public event Action<News> NewsEvent { add { } remove { } }
+        #endregion
+
+        #region 8.1 Massive WebSocket
+
+        private void CreateMassiveWebSocket()
+        {
+            if (string.IsNullOrWhiteSpace(_massiveApiKey))
+            {
+                SendLogMessage("Massive Api Key is empty", LogMessageType.Error);
+                return;
+            }
+
+            _massiveMessages = new ConcurrentQueue<string>();
+            _massiveWebSocket = new WebSocket("wss://socket.massive.com/futures");
+            _massiveWebSocket.EmitOnPing = false;
+            _massiveWebSocket.OnOpen += MassiveWebSocketOpened;
+            _massiveWebSocket.OnMessage += MassiveWebSocketMessageReceived;
+            _massiveWebSocket.OnClose += MassiveWebSocketClosed;
+            _massiveWebSocket.OnError += MassiveWebSocketError;
+            _massiveWebSocket.ConnectAsync(TimeSpan.FromSeconds(30));            
+        }
+
+        private void MassiveWebSocketOpened(object sender, EventArgs e)
+        {
+            _massiveWebSocket.SendAsync("{\"action\":\"auth\",\"params\":\"" + _massiveApiKey + "\"}");
+        }
+
+        private void MassiveWebSocketMessageReceived(object sender, MessageEventArgs e)
+        {
+            if (e.IsText) _massiveMessages.Enqueue(e.Data);
+        }
+
+        private void MassiveWebSocketClosed(object sender, CloseEventArgs e)
+        {
+            _marketSocketConnect = false;
+            SendLogMessage("Massive WebSocket closed: " + e.Reason, LogMessageType.Error);
+        }
+
+        private void MassiveWebSocketError(object sender, OsEngine.Entity.WebSocketOsEngine.ErrorEventArgs e)
+        {
+            SendLogMessage("Massive WebSocket error: " + e.Exception, LogMessageType.Error);
+        }
+
+        private void CloseMassiveWebSocket()
+        {
+            if (_massiveWebSocket == null) return;
+            _massiveWebSocket.OnOpen -= MassiveWebSocketOpened;
+            _massiveWebSocket.OnMessage -= MassiveWebSocketMessageReceived;
+            _massiveWebSocket.OnClose -= MassiveWebSocketClosed;
+            _massiveWebSocket.OnError -= MassiveWebSocketError;
+            _massiveWebSocket.CloseAsync();
+            _massiveWebSocket = null;
+            _massiveSubscriptions.Clear();
+        }
 
         #endregion
 
         #region 9 WebSocket parsing the messages
+
+        private void MassiveMessageReader()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (_massiveWebSocket == null)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
+                    if (_massiveMessages == null)
+                    {
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
+                    if (_massiveMessages.TryDequeue(out string message))
+                    {
+                        ProcessMassiveMessage(message);
+                        //SendLogMessage(message, LogMessageType.System);
+                    }
+                    else
+                    {
+                        Thread.Sleep(1);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SendLogMessage(ex.ToString(), LogMessageType.Error);
+                }
+            }
+        }
+
+        private void ProcessMassiveMessage(string message)
+        {
+            try
+            {
+                MassiveWebSocketMessageList messages = JsonConvert.DeserializeObject<MassiveWebSocketMessageList>(message);
+
+                foreach (MassiveWebSocketMessage item in messages)
+                {
+                    string eventType = item.ev;
+                    if (eventType == "status")
+                    {
+                        if (item.status == "auth_success")
+                        {
+                            _marketSocketConnect = true;
+                            CheckConnectStatus();
+
+                            foreach (string channel in _massiveSubscriptions)
+                            {
+                                _massiveWebSocket?.SendAsync("{\"action\":\"subscribe\",\"params\":\"" + channel + "\"}");
+                            }
+                        }
+                        continue;
+                    }
+
+                    Security security = _securities.Find(s => s.MassiveTicker == item.sym);
+                    if (security == null) continue;
+
+                    if (eventType == "T")
+                    {
+                        NewTradesEvent?.Invoke(new Trade
+                        {
+                            SecurityNameCode = security.Name,
+                            Price = item.p.ToDecimal(),
+                            Volume = item.s.ToDecimal(),
+                            Time = TimeManager.GetDateTimeFromTimeStamp(Convert.ToInt64(item.t))
+                        });
+                    }
+                    else if (eventType == "Q")
+                    {
+                        MarketDepth depth = new MarketDepth { SecurityNameCode = security.Name };
+                        decimal bp = item.bp.ToDecimal();
+                        decimal bs = item.bs.ToDecimal();
+                        decimal ap = item.ap.ToDecimal();
+                        decimal ass = item.@as.ToDecimal();
+
+                        if (bp != 0 && bs != 0)
+                        {
+                            depth.Bids.Add(new MarketDepthLevel { Price = (double)bp, Bid = (double)bs });
+                        }
+
+                        if (ap != 0 && ass != 0)
+                        {
+                            depth.Asks.Add(new MarketDepthLevel { Price = (double)ap, Ask = (double)ass });
+                        }
+
+                        if (depth.Bids.Count != 0 || depth.Asks.Count != 0)
+                        {
+                            MarketDepthEvent?.Invoke(depth);
+                        }
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                SendLogMessage("Error parsing Massive message: " + exception, LogMessageType.Error);
+            }
+        }
 
         private void IncomeMessageFromTradeRouter(string message)
         {
@@ -1902,6 +2130,8 @@ namespace OsEngine.Market.Servers.Atp
 
         public event Action<SecurityVolumes> Volume24hUpdateEvent { add { } remove { } }
 
+        public event Action<News> NewsEvent { add { } remove { } }
+
         private void SendLogMessage(string message, LogMessageType messageType)
         {
             LogMessageEvent(message, messageType);
@@ -1920,7 +2150,6 @@ namespace OsEngine.Market.Servers.Atp
                     {
                         SendLogMessage(item.InnerException.Message + $" {exception.StackTrace}", LogMessageType.Error);
                     }
-
                 }
             }
             else
@@ -1933,5 +2162,11 @@ namespace OsEngine.Market.Servers.Atp
         }
 
         #endregion
+    }
+
+    public enum MarketDataServers
+    {
+        Massive,
+        ATP
     }
 }
