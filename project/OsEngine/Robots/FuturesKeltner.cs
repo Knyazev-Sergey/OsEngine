@@ -576,7 +576,15 @@ namespace OsEngine.Robots
             {
                 for (int i = 0; i < _tab.PositionsOpenAll.Count; i++)
                 {
-                    _tab.CloseAtStopOnServerCancel(_tab.PositionsOpenAll[i]);
+                    for (int j = 0; j < _tab.PositionsOpenAll[i].OpenOrders.Count; j++)
+                    {
+                        if (_tab.PositionsOpenAll[i].OpenOrders[j].IsStopOrProfit &&
+                            _tab.PositionsOpenAll[i].OpenOrders[j].State == OrderStateType.Active &&
+                            _tab.PositionsOpenAll[i].OpenOrders[j].IsSendToCancel == false)
+                        {
+                            _tab.CloseAtStopOnServerCancel(_tab.PositionsOpenAll[i]);
+                        }
+                    }                    
                 }
             }
         }

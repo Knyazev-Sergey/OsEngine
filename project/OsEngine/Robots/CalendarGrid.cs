@@ -86,11 +86,18 @@ namespace OsEngine.Robots
 
         private void CreateTableMonitoring()
         {
-            _hostMonitoring = new WindowsFormsHost();
+            try
+            {
+                _hostMonitoring = new WindowsFormsHost();
 
-            _dgvMonitoring = GridMonitoring();
+                _dgvMonitoring = GridMonitoring();
 
-            _hostMonitoring.Child = _dgvMonitoring;
+                _hostMonitoring.Child = _dgvMonitoring;
+            }
+            catch (Exception ex)
+            {
+                SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+            }
         }
 
         private DataGridView GridMonitoring()

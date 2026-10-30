@@ -590,6 +590,8 @@ namespace OsEngine.Market.Servers.Atp
 
         private readonly List<string> _massiveSubscriptions = new List<string>();
 
+        private readonly Dictionary<string, string> _massiveTickers = new Dictionary<string, string>();
+
         #endregion
 
         #region 3 Securities
@@ -649,9 +651,9 @@ namespace OsEngine.Market.Servers.Atp
                         newSec.Strike = array[15].ToDecimal();
                         newSec.Expiration = Convert.ToDateTime(array[16]);
 
-                        if (array.Length > 17)
+                        if (array.Length > 17 && string.IsNullOrEmpty(array[17]) == false)
                         {
-                            newSec.MassiveTicker = array[17];
+                            _massiveTickers[GetMassiveTickerKey(newSec)] = array[17];
                         }
 
                         _securities.Add(newSec);
@@ -694,7 +696,7 @@ namespace OsEngine.Market.Servers.Atp
                         result += _securities[i].OptionType + "!";
                         result += _securities[i].Strike + "!";
                         result += _securities[i].Expiration + "!";
-                        result += _securities[i].MassiveTicker + "!";
+                        result += GetMassiveTicker(_securities[i]) + "!";
 
                         writer.WriteLine(result);
                     }
@@ -709,6 +711,46 @@ namespace OsEngine.Market.Servers.Atp
         }
 
         public event Action<List<Security>> SecurityEvent;
+
+        public string GetMassiveTicker(Security security)
+        {
+            if (security == null)
+            {
+                return string.Empty;
+            }
+
+            return _massiveTickers.TryGetValue(GetMassiveTickerKey(security), out string ticker)
+                ? ticker
+                : string.Empty;
+        }
+
+        public void SetMassiveTicker(Security security, string ticker)
+        {
+            if (security == null)
+            {
+                return;
+            }
+
+            string key = GetMassiveTickerKey(security);
+            if (string.IsNullOrWhiteSpace(ticker))
+            {
+                _massiveTickers.Remove(key);
+            }
+            else
+            {
+                _massiveTickers[key] = ticker.Trim();
+            }
+        }
+
+        public void ClearMassiveTickers()
+        {
+            _massiveTickers.Clear();
+        }
+
+        private string GetMassiveTickerKey(Security security)
+        {
+            return security.Name + "\u001f" + security.NameClass;
+        }
 
         #endregion
 
@@ -1388,12 +1430,13 @@ namespace OsEngine.Market.Servers.Atp
         }
         private void SubscribeMassive(Security security)
         {
-            if (_massiveWebSocket == null || string.IsNullOrWhiteSpace(security.MassiveTicker))
+            string massiveTicker = GetMassiveTicker(security);
+            if (_massiveWebSocket == null || string.IsNullOrWhiteSpace(massiveTicker))
             {
                 return;
             }
 
-            string[] channels = { "T." + security.MassiveTicker, "Q." + security.MassiveTicker };
+            string[] channels = { "T." + massiveTicker, "Q." + massiveTicker };
 
             foreach (string channel in channels)
             {
@@ -1526,7 +1569,7 @@ namespace OsEngine.Market.Servers.Atp
                         continue;
                     }
 
-                    Security security = _securities.Find(s => s.MassiveTicker == item.sym);
+                    Security security = _securities.Find(s => GetMassiveTicker(s) == item.sym);
                     if (security == null) continue;
 
                     if (eventType == "T")

@@ -15,6 +15,7 @@ namespace OsEngine.Market.Servers.Atp
     public partial class SecuritiesAtpUi : Window
     {
         private IServer _server;
+        private AtpServerRealization _atpRealization;
 
         public SecuritiesAtpUi(AServer server)
         {
@@ -24,6 +25,7 @@ namespace OsEngine.Market.Servers.Atp
             CreateTable();
 
             List<Security> secOnServer = server.Securities;
+            _atpRealization = server.ServerRealization as AtpServerRealization;
 
             _allSecurities = new List<Security>();
 
@@ -340,7 +342,7 @@ namespace OsEngine.Market.Servers.Atp
 
             nRow.Cells.Add(new DataGridViewTextBoxCell());
             nRow.Cells[9].ReadOnly = false;
-            nRow.Cells[9].Value = security.MassiveTicker;
+            nRow.Cells[9].Value = _atpRealization?.GetMassiveTicker(security);
 
             DataGridViewButtonCell button = new DataGridViewButtonCell();
             button.Value = OsLocalization.Market.Label47;// 9 add or delete button
@@ -416,10 +418,13 @@ namespace OsEngine.Market.Servers.Atp
             List<Security> secOnServer = _server.Securities;
 
             secOnServer.Clear();
+            _atpRealization?.ClearMassiveTickers();
 
             for (int i = 1; i < _grid.Rows.Count; i++)
             {
                 Security curSec = GetSecFromRow(_grid.Rows[i]);
+
+                _atpRealization?.SetMassiveTicker(curSec, _grid.Rows[i].Cells[9].Value?.ToString());
 
                 if (string.IsNullOrEmpty(curSec.Name))
                 {
@@ -547,15 +552,6 @@ namespace OsEngine.Market.Servers.Atp
             try
             {
                 newSec.Decimals = Convert.ToInt32(row.Cells[8].Value.ToString());
-            }
-            catch
-            {
-                // ignore
-            }
-
-            try
-            {
-                newSec.MassiveTicker = row.Cells[9].Value?.ToString();
             }
             catch
             {

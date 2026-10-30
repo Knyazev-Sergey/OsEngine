@@ -51,11 +51,6 @@ namespace OsEngine.Entity
         public string NameId;
 
         /// <summary>
-        /// Ticker used for market data requests through Massive.
-        /// </summary>
-        public string MassiveTicker;
-
-        /// <summary>
         /// Биржа на которой торгуется инструмент
         /// </summary>
         public string Exchange;
